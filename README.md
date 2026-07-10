@@ -20,9 +20,6 @@
 
 </div>
 
-> **Working name.** "Funke" (German for *spark*) is a placeholder; rename before going
-> public (check GitHub, crates.io, winget, and domains first).
-
 ## Features
 
 `Ctrl+Space` toggles a native-glass overlay (acrylic backdrop, DWM shadow, Win11 rounded
