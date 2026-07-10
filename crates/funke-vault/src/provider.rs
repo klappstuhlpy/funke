@@ -1,0 +1,186 @@
+//! The `SearchProvider` face of the vault: status rows while getting ready, fuzzy
+//! search over the (non-secret) entry cache once unlocked.
+
+use std::sync::Arc;
+
+use funke_core::{glyph_data_url, Action, FuzzyMatcher, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider};
+
+use crate::{Vault, VaultStatus};
+
+/// A key.
+const VAULT_GLYPH: &str = "<circle cx='8' cy='15' r='3.8'/><path d='M11 12.2L20.2 3.8'/><path d='M16.2 7.5l3.2 3.2'/>";
+/// A padlock (locked / status rows).
+const LOCK_GLYPH: &str = "<rect x='5' y='10.5' width='14' height='9.5' rx='2'/><path d='M8 10.5V7.5a4 4 0 0 1 8 0v3'/>";
+
+const CLI_HELP_URL: &str = "https://bitwarden.com/help/cli/";
+/// Status rows top the (single-provider, prefix-scoped) list trivially.
+const STATUS_SCORE: i64 = 100;
+
+pub struct VaultProvider {
+    vault: Arc<Vault>,
+}
+
+impl VaultProvider {
+    pub fn new(vault: Arc<Vault>) -> Self {
+        Self { vault }
+    }
+}
+
+impl SearchProvider for VaultProvider {
+    fn metadata(&self) -> ProviderMeta {
+        ProviderMeta {
+            id: "vault",
+            name: "Vault",
+            prefix: Some("v"),
+            // Privacy: account names never surface in unscoped searches.
+            prefix_only: true,
+        }
+    }
+
+    fn query(&self, query: &Query) -> Vec<ResultItem> {
+        if query.is_empty() {
+            return Vec::new();
+        }
+        self.vault.ensure_started();
+        match self.vault.status() {
+            VaultStatus::Idle | VaultStatus::Starting => vec![status_row(
+                "vault:starting",
+                "Starting the vault backend…",
+                "bw serve is coming up — try again in a second",
+                LOCK_GLYPH,
+                Action::OpenUrl {
+                    url: CLI_HELP_URL.into(),
+                },
+            )],
+            VaultStatus::NoCli => vec![status_row(
+                "vault:no-cli",
+                "Bitwarden CLI not found",
+                "Install bw.exe and put it on PATH — Enter opens the setup guide",
+                LOCK_GLYPH,
+                Action::OpenUrl {
+                    url: CLI_HELP_URL.into(),
+                },
+            )],
+            VaultStatus::Unauthenticated => vec![status_row(
+                "vault:login",
+                "Vault not logged in",
+                "Run `bw login` in a terminal once — Enter opens the guide",
+                LOCK_GLYPH,
+                Action::OpenUrl {
+                    url: CLI_HELP_URL.into(),
+                },
+            )],
+            VaultStatus::Locked => vec![status_row(
+                "vault:unlock",
+                "Unlock vault",
+                "Bitwarden — prompts for your master password",
+                LOCK_GLYPH,
+                Action::PromptVaultUnlock,
+            )],
+            VaultStatus::Unlocked => {
+                self.vault.touch();
+                let Some(matcher) = FuzzyMatcher::new(&query.text) else {
+                    return Vec::new();
+                };
+                self.vault
+                    .entries()
+                    .into_iter()
+                    .filter_map(|entry| {
+                        // Best of name / username / host, so "gith" finds github.com
+                        // accounts and "ben@" finds by user.
+                        let score = matcher
+                            .score(&entry.name)
+                            .into_iter()
+                            .chain(entry.username.as_deref().and_then(|u| matcher.score(u)))
+                            .chain(entry.host.as_deref().and_then(|h| matcher.score(h)))
+                            .max()?;
+                        Some(entry_row(entry, score))
+                    })
+                    .collect()
+            }
+        }
+    }
+}
+
+fn status_row(id: &str, title: &str, subtitle: &str, glyph: &str, action: Action) -> ResultItem {
+    ResultItem {
+        id: id.into(),
+        provider: "vault".into(),
+        title: title.into(),
+        subtitle: Some(subtitle.into()),
+        icon: Some(glyph_data_url(glyph)),
+        score: STATUS_SCORE,
+        actions: vec![NamedAction::new("Open", action)],
+    }
+}
+
+fn entry_row(entry: crate::VaultEntry, score: i64) -> ResultItem {
+    let subtitle = match (&entry.username, &entry.host) {
+        (Some(user), Some(host)) => Some(format!("{user} — {host}")),
+        (Some(user), None) => Some(user.clone()),
+        (None, Some(host)) => Some(host.clone()),
+        (None, None) => None,
+    };
+    ResultItem {
+        id: format!("vault:{}", entry.id),
+        provider: "vault".into(),
+        title: entry.name,
+        subtitle,
+        icon: Some(glyph_data_url(VAULT_GLYPH)),
+        score,
+        actions: vec![
+            NamedAction::new(
+                "Autotype into last window",
+                Action::VaultAutotype { id: entry.id.clone() },
+            ),
+            NamedAction::new(
+                "Copy password",
+                Action::VaultCopy {
+                    id: entry.id.clone(),
+                    field: "password".into(),
+                },
+            ),
+            NamedAction::new(
+                "Copy username",
+                Action::VaultCopy {
+                    id: entry.id,
+                    field: "username".into(),
+                },
+            ),
+        ],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::VaultEntry;
+
+    #[test]
+    fn entry_rows_reference_secrets_by_id_only() {
+        let entry = VaultEntry {
+            id: "uuid-1".into(),
+            name: "GitHub".into(),
+            username: Some("ben".into()),
+            host: Some("github.com".into()),
+        };
+        let row = entry_row(entry, 10);
+        assert_eq!(row.subtitle.as_deref(), Some("ben — github.com"));
+        assert_eq!(row.actions.len(), 3);
+        let serialized = serde_json::to_string(&row).unwrap();
+        assert!(!serialized.contains("password\":\""), "no secret material in the item");
+        assert!(serialized.contains("uuid-1"));
+    }
+
+    #[test]
+    fn locked_vault_yields_only_the_unlock_row() {
+        let vault = Arc::new(Vault::new());
+        // Force the state machine past startup without a bw CLI.
+        vault.force_status(VaultStatus::Locked);
+        let provider = VaultProvider::new(Arc::clone(&vault));
+        let rows = provider.query(&Query::new("github"));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "vault:unlock");
+        assert!(matches!(rows[0].primary_action(), Some(Action::PromptVaultUnlock)));
+    }
+}

@@ -1,0 +1,33 @@
+[package]
+name = "funke-app"
+version = "0.1.0"
+edition = "2021"
+description = "Funke launcher — Tauri shell, tray, hotkey, and IPC around funke-core"
+
+[[bin]]
+name = "funke"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+funke-core = { path = "../funke-core" }
+funke-apps = { path = "../funke-apps" }
+funke-files = { path = "../funke-files" }
+funke-utils = { path = "../funke-utils" }
+funke-windows = { path = "../funke-windows" }
+funke-vault = { path = "../funke-vault" }
+funke-plugin = { path = "../funke-plugin" }
+zeroize = "1"
+open = "5"
+dirs = "6"
+arboard = "3"
+window-vibrancy = "0.6"
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

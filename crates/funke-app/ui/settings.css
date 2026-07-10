@@ -1,0 +1,515 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Funke settings window — same design system as style.css, different surface
+   ─────────────────────────────────────────────────────────────────────────────
+   The overlay is glass; settings is a normal opaque window in the Claude-app
+   mold: quiet sidebar navigation left, one scrolling pane of cards right.
+   The rules from style.css carry over: tokens only, warm ivory over charcoal,
+   the single accent used sparingly (active nav, switches, focus). The window
+   is frameless — the top strip is the drag region, corners are rounded by DWM.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+
+  /* opaque surfaces (no acrylic behind this window) */
+  --bg: #211d1a;
+  --bg-sidebar: #1a1714;
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --stroke: rgba(255, 255, 255, 0.09);
+
+  /* warm ivory text ramp */
+  --text: #f2ede4;
+  --text-dim: #aaa295;
+  --text-faint: #746d61;
+
+  /* the one accent — the UI rewrites these three from settings */
+  --accent: #d97757;
+  --accent-soft: rgba(217, 119, 87, 0.15);
+  --accent-stroke: rgba(217, 119, 87, 0.3);
+
+  --danger: #c4553d;
+
+  --radius: 9px;
+  --radius-s: 7px;
+  --pad: 14px;
+  --gap: 12px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#window {
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+#window {
+  position: relative;
+}
+
+/* ── titlebar: a transparent drag strip floating over the top of both columns ── */
+
+#titlebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 10px 0;
+  z-index: 10;
+}
+
+#close {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+#close:hover {
+  background: var(--danger);
+  color: var(--text);
+}
+
+#close svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+
+/* ── layout ── */
+
+#body {
+  height: 100%;
+  display: flex;
+  min-height: 0;
+}
+
+/* ── sidebar ── */
+
+#sidebar {
+  width: 208px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 10px 10px;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--stroke);
+}
+
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 18px;
+}
+
+#brand .spark {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--accent);
+  /* a spark: bright core over the accent, pure CSS so it re-tints live */
+  background-image: radial-gradient(circle at 50% 45%, rgba(255, 245, 235, 0.95) 0 18%, transparent 42%);
+}
+
+#brand .name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#brand .sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.nav.active {
+  background: var(--accent-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent-stroke);
+}
+
+#version {
+  margin-top: auto;
+  padding: 10px 8px 2px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+
+/* ── content ── */
+
+#content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 44px 28px 28px;
+}
+
+.pane {
+  display: none;
+  max-width: 560px;
+}
+
+.pane.active {
+  display: block;
+}
+
+h1 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lead {
+  margin: 4px 0 18px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.fineprint {
+  margin-top: 12px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+#error {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-s);
+  background: rgba(196, 85, 61, 0.12);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+/* ── cards & rows ── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+}
+
+.card + .card {
+  margin-top: var(--gap);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: var(--pad);
+}
+
+.row + .row {
+  border-top: 1px solid var(--stroke);
+}
+
+.what {
+  min-width: 0;
+}
+
+.label {
+  font-size: 13.5px;
+}
+
+.desc {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+
+/* ── controls ── */
+
+.toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex: none;
+  border: 1px solid var(--stroke);
+  border-radius: 99px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.toggle[aria-checked="true"] {
+  background: var(--accent);
+  border-color: var(--accent-stroke);
+}
+
+.toggle[aria-checked="true"]::after {
+  transform: translateX(18px);
+  background: var(--text);
+}
+
+.swatches {
+  display: flex;
+  gap: 8px;
+}
+
+.swatch {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border: 1px solid var(--stroke);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.swatch.active {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--accent);
+}
+
+.segmented {
+  display: flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+}
+
+.segment {
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.segment.active {
+  background: var(--accent-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent-stroke);
+}
+
+select {
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  cursor: pointer;
+}
+
+select:focus {
+  border-color: var(--accent-stroke);
+}
+
+option {
+  background: var(--bg);
+}
+
+.button {
+  padding: 6px 14px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.button:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-stroke);
+}
+
+.label.path {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl; /* ellipsize the front — the folder name at the end matters most */
+  text-align: left;
+}
+
+.remove {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  color: var(--text-faint);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: var(--danger);
+  color: var(--text);
+}
+
+.recorder {
+  min-width: 160px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.recorder:hover {
+  background: var(--surface-hover);
+}
+
+.recorder.recording {
+  border-color: var(--accent-stroke);
+  background: var(--accent-soft);
+  color: var(--text-dim);
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+code {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+/* ── plugins placeholder ── */
+
+.placeholder {
+  padding: 36px 24px;
+  border: 1px dashed var(--stroke);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.placeholder .mark {
+  font-size: 22px;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+
+.placeholder p {
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+/* ── scrollbar: same overlay pill as the overlay window ── */
+
+#content::-webkit-scrollbar {
+  width: 10px;
+}
+
+#content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#content::-webkit-scrollbar-thumb {
+  background-color: rgba(242, 237, 228, 0.14);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  min-height: 32px;
+}
+
+#content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(242, 237, 228, 0.26);
+}

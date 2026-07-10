@@ -1,0 +1,12 @@
+[package]
+name = "funke-files"
+version = "0.1.0"
+edition = "2021"
+description = "Filename search provider: background-indexed user files with watcher refresh"
+
+[dependencies]
+funke-core = { path = "../funke-core" }
+funke-shell = { path = "../funke-shell" }
+walkdir = "2"
+notify = "6"
+dirs = "6"

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Funke</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main id="panel">
+      <input id="query" type="text" placeholder="Search…" autocomplete="off" spellcheck="false" />
+      <div id="context" hidden>Recent</div>
+      <ul id="results"></ul>
+      <footer id="status" hidden>
+        <span id="count"></span>
+        <span class="keys">
+          <kbd>↑↓</kbd> navigate
+          <kbd>↵</kbd> open
+          <kbd>⇥</kbd> actions
+          <kbd>esc</kbd> dismiss
+        </span>
+      </footer>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>

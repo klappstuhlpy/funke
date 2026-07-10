@@ -1,0 +1,12 @@
+[package]
+name = "funke-vault"
+version = "0.1.0"
+edition = "2021"
+description = "Bitwarden/Vaultwarden provider via the official CLI's `bw serve` REST API"
+
+[dependencies]
+funke-core = { path = "../funke-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2", features = ["json"] }
+zeroize = "1"

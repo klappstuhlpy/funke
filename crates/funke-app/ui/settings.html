@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Funke Settings</title>
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <main id="window">
+      <header id="titlebar" data-tauri-drag-region>
+        <button id="close" title="Close (Esc)" aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" /></svg>
+        </button>
+      </header>
+
+      <div id="body">
+        <nav id="sidebar">
+          <div id="brand">
+            <span class="spark"></span>
+            <div>
+              <div class="name">Funke</div>
+              <div class="sub">Settings</div>
+            </div>
+          </div>
+
+          <button class="nav active" data-pane="general">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10" /></svg>
+            General
+          </button>
+          <button class="nav" data-pane="appearance">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" /></svg>
+            Appearance
+          </button>
+          <button class="nav" data-pane="hotkey">
+            <svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="11" rx="2.5" /><path d="M7.5 14.5h9" /></svg>
+            Hotkey
+          </button>
+          <button class="nav" data-pane="commands">
+            <svg viewBox="0 0 24 24"><path d="M5 6.5l5 5.5-5 5.5" /><path d="M12.5 17.5H19" /></svg>
+            Commands
+          </button>
+          <button class="nav" data-pane="plugins">
+            <svg viewBox="0 0 24 24"><path d="M9.5 4.5v3h5v-3a1.5 1.5 0 0 1 3 0v3H20a.8.8 0 0 1 .8.8v3.5a5.3 5.3 0 0 1-4.3 5.2v2.5a1.5 1.5 0 0 1-3 0" transform="rotate(45 12 12)" /></svg>
+            Plugins
+          </button>
+
+          <div id="version">Funke 0.1.0 · pre-release</div>
+        </nav>
+
+        <section id="content">
+          <div id="error" hidden></div>
+
+          <div class="pane active" id="pane-general">
+            <h1>General</h1>
+            <p class="lead">How Funke lives on this machine.</p>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Launch at startup</div>
+                  <div class="desc">Start Funke in the tray when you sign in to Windows.</div>
+                </div>
+                <button class="toggle" id="autostart" role="switch" aria-checked="false"></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pane" id="pane-appearance">
+            <h1>Appearance</h1>
+            <p class="lead">The overlay stays native glass — these tune its character.</p>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Accent</div>
+                  <div class="desc">Used for the selection, caret, and key hints.</div>
+                </div>
+                <div class="swatches" id="accents"></div>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label">Overlay width</div>
+                  <div class="desc">How wide the search bar is, in any mode.</div>
+                </div>
+                <div class="segmented" id="widths"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pane" id="pane-hotkey">
+            <h1>Hotkey</h1>
+            <p class="lead">The global shortcut that summons the overlay.</p>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Summon Funke</div>
+                  <div class="desc">Click, then press the new combination. Applied immediately.</div>
+                </div>
+                <button id="recorder" class="recorder"></button>
+              </div>
+            </div>
+            <p class="fineprint">
+              If another app owns the combination (PowerToys Run also likes
+              <kbd>Ctrl</kbd>+<kbd>Space</kbd>), binding fails and the previous hotkey stays active.
+            </p>
+          </div>
+
+          <div class="pane" id="pane-commands">
+            <h1>Commands</h1>
+            <p class="lead">Which built-in providers answer your searches.</p>
+            <div class="card" id="providers"></div>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Web search engine</div>
+                  <div class="desc">Where “Search the web for …” sends you.</div>
+                </div>
+                <select id="engine"></select>
+              </div>
+            </div>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">File index folders</div>
+                  <div class="desc">
+                    What file search covers. Empty means your home folder; changes re-index within seconds.
+                  </div>
+                </div>
+                <button class="button" id="add-root">Add folder</button>
+              </div>
+              <div id="roots"></div>
+            </div>
+          </div>
+
+          <div class="pane" id="pane-plugins">
+            <h1>Plugins</h1>
+            <p class="lead">
+              Out-of-process providers in any language — drop a folder with a
+              <code>plugin.json</code> into the plugins directory and restart Funke.
+            </p>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Plugins folder</div>
+                  <div class="desc">New plugins are detected at startup. See docs/PLUGINS.md to write one.</div>
+                </div>
+                <button class="button" id="open-plugins">Open folder</button>
+              </div>
+            </div>
+            <div class="card" id="plugin-list" hidden></div>
+            <div class="placeholder" id="plugins-empty">
+              <div class="mark">◇</div>
+              <p>
+                No plugins installed yet. The repository ships a template
+                (<code>funke-plugins/template</code>) — build it, copy the exe next to its
+                <code>plugin.json</code> into the folder above, restart, then try
+                <kbd>tp hello</kbd>. A browsable catalog of suggested plugins arrives with
+                the public releases (M5).
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script src="settings.js"></script>
+  </body>
+</html>

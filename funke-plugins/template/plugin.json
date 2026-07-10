@@ -1,0 +1,9 @@
+{
+  "id": "template",
+  "name": "Template",
+  "version": "0.1.0",
+  "description": "Transforms your query text (UPPERCASE, lowercase, reversed) — the plugin authoring starting point",
+  "entry": "funke-plugin-template.exe",
+  "prefix": "tp",
+  "prefix_only": true
+}

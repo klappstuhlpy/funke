@@ -1,0 +1,11 @@
+[package]
+name = "funke-utils"
+version = "0.1.0"
+edition = "2021"
+description = "Small utility providers: calculator, web search, system commands"
+
+[dependencies]
+funke-core = { path = "../funke-core" }
+funke-shell = { path = "../funke-shell" }
+meval = "0.2"
+urlencoding = "2"

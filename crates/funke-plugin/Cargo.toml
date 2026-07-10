@@ -1,0 +1,10 @@
+[package]
+name = "funke-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "Funke plugin protocol (JSON-RPC over stdio): author SDK + launcher-side host"
+
+[dependencies]
+funke-core = { path = "../funke-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

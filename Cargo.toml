@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/funke-core",
+    "crates/funke-shell",
+    "crates/funke-apps",
+    "crates/funke-files",
+    "crates/funke-utils",
+    "crates/funke-windows",
+    "crates/funke-vault",
+    "crates/funke-plugin",
+    "crates/funke-app",
+    "funke-plugins/template",
+]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,331 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Funke design system — basic styling rules
+   ─────────────────────────────────────────────────────────────────────────────
+   1. Tokens only: every color, radius, and spacing step comes from :root below.
+      Component rules never hard-code raw values.
+   2. Palette is warm and Anthropic-inspired: ivory text over warm charcoal
+      glass, one terracotta accent (#d97757). The accent is used sparingly —
+      selection, caret, and key hints only. Keep the chrome quiet.
+   3. Glass is native: the acrylic backdrop, window shadow, and rounded corners
+      are applied by the shell (main.rs / native.rs). CSS only *tints* the
+      acrylic — never add CSS box-shadows to the panel or fake blur.
+   4. The window height follows the content: after every render the UI calls
+      resize_overlay with the panel's measured height. #panel must therefore
+      always be exactly as tall as its content.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+
+  /* surfaces over the acrylic backdrop */
+  --glass-tint: rgba(30, 27, 24, 0.58);
+  --glass-sheen: rgba(255, 255, 255, 0.05);
+  --surface: rgba(255, 255, 255, 0.05);
+  --stroke: rgba(255, 255, 255, 0.09);
+
+  /* warm ivory text ramp */
+  --text: #f2ede4;
+  --text-dim: #aaa295;
+  --text-faint: #746d61;
+
+  /* the one accent */
+  --accent: #d97757;
+  --accent-soft: rgba(217, 119, 87, 0.15);
+  --accent-stroke: rgba(217, 119, 87, 0.3);
+
+  /* destructive actions only (confirm states in the actions menu) */
+  --danger: #c4553d;
+  --danger-soft: rgba(196, 85, 61, 0.16);
+  --danger-stroke: rgba(196, 85, 61, 0.38);
+
+  --radius: 9px;   /* matches the native Win11 corner rounding */
+  --radius-s: 7px;
+  --pad-x: 18px;
+  --gap: 12px;
+
+  /* motion: one ease for the summon animation; dismissal is instant by design */
+  --summon: 170ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#panel {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--glass-sheen), transparent 46%), var(--glass-tint);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  overflow: hidden;
+  /* Summon animation scales from the top edge so the panel settles downward,
+     Spotlight-style, and never leaves the (exactly panel-sized) window bounds. */
+  transform-origin: 50% 0;
+}
+
+#panel.opening {
+  animation: summon var(--summon) both;
+}
+
+@keyframes summon {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* ── search field ── */
+
+#query {
+  width: 100%;
+  padding: 15px var(--pad-x);
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  caret-color: var(--accent);
+  font-family: inherit;
+  font-size: 17px;
+}
+
+#query::placeholder {
+  color: var(--text-faint);
+}
+
+/* ── overview (empty input) ── */
+
+#context {
+  padding: 9px var(--pad-x) 3px;
+  border-top: 1px solid var(--stroke);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#context[hidden] {
+  display: none;
+}
+
+/* The section label already draws the separator above the list. */
+#context:not([hidden]) + #results:not(:empty) {
+  border-top: none;
+}
+
+.tip {
+  padding: 7px var(--pad-x);
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+/* ── results ── */
+
+/* Section label inside the list (Applications, Files, Commands, …). */
+.group {
+  padding: 7px 10px 3px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.group:not(:first-child) {
+  margin-top: 8px;
+}
+
+#results {
+  list-style: none;
+  overflow-y: auto;
+  max-height: 416px;
+}
+
+#results:not(:empty) {
+  border-top: 1px solid var(--stroke);
+  padding: 6px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.item + .item {
+  margin-top: 2px;
+}
+
+.item:hover {
+  background: var(--surface);
+}
+
+.item.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-stroke);
+}
+
+/* ── actions menu (Tab) ── */
+
+/* The item whose actions are listed: shown for context only. */
+.item.pinned {
+  pointer-events: none;
+}
+
+.item.pinned .title,
+.item.pinned .subtitle {
+  color: var(--text-dim);
+}
+
+/* Destructive actions trade the accent for the danger tint. */
+.item.danger.selected {
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px var(--danger-stroke);
+}
+
+.item.danger .title {
+  color: var(--danger);
+}
+
+.item.danger.selected .hint {
+  color: var(--danger);
+  border-color: var(--danger-stroke);
+}
+
+/* Armed and waiting for the confirming Enter. */
+.item.armed .title {
+  font-weight: 600;
+}
+
+.icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-s);
+  flex: none;
+}
+
+.monogram {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subtitle {
+  margin-top: 1px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+.hint {
+  visibility: hidden;
+  flex: none;
+  color: var(--accent);
+  border-color: var(--accent-stroke);
+}
+
+.item.selected .hint {
+  visibility: visible;
+}
+
+.empty {
+  padding: 13px var(--pad-x);
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* Failed vault unlock message under the masked prompt. */
+.vault-error {
+  color: var(--danger);
+}
+
+/* ── footer ── */
+
+#status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px var(--pad-x);
+  border-top: 1px solid var(--stroke);
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+#status[hidden] {
+  display: none;
+}
+
+#status .keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── scrollbar: subtle overlay pill, no track ── */
+
+#results::-webkit-scrollbar {
+  width: 10px;
+}
+
+#results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#results::-webkit-scrollbar-thumb {
+  background-color: rgba(242, 237, 228, 0.14);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  min-height: 32px;
+}
+
+#results::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(242, 237, 228, 0.26);
+}
