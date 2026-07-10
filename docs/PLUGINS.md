@@ -131,9 +131,11 @@ lingering processes.
 
 ## Distribution
 
-Today: build your exe, zip it with `plugin.json`, users unzip into the plugins folder.
-Planned for the public releases (M5): first-party plugins in `funke-plugins/` compiled
-as separate artifacts on each GitHub release, and a suggested-plugins catalog inside
+Build your exe, zip it with `plugin.json` inside a folder named after your plugin id,
+and users unzip it into the plugins folder. First-party plugins in `funke-plugins/`
+ship exactly that way automatically: the release workflow
+(`.github/workflows/release.yml`) packages each one as `funke-plugin-<id>-<tag>.zip`
+on every tagged GitHub release. Planned next: a suggested-plugins catalog inside
 Settings → Plugins that downloads them for you. Until a code-signing story exists,
 treat any plugin like any other executable you'd run — it runs with your user's
 permissions.

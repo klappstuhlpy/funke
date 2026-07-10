@@ -162,12 +162,14 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   adapter (actions route back opaquely via `Action::PluginInvoke`; plugin items skip
   recents), settings → Plugins pane (installed list + enable toggles + open-folder),
   authoring guide `docs/PLUGINS.md`, template plugin `funke-plugins/template` (`tp`
-  prefix), plus `CONTRIBUTING.md`/`CODE_OF_CONDUCT.md`/`SECURITY.md`. **Pending** —
-  release pipeline compiling `funke-plugins/*` as separate artifacts, in-settings
-  suggested-plugins catalog (needs hosted index + trust story), hot re-discovery
-  without restart, Python plugin template, MSI/NSIS installer, **winget manifest**,
-  **code signing** (unsigned binaries get SmartScreen-blocked — budget for a cert or
-  Azure Trusted Signing); versioned releases.
+  prefix), plus `CONTRIBUTING.md`/`CODE_OF_CONDUCT.md`/`SECURITY.md`. The repo went
+  **public** (github.com/klappstuhlpy/funke, MIT), and the **release pipeline**
+  landed (`release.yml`: a `v*` tag publishes a GitHub release with the portable
+  launcher zip and one `funke-plugin-<id>-<tag>.zip` per `funke-plugins/*` member).
+  **Pending** — in-settings suggested-plugins catalog (needs hosted index + trust
+  story), hot re-discovery without restart, Python plugin template, MSI/NSIS
+  installer, **winget manifest**, **code signing** (unsigned binaries get
+  SmartScreen-blocked — budget for a cert or Azure Trusted Signing).
 - **M6 — USN/MFT service, content search, ecosystem.**
 
 ## 6. Going public

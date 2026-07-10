@@ -16,6 +16,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 - Requires Rust stable ≥ 1.85 (the Tauri dependency tree uses edition-2024 crates); Windows 10/11.
 - CI (`.github/workflows/ci.yml`, windows-latest) gates on exactly those four checks: fmt `--check`, clippy `-D warnings`, test, build. Keep all four clean before considering a change done.
+- Releases: pushing a `v*` tag runs `.github/workflows/release.yml`, which publishes a GitHub release with the portable launcher zip plus one zip per `funke-plugins/*` plugin (folder + `plugin.json` + exe, unzips straight into `%APPDATA%\funke\plugins`).
 - There is no way to exercise the overlay headlessly — after nontrivial app-crate changes, smoke-run the binary (it must print the tray line and stay alive) in addition to the test suite.
 
 ## Documents of record

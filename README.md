@@ -95,7 +95,7 @@ docs/PLUGINS.md      # how to write a plugin (manifest, protocol, distribution)
 | M2 | File search: background filename index + watcher refresh, `f` prefix, reveal | ✅ |
 | M3 | Utility providers (calc, web, system), overview, settings UI, actions menu, window switcher, auto-update | ◐ (auto-update pending) |
 | M4 | Bitwarden/Vaultwarden plugin via `bw serve`: search, copy w/ auto-clear, autotype | ◐ (URL matching, TOTP pending) |
-| M5 | Public plugin API (JSON-RPC over stdio), installer + winget + signing, 1.0 | ◐ (protocol, host, SDK, template done; catalog + installer + signing pending) |
+| M5 | Public plugin API (JSON-RPC over stdio), installer + winget + signing, 1.0 | ◐ (protocol, host, SDK, template, tagged releases done; catalog + installer + signing pending) |
 | M6 | USN/MFT indexing service, content search via Windows Search, ecosystem | |
 
 See [docs/PLAN.md](docs/PLAN.md) for the full plan and the reasoning behind the stack.

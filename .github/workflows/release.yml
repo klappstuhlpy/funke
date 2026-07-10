@@ -1,0 +1,62 @@
+name: Release
+
+# Tag a version (v0.1.0) and this publishes a GitHub release with:
+#   - funke-<tag>-windows-x86_64.zip            the portable launcher binary
+#   - funke-plugin-<id>-<tag>.zip               one per funke-plugins/* member,
+#     containing "<id>/plugin.json + <entry>.exe" so it unzips straight into
+#     %APPDATA%\funke\plugins.
+# Binaries are unsigned until the code-signing story lands (PLAN.md M5).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build (release)
+        run: cargo build --release --workspace
+
+      - name: Package launcher
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Compress-Archive -Path target/release/funke.exe `
+            -DestinationPath "dist/funke-$env:TAG-windows-x86_64.zip"
+        env:
+          TAG: ${{ github.ref_name }}
+
+      - name: Package plugins
+        shell: pwsh
+        run: |
+          Get-ChildItem funke-plugins -Directory | ForEach-Object {
+            $manifestPath = Join-Path $_.FullName 'plugin.json'
+            if (-not (Test-Path $manifestPath)) { return }
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            $stage = Join-Path stage $manifest.id
+            New-Item -ItemType Directory $stage -Force | Out-Null
+            Copy-Item $manifestPath $stage
+            Copy-Item (Join-Path target/release $manifest.entry) $stage
+            Compress-Archive -Path $stage `
+              -DestinationPath ("dist/funke-plugin-{0}-{1}.zip" -f $manifest.id, $env:TAG)
+          }
+        env:
+          TAG: ${{ github.ref_name }}
+
+      - name: Publish release
+        shell: pwsh
+        run: gh release create $env:TAG (Get-ChildItem dist/*.zip).FullName --title "Funke $env:TAG" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
