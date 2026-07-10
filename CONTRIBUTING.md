@@ -45,12 +45,19 @@ UI by hand (`Ctrl+Space`).
 ## Where things go
 
 The workspace is one crate per concern with strictly downward dependencies
-(`funke-app` → provider crates → `funke-core`). Read `.claude/CLAUDE.md` for the
-architecture map and — more importantly — the **invariants** (core purity, the
-never-recreated overlay window, opaque actions, graceful degradation, the focus
-contract, cheap per-keystroke queries). Violating an invariant is a bug even if it
-works. `docs/PLAN.md` is the document of record for architectural decisions; update it
-when a decision changes or a milestone lands.
+(`funke-app` → provider crates → `funke-core`). `docs/PLAN.md` is the document of
+record for architectural decisions; update it when a decision changes or a milestone
+lands. A few **invariants** hold everywhere — violating one is a bug even if it works:
+
+- `funke-core` never imports tauri, webview, or Win32 APIs (everything in it is
+  unit-testable without a GUI); provider crates may touch the system but not the UI.
+- The overlay window is created once at startup and only shown/hidden, never recreated.
+- Actions are opaque to the frontend: the UI renders labels and sends the chosen index
+  back — it never interprets what an action does.
+- Graceful degradation over hard failure (a lost hotkey, a corrupt cache, or a failed
+  index must never take the app down).
+- Provider `query()` must be cheap per keystroke — index in the background, query
+  against memory.
 
 New feature providers get their own crate under `crates/`; first-party out-of-process
 plugins live under `funke-plugins/`; only providers that act on the launcher itself

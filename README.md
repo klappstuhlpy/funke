@@ -48,8 +48,8 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   overlay width, web engine, provider toggles, file-index folders, plugins, launch-at-startup —
   all applied live.
 
-**Status:** M3 (minus auto-update) + core M4 + the M5 plugin foundation — see the
-[roadmap](#roadmap) below.
+**Status:** M3 (minus auto-update) + core M4 + the M5 plugin foundation — the full
+roadmap lives in [docs/PLAN.md](docs/PLAN.md).
 
 ## Development
 
@@ -85,20 +85,6 @@ funke-plugins/       # first-party out-of-process plugins (template/ is the auth
 docs/PLAN.md         # full project plan: architecture, indexing, Bitwarden, roadmap
 docs/PLUGINS.md      # how to write a plugin (manifest, protocol, distribution)
 ```
-
-## Roadmap
-
-| Milestone | Scope | Status |
-|---|---|---|
-| M0 | Skeleton: tray, hotkey → overlay, focus capture/restore, provider pipeline, CI | ✅ |
-| M1 | App launcher: Start Menu + UWP + PATH, fuzzy matching (nucleo), frecency, icons | ✅ |
-| M2 | File search: background filename index + watcher refresh, `f` prefix, reveal | ✅ |
-| M3 | Utility providers (calc, web, system), overview, settings UI, actions menu, window switcher, auto-update | ◐ (auto-update pending) |
-| M4 | Bitwarden/Vaultwarden plugin via `bw serve`: search, copy w/ auto-clear, autotype | ◐ (URL matching, TOTP pending) |
-| M5 | Public plugin API (JSON-RPC over stdio), installer + winget + signing, 1.0 | ◐ (protocol, host, SDK, template, tagged releases done; catalog + installer + signing pending) |
-| M6 | USN/MFT indexing service, content search via Windows Search, ecosystem | |
-
-See [docs/PLAN.md](docs/PLAN.md) for the full plan and the reasoning behind the stack.
 
 ## License
 

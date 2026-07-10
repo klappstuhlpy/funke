@@ -1,5 +1,4 @@
 /target
 crates/funke-app/gen/
 /.idea
-/.claude/*
-!/.claude/CLAUDE.md
+/.claude
