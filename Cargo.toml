@@ -1,8 +1,5 @@
 [workspace]
 resolver = "2"
-
-[workspace.package]
-license = "MIT"
 members = [
     "crates/funke-core",
     "crates/funke-shell",
@@ -15,6 +12,9 @@ members = [
     "crates/funke-app",
     "funke-plugins/template",
 ]
+
+[workspace.package]
+license = "MIT"
 
 [profile.release]
 lto = true
