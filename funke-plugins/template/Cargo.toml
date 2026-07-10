@@ -2,6 +2,7 @@
 name = "funke-plugin-template"
 version = "0.1.0"
 edition = "2021"
+license.workspace = true
 description = "The 'hello world' Funke plugin — copy this folder to start your own"
 
 [dependencies]

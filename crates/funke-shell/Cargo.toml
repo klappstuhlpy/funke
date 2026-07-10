@@ -2,6 +2,7 @@
 name = "funke-shell"
 version = "0.1.0"
 edition = "2021"
+license.workspace = true
 description = "Windows shell helpers shared by provider crates (icon extraction)"
 
 [dependencies]

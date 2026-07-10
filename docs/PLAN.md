@@ -172,9 +172,9 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
 
 ## 6. Going public
 
-- **License:** MIT/Apache-2.0 for maximum plugin-ecosystem adoption (Flow Launcher is
-  MIT); GPL if preventing closed forks matters more. Decide before the first external
-  contribution.
+- **License:** decided (2026-07) — **MIT** (`LICENSE`), for maximum plugin-ecosystem
+  adoption (Flow Launcher's precedent). GPL was considered and rejected: preventing
+  closed forks matters less than a frictionless ecosystem.
 - **Prior art to study:** Flow Launcher & PowerToys Command Palette (C#, closest — steal
   UX decisions), ueli (webview-based launcher, proof the approach works), Keypirinha
   (keyboard-first UX), Everything (indexing behavior).

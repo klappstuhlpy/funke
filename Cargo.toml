@@ -1,5 +1,8 @@
 [workspace]
 resolver = "2"
+
+[workspace.package]
+license = "MIT"
 members = [
     "crates/funke-core",
     "crates/funke-shell",

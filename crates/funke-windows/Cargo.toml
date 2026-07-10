@@ -2,6 +2,7 @@
 name = "funke-windows"
 version = "0.1.0"
 edition = "2021"
+license.workspace = true
 description = "Window switcher provider: fuzzy-match open windows, switch to or kill them"
 
 [dependencies]

@@ -2,6 +2,7 @@
 name = "funke-apps"
 version = "0.1.0"
 edition = "2021"
+license.workspace = true
 description = "Installed-application provider: Start Menu/Store apps and PATH executables"
 
 [dependencies]

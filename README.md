@@ -16,7 +16,7 @@
   ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-262624?style=flat-square)
   ![Plugins](https://img.shields.io/badge/Plugins-JSON--RPC%20over%20stdio-d97757?style=flat-square)
   ![Status](https://img.shields.io/badge/Status-pre--release-8a8478?style=flat-square)
-  ![License](https://img.shields.io/badge/License-TBD-8a8478?style=flat-square)
+  [![License](https://img.shields.io/badge/License-MIT-d97757?style=flat-square)](LICENSE)
 
 </div>
 
@@ -64,9 +64,8 @@ cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings
 Note: the UI in `crates/funke-app/ui/` is embedded at compile time (no Node toolchain,
 no dev server) — rebuild after editing it.
 
-Contributions: read [CONTRIBUTING.md](CONTRIBUTING.md) first (the license is still TBD,
-which limits what can be merged) — writing a [plugin](docs/PLUGINS.md) needs no license
-decision at all.
+Contributions: read [CONTRIBUTING.md](CONTRIBUTING.md) first — or write a
+[plugin](docs/PLUGINS.md), which lives in its own repository under any license you like.
 
 ## Layout
 
@@ -103,4 +102,4 @@ See [docs/PLAN.md](docs/PLAN.md) for the full plan and the reasoning behind the 
 
 ## License
 
-TBD — decide (MIT/Apache-2.0 vs GPL) before accepting external contributions.
+[MIT](LICENSE).

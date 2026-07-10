@@ -2,6 +2,7 @@
 name = "funke-files"
 version = "0.1.0"
 edition = "2021"
+license.workspace = true
 description = "Filename search provider: background-indexed user files with watcher refresh"
 
 [dependencies]

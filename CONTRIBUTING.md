@@ -1,20 +1,19 @@
 # Contributing to Funke
 
-Thanks for your interest! A few things are unusual about this repository's current
-phase — please read this before opening anything.
+Thanks for your interest! Please read this before opening anything.
 
-## ⚠️ License is not decided yet
+## License
 
-Funke does not have a license yet (MIT/Apache-2.0 vs GPL is an open decision — see
-`docs/PLAN.md` §6). Until one is chosen:
+Funke is [MIT-licensed](LICENSE). By submitting a contribution you agree that it is
+your own work and that you license it under the same terms.
 
-- **Code contributions cannot be merged.** Feel free to open issues and discuss, but
-  PRs will wait for the license decision.
-- **Never vendor external code** or paste license-bearing snippets (including
-  copy-pasted SVG icon sets) into the repository.
+- **Never vendor external code** or paste snippets carrying another license (including
+  copy-pasted SVG icon sets) into the repository — everything here must be
+  MIT-compatible and attributable.
 
-If you want to build something *for* Funke today, write a **plugin** instead — plugins
-are separate programs under your own license. See [docs/PLUGINS.md](docs/PLUGINS.md).
+If you'd rather build something *for* Funke than change Funke itself, write a
+**plugin** — plugins are separate programs under whatever license you choose. See
+[docs/PLUGINS.md](docs/PLUGINS.md).
 
 ## Development setup
 
