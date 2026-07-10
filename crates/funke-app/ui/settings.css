@@ -129,14 +129,9 @@ body {
   padding: 8px 8px 18px;
 }
 
-#brand .spark {
-  width: 26px;
-  height: 26px;
+#brand .img {
   flex: none;
   border-radius: 8px;
-  background: var(--accent);
-  /* a spark: bright core over the accent, pure CSS so it re-tints live */
-  background-image: radial-gradient(circle at 50% 45%, rgba(255, 245, 235, 0.95) 0 18%, transparent 42%);
 }
 
 #brand .name {
