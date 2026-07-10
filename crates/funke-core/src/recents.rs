@@ -42,6 +42,11 @@ impl RecentsStore {
     pub fn top(&self, n: usize) -> Vec<ResultItem> {
         self.items.iter().take(n).cloned().collect()
     }
+
+    /// Drop one item by id (the ✕ on an overview row). Unknown ids are a no-op.
+    pub fn remove(&mut self, id: &str) {
+        self.items.retain(|existing| existing.id != id);
+    }
 }
 
 #[cfg(test)]
@@ -71,6 +76,18 @@ mod tests {
         assert_eq!(top.len(), 2);
         assert_eq!(top[0].id, "a");
         assert_eq!(top[1].id, "b");
+    }
+
+    #[test]
+    fn removing_by_id_drops_only_that_item() {
+        let mut store = RecentsStore::default();
+        store.record(item("a"));
+        store.record(item("b"));
+        store.remove("a");
+        store.remove("never-recorded");
+        let top = store.top(10);
+        assert_eq!(top.len(), 1);
+        assert_eq!(top[0].id, "b");
     }
 
     #[test]

@@ -26,6 +26,12 @@ pub struct Settings {
     pub index_roots: Vec<String>,
     /// Start Funke with Windows.
     pub autostart: bool,
+    /// Unlock the vault with Windows Hello instead of the master password on repeat
+    /// unlocks (persists a DPAPI-protected `bw` session key — see SECURITY.md).
+    pub vault_hello: bool,
+    /// Show website favicons on vault entries (fetched from the Bitwarden/Vaultwarden
+    /// icon service, which learns the entry's domain — see SECURITY.md).
+    pub vault_icons: bool,
 }
 
 impl Default for Settings {
@@ -38,6 +44,8 @@ impl Default for Settings {
             disabled_providers: Vec::new(),
             index_roots: Vec::new(),
             autostart: false,
+            vault_hello: false,
+            vault_icons: true,
         }
     }
 }

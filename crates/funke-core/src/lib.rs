@@ -57,6 +57,9 @@ pub enum Action {
     KillProcess { pid: u32 },
     /// Switch the overlay into the masked master-password prompt (vault locked).
     PromptVaultUnlock,
+    /// Unlock the vault via a Windows Hello consent prompt (a DPAPI-protected session
+    /// key from an earlier master-password unlock is redeemed — see SECURITY.md).
+    VaultHelloUnlock,
     /// Copy one field of a vault item. The secret is fetched at action time by id —
     /// it never rides inside a `ResultItem`.
     VaultCopy { id: String, field: String },

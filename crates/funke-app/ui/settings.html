@@ -44,7 +44,7 @@
             Plugins
           </button>
 
-          <div id="version">Funke 0.1.0 · pre-release</div>
+          <div id="version">Funke 0.1.0</div>
         </nav>
 
         <section id="content">
@@ -114,6 +114,28 @@
                   <div class="desc">Where “Search the web for …” sends you.</div>
                 </div>
                 <select id="engine"></select>
+              </div>
+            </div>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Vault: unlock with Windows Hello</div>
+                  <div class="desc">
+                    After one master-password unlock, later unlocks are a Hello prompt. Stores a
+                    session key protected by Windows — tradeoff in SECURITY.md.
+                  </div>
+                </div>
+                <button class="toggle" id="vault-hello" role="switch" aria-checked="false"></button>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label">Vault: website icons</div>
+                  <div class="desc">
+                    Show site favicons on vault entries, fetched from your Bitwarden server's icon
+                    service (it learns the sites you search).
+                  </div>
+                </div>
+                <button class="toggle" id="vault-icons" role="switch" aria-checked="true"></button>
               </div>
             </div>
             <div class="card">

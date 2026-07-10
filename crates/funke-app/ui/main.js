@@ -102,6 +102,21 @@ function itemRow(item, index) {
   hint.textContent = "↵";
   li.appendChild(hint);
 
+  if (mode === "overview" && !actionsFor && index >= 0) {
+    // Recents are removable: the ✕ deletes the entry without running it.
+    const remove = document.createElement("button");
+    remove.className = "remove";
+    remove.title = "Remove from recents";
+    remove.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">' +
+      '<path d="M6 6l12 12M18 6L6 18"/></svg>';
+    remove.addEventListener("click", (e) => {
+      e.stopPropagation();
+      invoke("remove_recent", { id: item.id }).then(loadOverview);
+    });
+    li.appendChild(remove);
+  }
+
   li.addEventListener("click", () => maybeRun(item, 0));
   return li;
 }
@@ -128,7 +143,9 @@ function actionRow(item, named, index) {
 
   const hint = document.createElement("kbd");
   hint.className = "hint";
-  hint.textContent = index === 0 ? "↵" : index === 1 ? "⇧↵" : "";
+  // Every action has a shortcut: Enter / Shift+Enter for the first two, Ctrl+digit
+  // beyond (Ctrl+1/2 also work, but the Enter forms are the memorable labels).
+  hint.textContent = index === 0 ? "↵" : index === 1 ? "⇧↵" : index < 9 ? `Ctrl+${index + 1}` : "";
   if (!hint.textContent) hint.style.visibility = "hidden";
   li.appendChild(hint);
 
@@ -296,6 +313,20 @@ async function search() {
   render();
 }
 
+// Re-run the current query in place, keeping the highlighted row — used when vault
+// favicons arrive in the background. No-op unless we're showing live results.
+async function refreshResults() {
+  if (mode !== "results" || actionsFor || vaultPrompt) return;
+  const text = input.value;
+  if (!text.trim()) return;
+  const prev = selected;
+  sections = await invoke("search", { text });
+  items = sections.flatMap((section) => section.items);
+  selected = Math.min(prev, Math.max(0, items.length - 1));
+  count.textContent = items.length === 1 ? "1 result" : `${items.length} results`;
+  render();
+}
+
 async function run(item, actionIndex) {
   try {
     // The backend hides the overlay itself on success (launched apps keep focus).
@@ -384,6 +415,15 @@ document.addEventListener("keydown", (e) => {
       const index = e.shiftKey && item.actions.length > 1 ? 1 : 0;
       maybeRun(item, index);
     }
+  } else if (e.ctrlKey && !e.altKey && /^[1-9]$/.test(e.key)) {
+    // Ctrl+n runs the selected item's nth action directly — the shortcuts the
+    // actions menu advertises, usable with or without the menu open.
+    const target = actionsFor || items[selected];
+    const index = Number(e.key) - 1;
+    if (target && index < target.actions.length) {
+      e.preventDefault();
+      maybeRun(target, index, { fromMenu: !!actionsFor });
+    }
   }
 });
 
@@ -404,7 +444,34 @@ listen("overlay-hidden", () => {
 // The locked vault's "Unlock vault" row lands here (run_action emits, overlay stays up).
 listen("vault-unlock", () => enterVaultPrompt());
 
+// A Windows Hello unlock finished backend-side; the current `v …` query has rows now.
+// Move the caret back into the search field too (the Hello dialog stole focus).
+listen("vault-unlocked", () => {
+  input.focus();
+  search();
+});
+
+// Background favicon fetches populated the cache: re-render the current results so
+// the icons appear in place, without disturbing the selection.
+listen("vault-icons-updated", () => refreshResults());
+
+// Hello unlock failed (cancelled, expired session, Hello not set up, …): fall back to
+// the masked password prompt with the reason shown — Esc returns to the query.
+listen("vault-unlock-failed", (e) => {
+  if (!vaultPrompt) enterVaultPrompt();
+  renderVaultPrompt(String(e.payload));
+});
+
 listen("overlay-shown", () => {
+  // A leftover password prompt (e.g. a Hello failure that arrived while hidden)
+  // must never greet the next summon.
+  if (vaultPrompt) {
+    vaultPrompt = false;
+    unlocking = false;
+    vaultReturnQuery = "";
+    input.type = "text";
+    input.placeholder = SEARCH_PLACEHOLDER;
+  }
   input.value = "";
   loadOverview(); // refreshes greeting/uptime; content is already reset
   input.focus();

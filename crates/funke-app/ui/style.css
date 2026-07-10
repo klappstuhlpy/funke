@@ -195,6 +195,19 @@ body {
   color: var(--text-dim);
 }
 
+/* Every action row wears its shortcut — quiet until the row is selected. (The
+   danger rule below still wins on selected destructive rows.) */
+.item.action .hint {
+  visibility: visible;
+  color: var(--text-faint);
+  border-color: var(--stroke);
+}
+
+.item.action.selected .hint {
+  color: var(--accent);
+  border-color: var(--accent-stroke);
+}
+
 /* Destructive actions trade the accent for the danger tint. */
 .item.danger.selected {
   background: var(--danger-soft);
@@ -273,6 +286,37 @@ kbd {
 
 .item.selected .hint {
   visibility: visible;
+}
+
+/* Overview rows only: the ✕ that removes an entry from Recents. */
+.remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-s);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  visibility: hidden;
+}
+
+.remove svg {
+  width: 11px;
+  height: 11px;
+}
+
+.item:hover .remove,
+.item.selected .remove {
+  visibility: visible;
+}
+
+.remove:hover {
+  background: var(--surface);
+  color: var(--text);
 }
 
 .empty {

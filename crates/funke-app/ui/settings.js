@@ -66,6 +66,9 @@ function renderAll() {
   const autostart = document.getElementById("autostart");
   autostart.setAttribute("aria-checked", String(settings.autostart));
 
+  document.getElementById("vault-hello").setAttribute("aria-checked", String(settings.vault_hello));
+  document.getElementById("vault-icons").setAttribute("aria-checked", String(settings.vault_icons));
+
   document.querySelectorAll(".swatch").forEach((el) => {
     el.classList.toggle("active", el.dataset.accent === settings.accent);
   });
@@ -109,6 +112,8 @@ function buildStaticControls() {
   });
 
   document.getElementById("autostart").addEventListener("click", () => save({ autostart: !settings.autostart }));
+  document.getElementById("vault-hello").addEventListener("click", () => save({ vault_hello: !settings.vault_hello }));
+  document.getElementById("vault-icons").addEventListener("click", () => save({ vault_icons: !settings.vault_icons }));
   document.getElementById("engine").addEventListener("change", (e) => save({ web_engine: e.target.value }));
   document.getElementById("add-root").addEventListener("click", async () => {
     const picked = await invoke("pick_index_root");

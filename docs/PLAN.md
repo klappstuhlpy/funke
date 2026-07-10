@@ -84,6 +84,19 @@ Bitwarden Rust SDK later; **never** reimplement the client protocol/vault crypto
   Automation to auto-match credentials.
 - **Out of scope: in-browser DOM autofill.** That's a browser extension's job; the
   Bitwarden extension already exists. Document this to preempt the #1 feature request.
+- **Out of scope: native passkey provision.** Supplying vault passkeys to the Windows
+  passkey/WebAuthn prompt requires registering as a third-party passkey provider
+  (Windows 11 plugin-authenticator API) and performing the FIDO2 ceremony ourselves —
+  i.e. vault crypto outside the CLI, which the line above forbids. A passkey also
+  can't be autotyped (it's a challenge–response, not text). Bitwarden's desktop app
+  ships that provider; point users to Windows Settings → Accounts → Passkeys.
+
+**Fast unlock (Windows Hello), opt-in:** a master-password unlock additionally runs
+`bw unlock --raw` and persists the session key DPAPI-encrypted; later unlocks show a
+Hello consent prompt and respawn `bw serve` with `BW_SESSION` set (pre-unlocked).
+Locking kills the server process instead of `bw lock` so the stored key survives.
+Tradeoff (Hello = presence gate, DPAPI = user-account encryption) documented in
+SECURITY.md.
 
 **Security posture from day one** (public app touching passwords): secrets in `zeroize`d
 buffers, never logged; clipboard copies auto-clear (~30 s); vault auto-locks on
@@ -148,10 +161,17 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   password prompt (`PromptVaultUnlock` → `vault-unlock` event → `vault_unlock`
   command; wrong password errors inline). Actions per entry: **autotype** (restore
   captured focus → `SendInput` unicode: username ⇥ password ↵ — hand-written FFI in
-  `autotype.rs`), **copy password/username** with 30 s clipboard auto-clear. Idle
-  auto-lock after 10 min; Rust-side password/credential buffers zeroized; posture +
-  accepted limitations documented in `SECURITY.md`. **Pending** — browser URL matching
-  via UI Automation, TOTP copy, per-entry autotype sequences, lock-on-lock-screen,
+  `autotype.rs`), **copy password/username/TOTP** (TOTP computed by the CLI at action
+  time, cached only as a has-it flag) with 30 s clipboard auto-clear. **Windows Hello
+  unlock** (opt-in): DPAPI-persisted `bw` session key redeemed behind a Hello consent
+  prompt, `bw serve` respawned pre-unlocked; kill-based lock keeps the key valid.
+  **Website favicons** from the server's icon service (in-memory cache, toggleable);
+  entries carry their organization label; usernames only match queries containing `@`;
+  the previously-focused window's title boosts matching entries (a Steam login window
+  floats the Steam credential). Idle auto-lock after 10 min; Rust-side
+  password/credential buffers zeroized; posture + accepted limitations documented in
+  `SECURITY.md` (incl. passkeys out of scope — see §4). **Pending** — browser URL
+  matching via UI Automation, per-entry autotype sequences, lock-on-lock-screen,
   vault settings (idle timeout, autotype enter toggle).
 - **M5 — Public plugin API + 1.0** ◐: **landed** — protocol v1 (JSON-RPC 2.0,
   line-delimited over stdio: `initialize` handshake with version check, `query`,

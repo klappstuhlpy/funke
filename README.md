@@ -29,9 +29,10 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
 - **Applications** — fuzzy-search installed apps (Start Menu, Store/UWP, PATH) with real icons.
 - **Files** (`f`) — background filename index of your chosen folders, watcher-refreshed.
 - **Windows** (`w`) — switch to any open window (Enter focuses, restores minimized) or end its process.
-- **Vault** (`v`) — Bitwarden/Vaultwarden via the official `bw` CLI: unlock in the overlay,
-  autotype into the previous window, copy with 30 s clipboard auto-clear, idle auto-lock.
-  Prefix-only for privacy — see [SECURITY.md](SECURITY.md).
+- **Vault** (`v`) — Bitwarden/Vaultwarden via the official `bw` CLI: unlock in the overlay
+  (or via **Windows Hello** after the first unlock, opt-in), autotype into the previous
+  window, copy password/username/**TOTP** with 30 s clipboard auto-clear, website icons,
+  idle auto-lock. Prefix-only for privacy — see [SECURITY.md](SECURITY.md).
 - **Web search** (`g`) — configurable engine, wearing your default browser's icon.
 - **Calculator** — `2+2*3` inline; Enter copies the result.
 - **System commands** — lock, sleep, shut down, restart, empty recycle bin; destructive ones ask to confirm.
@@ -39,8 +40,10 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   folder into `%APPDATA%\funke\plugins`, toggle in Settings → Plugins. Write your own with
   [docs/PLUGINS.md](docs/PLUGINS.md), starting from `funke-plugins/template`.
 - **Actions menu** — Enter runs the default action, **Tab lists every action** of a result
-  (open / reveal in Explorer / copy path, …).
-- **Overview** — the empty overlay shows recent picks, a greeting/date/uptime line, and first-run tips.
+  (open / reveal in Explorer / copy path, …), each with its own shortcut (⇧↵, Ctrl+3, …)
+  that also works straight from the result list.
+- **Overview** — the empty overlay shows recent picks (removable with a click), a
+  greeting/date/uptime line, and first-run tips.
 - **Settings window** (tray → Settings, or search "settings") — summon hotkey, accent color,
   overlay width, web engine, provider toggles, file-index folders, plugins, launch-at-startup —
   all applied live.

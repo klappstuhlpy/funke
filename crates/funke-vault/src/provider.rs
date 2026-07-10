@@ -70,35 +70,69 @@ impl SearchProvider for VaultProvider {
                     url: CLI_HELP_URL.into(),
                 },
             )],
-            VaultStatus::Locked => vec![status_row(
-                "vault:unlock",
-                "Unlock vault",
-                "Bitwarden — prompts for your master password",
-                LOCK_GLYPH,
-                Action::PromptVaultUnlock,
-            )],
+            VaultStatus::Locked => vec![unlock_row(self.vault.hello_ready())],
             VaultStatus::Unlocked => {
                 self.vault.touch();
                 let Some(matcher) = FuzzyMatcher::new(&query.text) else {
                     return Vec::new();
                 };
-                self.vault
-                    .entries()
-                    .into_iter()
-                    .filter_map(|entry| {
-                        // Best of name / username / host, so "gith" finds github.com
-                        // accounts and "ben@" finds by user.
-                        let score = matcher
-                            .score(&entry.name)
-                            .into_iter()
-                            .chain(entry.username.as_deref().and_then(|u| matcher.score(u)))
-                            .chain(entry.host.as_deref().and_then(|h| matcher.score(h)))
-                            .max()?;
-                        Some(entry_row(entry, score))
-                    })
-                    .collect()
+                // Usernames only participate when the query looks like one ("ben@") —
+                // otherwise "gmx" would drag in every @gmx.de account instead of the
+                // GMX entries themselves.
+                let by_username = query.text.contains('@');
+                let mut rows = Vec::new();
+                let mut wanted_hosts = Vec::new();
+                for entry in self.vault.entries() {
+                    let score = matcher
+                        .score(&entry.name)
+                        .into_iter()
+                        .chain(entry.host.as_deref().and_then(|h| matcher.score(h)))
+                        .chain(if by_username {
+                            entry.username.as_deref().and_then(|u| matcher.score(u))
+                        } else {
+                            None
+                        })
+                        .max();
+                    let Some(score) = score else { continue };
+                    let icon = entry.host.as_deref().and_then(|host| self.vault.icon_for(host));
+                    if icon.is_none() {
+                        if let Some(host) = &entry.host {
+                            wanted_hosts.push(host.clone());
+                        }
+                    }
+                    rows.push(entry_row(entry, score, icon));
+                }
+                // Favicons arrive in the background; rows wear them on a later render.
+                self.vault.request_icons(wanted_hosts);
+                rows
             }
         }
+    }
+}
+
+/// The locked-vault row: Enter uses Windows Hello when a session is ready, the master
+/// password otherwise (then still reachable via Shift+Enter).
+fn unlock_row(hello: bool) -> ResultItem {
+    let mut actions = Vec::new();
+    if hello {
+        actions.push(NamedAction::new("Unlock with Windows Hello", Action::VaultHelloUnlock));
+    }
+    actions.push(NamedAction::new(
+        "Unlock with master password",
+        Action::PromptVaultUnlock,
+    ));
+    ResultItem {
+        id: "vault:unlock".into(),
+        provider: "vault".into(),
+        title: "Unlock vault".into(),
+        subtitle: Some(if hello {
+            "Bitwarden — Enter uses Windows Hello, ⇧Enter the master password".into()
+        } else {
+            "Bitwarden — prompts for your master password".into()
+        }),
+        icon: Some(glyph_data_url(LOCK_GLYPH)),
+        score: STATUS_SCORE,
+        actions,
     }
 }
 
@@ -114,40 +148,56 @@ fn status_row(id: &str, title: &str, subtitle: &str, glyph: &str, action: Action
     }
 }
 
-fn entry_row(entry: crate::VaultEntry, score: i64) -> ResultItem {
-    let subtitle = match (&entry.username, &entry.host) {
+fn entry_row(entry: crate::VaultEntry, score: i64, icon: Option<String>) -> ResultItem {
+    let mut subtitle = match (&entry.username, &entry.host) {
         (Some(user), Some(host)) => Some(format!("{user} — {host}")),
         (Some(user), None) => Some(user.clone()),
         (None, Some(host)) => Some(host.clone()),
         (None, None) => None,
     };
+    if let Some(org) = &entry.organization {
+        subtitle = Some(match subtitle {
+            Some(text) => format!("{text} · {org}"),
+            None => org.clone(),
+        });
+    }
+    let mut actions = vec![
+        NamedAction::new(
+            "Autotype into last window",
+            Action::VaultAutotype { id: entry.id.clone() },
+        ),
+        NamedAction::new(
+            "Copy password",
+            Action::VaultCopy {
+                id: entry.id.clone(),
+                field: "password".into(),
+            },
+        ),
+        NamedAction::new(
+            "Copy username",
+            Action::VaultCopy {
+                id: entry.id.clone(),
+                field: "username".into(),
+            },
+        ),
+    ];
+    if entry.has_totp {
+        actions.push(NamedAction::new(
+            "Copy TOTP",
+            Action::VaultCopy {
+                id: entry.id.clone(),
+                field: "totp".into(),
+            },
+        ));
+    }
     ResultItem {
         id: format!("vault:{}", entry.id),
         provider: "vault".into(),
         title: entry.name,
         subtitle,
-        icon: Some(glyph_data_url(VAULT_GLYPH)),
+        icon: icon.or_else(|| Some(glyph_data_url(VAULT_GLYPH))),
         score,
-        actions: vec![
-            NamedAction::new(
-                "Autotype into last window",
-                Action::VaultAutotype { id: entry.id.clone() },
-            ),
-            NamedAction::new(
-                "Copy password",
-                Action::VaultCopy {
-                    id: entry.id.clone(),
-                    field: "password".into(),
-                },
-            ),
-            NamedAction::new(
-                "Copy username",
-                Action::VaultCopy {
-                    id: entry.id,
-                    field: "username".into(),
-                },
-            ),
-        ],
+        actions,
     }
 }
 
@@ -156,31 +206,77 @@ mod tests {
     use super::*;
     use crate::VaultEntry;
 
+    fn entry(id: &str, name: &str, username: Option<&str>, host: Option<&str>) -> VaultEntry {
+        VaultEntry {
+            id: id.into(),
+            name: name.into(),
+            username: username.map(str::to_string),
+            host: host.map(str::to_string),
+            has_totp: false,
+            organization: None,
+        }
+    }
+
+    /// A vault whose icon fetches stay off, so provider tests never touch the network.
+    fn offline_vault() -> Arc<Vault> {
+        let settings = funke_core::Settings {
+            vault_icons: false,
+            ..Default::default()
+        };
+        Arc::new(Vault::new(Arc::new(std::sync::RwLock::new(settings))))
+    }
+
     #[test]
     fn entry_rows_reference_secrets_by_id_only() {
-        let entry = VaultEntry {
-            id: "uuid-1".into(),
-            name: "GitHub".into(),
-            username: Some("ben".into()),
-            host: Some("github.com".into()),
-        };
-        let row = entry_row(entry, 10);
-        assert_eq!(row.subtitle.as_deref(), Some("ben — github.com"));
-        assert_eq!(row.actions.len(), 3);
+        let mut entry = entry("uuid-1", "GitHub", Some("ben"), Some("github.com"));
+        entry.has_totp = true;
+        entry.organization = Some("Acme".into());
+        let row = entry_row(entry, 10, None);
+        assert_eq!(row.subtitle.as_deref(), Some("ben — github.com · Acme"));
+        assert_eq!(row.actions.len(), 4, "TOTP items grow a Copy TOTP action");
+        assert_eq!(row.actions[3].label, "Copy TOTP");
         let serialized = serde_json::to_string(&row).unwrap();
         assert!(!serialized.contains("password\":\""), "no secret material in the item");
         assert!(serialized.contains("uuid-1"));
     }
 
     #[test]
+    fn items_without_totp_or_organization_stay_plain() {
+        let row = entry_row(entry("uuid-2", "Router", Some("admin"), None), 10, None);
+        assert_eq!(row.subtitle.as_deref(), Some("admin"));
+        assert_eq!(row.actions.len(), 3);
+    }
+
+    #[test]
     fn locked_vault_yields_only_the_unlock_row() {
-        let vault = Arc::new(Vault::new());
+        let vault = offline_vault();
         // Force the state machine past startup without a bw CLI.
         vault.force_status(VaultStatus::Locked);
         let provider = VaultProvider::new(Arc::clone(&vault));
         let rows = provider.query(&Query::new("github"));
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].id, "vault:unlock");
+        // vault_hello defaults to off, so the password prompt is the (only) action.
         assert!(matches!(rows[0].primary_action(), Some(Action::PromptVaultUnlock)));
+    }
+
+    #[test]
+    fn usernames_only_match_queries_containing_an_at_sign() {
+        let vault = offline_vault();
+        vault.force_status(VaultStatus::Unlocked);
+        vault.force_entries(vec![
+            entry("uuid-1", "GMX", Some("ben@gmx.de"), Some("gmx.net")),
+            entry("uuid-2", "Forum", Some("someone@gmx.de"), Some("example.org")),
+        ]);
+        let provider = VaultProvider::new(Arc::clone(&vault));
+
+        // "gmx" means the site, not every account with a @gmx.de address.
+        let rows = provider.query(&Query::new("gmx"));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].title, "GMX");
+
+        // With an @ the user means the username — both entries match again.
+        let rows = provider.query(&Query::new("@gmx"));
+        assert_eq!(rows.len(), 2);
     }
 }

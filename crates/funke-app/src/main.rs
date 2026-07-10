@@ -40,6 +40,8 @@ struct AppState {
     /// HWND of whatever had focus before the overlay was summoned, so we can hand
     /// focus back on dismiss (and, from M4 on, autotype into it).
     prev_focus: Mutex<Option<isize>>,
+    /// A Windows Hello prompt is up: its focus steal must not dismiss the overlay.
+    hello_in_flight: std::sync::atomic::AtomicBool,
 }
 
 fn unix_now() -> u64 {
@@ -67,6 +69,18 @@ fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
     for item in &mut items {
         item.score += store.boost(&item.id, now);
     }
+
+    // Context boost: vault entries matching the window focused before the overlay
+    // (e.g. a Steam login prompt floats the Steam credential to the top).
+    let prev_title = (*state.prev_focus.lock().unwrap()).and_then(focus::window_title);
+    if let Some(title) = prev_title {
+        let title = title.to_lowercase();
+        for item in &mut items {
+            if item.provider == "vault" && item.title.len() >= 3 && title.contains(&item.title.to_lowercase()) {
+                item.score += VAULT_CONTEXT_BOOST;
+            }
+        }
+    }
     items.sort_by_key(|item| std::cmp::Reverse(item.score));
 
     // Group by section label, keeping global rank order both across sections (a section
@@ -86,6 +100,9 @@ fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
 }
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Enough to outrank any fuzzy score, so the context-matched credential leads the list.
+const VAULT_CONTEXT_BOOST: i64 = 500;
 
 /// Run one of the item's actions by index (Enter = 0, Shift+Enter = 1, actions menu =
 /// any). The UI never interprets actions — it sends the whole item and an index back.
@@ -146,13 +163,61 @@ fn run_action(
             let _ = app.emit("vault-unlock", ());
             return Ok(());
         }
-        Action::VaultCopy { id, field } => {
-            let creds = state.vault.credentials(&id)?;
-            let value = match field.as_str() {
-                "username" => creds.username.clone(),
-                _ => creds.password.clone(),
+        Action::VaultHelloUnlock => {
+            use std::sync::atomic::Ordering;
+            // Never block here: sync commands run on the main thread, which is an STA
+            // — waiting for the WinRT consent operation there deadlocks the event loop
+            // before the Hello dialog can even appear. The whole flow gets its own
+            // thread; the flag both suppresses hide-on-blur while the dialog is up and
+            // swallows repeat presses while one prompt is already pending.
+            if state.hello_in_flight.swap(true, Ordering::SeqCst) {
+                return Ok(());
             }
-            .ok_or_else(|| format!("this item has no {field}"))?;
+            let hwnd = app
+                .get_webview_window(MAIN_WINDOW)
+                .and_then(|win| win.hwnd().ok())
+                .map(|hwnd| hwnd.0 as isize)
+                .unwrap_or(0);
+            let vault = Arc::clone(&state.vault);
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let unlocked = vault.hello_unlock(hwnd);
+                let state = app.state::<AppState>();
+                state.hello_in_flight.store(false, Ordering::SeqCst);
+                // The Hello dialog (a system process) took the foreground; a plain
+                // set_focus is refused, so force the overlay back with the attach-input
+                // dance, then move the webview caret into the search field.
+                if hwnd != 0 {
+                    focus::force_foreground(hwnd);
+                }
+                if let Some(win) = app.get_webview_window(MAIN_WINDOW) {
+                    let _ = win.set_focus();
+                }
+                match unlocked {
+                    // The overlay re-runs its current `v …` query against the unlocked vault.
+                    Ok(()) => {
+                        let _ = app.emit("vault-unlocked", ());
+                    }
+                    // Cancelled / expired session: the overlay falls back to the masked
+                    // password prompt with the reason shown.
+                    Err(e) => {
+                        let _ = app.emit("vault-unlock-failed", e);
+                    }
+                }
+            });
+            return Ok(());
+        }
+        Action::VaultCopy { id, field } => {
+            let value = if field == "totp" {
+                state.vault.totp(&id)?
+            } else {
+                let creds = state.vault.credentials(&id)?;
+                match field.as_str() {
+                    "username" => creds.username.clone(),
+                    _ => creds.password.clone(),
+                }
+                .ok_or_else(|| format!("this item has no {field}"))?
+            };
             copy_with_autoclear(value)?;
         }
         Action::PluginInvoke {
@@ -212,20 +277,21 @@ fn run_action(
     drop(store);
 
     // Launcher controls, copied calc results, window handles (stale after the window
-    // closes), vault entries (account names are private), and plugin rows (item ids
-    // may be ephemeral) aren't meaningful "recents".
-    if !matches!(
-        item.primary_action(),
-        Some(
-            Action::AppControl { .. }
-                | Action::CopyText { .. }
-                | Action::FocusWindow { .. }
-                | Action::VaultAutotype { .. }
-                | Action::VaultCopy { .. }
-                | Action::PromptVaultUnlock
-                | Action::PluginInvoke { .. }
+    // closes), and plugin rows (item ids may be ephemeral) aren't meaningful
+    // "recents". The vault is excluded wholesale — account names are private, and its
+    // status rows ("Bitwarden CLI not found", …) wear ordinary OpenUrl actions that
+    // an action-based filter would let through.
+    if item.provider != "vault"
+        && !matches!(
+            item.primary_action(),
+            Some(
+                Action::AppControl { .. }
+                    | Action::CopyText { .. }
+                    | Action::FocusWindow { .. }
+                    | Action::PluginInvoke { .. }
+            )
         )
-    ) {
+    {
         let mut recents = state.recents.lock().unwrap();
         recents.record(item);
         if let Err(e) = recents.save(&state.recents_path) {
@@ -259,8 +325,10 @@ fn copy_with_autoclear(value: String) -> Result<(), String> {
 }
 
 /// Unlock the vault with the master password typed into the overlay's masked prompt.
+/// Async so the KDF (run twice when Hello minting is on) blocks a worker, not the
+/// main-thread event loop.
 #[tauri::command]
-fn vault_unlock(state: tauri::State<'_, AppState>, password: String) -> Result<(), String> {
+async fn vault_unlock(state: tauri::State<'_, AppState>, password: String) -> Result<(), String> {
     use zeroize::Zeroize;
     let result = state.vault.unlock(&password);
     let mut password = password;
@@ -280,6 +348,16 @@ fn overview(state: tauri::State<'_, AppState>) -> Overview {
     Overview {
         recents: state.recents.lock().unwrap().top(5),
         uptime_secs: native::uptime_secs(),
+    }
+}
+
+/// Drop one item from the recents list (the ✕ on an overview row).
+#[tauri::command]
+fn remove_recent(state: tauri::State<'_, AppState>, id: String) {
+    let mut recents = state.recents.lock().unwrap();
+    recents.remove(&id);
+    if let Err(e) = recents.save(&state.recents_path) {
+        eprintln!("failed to persist recents store: {e}");
     }
 }
 
@@ -312,6 +390,11 @@ fn save_settings(app: AppHandle, state: tauri::State<'_, AppState>, settings: Se
         if let Err(e) = applied {
             eprintln!("autostart toggle failed: {e}");
         }
+    }
+
+    // Switching Hello unlock off must also drop the persisted session key.
+    if old.vault_hello && !settings.vault_hello {
+        state.vault.forget_hello_session();
     }
 
     *state.settings.write().unwrap() = settings.clone();
@@ -569,7 +652,7 @@ fn main() {
     let frecency_path = data_path("frecency.json");
     let recents_path = data_path("recents.json");
     let settings = Arc::new(RwLock::new(Settings::load(&settings_path)));
-    let vault = Arc::new(funke_vault::Vault::new());
+    let vault = Arc::new(funke_vault::Vault::new(Arc::clone(&settings)));
     let plugins_dir = data_path("plugins");
     let plugins = Arc::new(funke_plugin::host::PluginManager::discover(&plugins_dir));
     tauri::Builder::default()
@@ -592,6 +675,7 @@ fn main() {
             recents: Mutex::new(RecentsStore::load(&recents_path)),
             recents_path,
             prev_focus: Mutex::new(None),
+            hello_in_flight: std::sync::atomic::AtomicBool::new(false),
         })
         .invoke_handler(tauri::generate_handler![
             search,
@@ -599,6 +683,7 @@ fn main() {
             hide_overlay,
             resize_overlay,
             overview,
+            remove_recent,
             get_settings,
             save_settings,
             list_providers,
@@ -623,6 +708,23 @@ fn main() {
             }
 
             let settings = app.state::<AppState>().settings.read().unwrap().clone();
+
+            // Re-render the overlay when background favicon fetches land, so vault
+            // icons appear in place instead of only after a close/reopen.
+            {
+                let handle = app.handle().clone();
+                app.state::<AppState>().vault.set_icons_listener(move || {
+                    let _ = handle.emit("vault-icons-updated", ());
+                });
+            }
+
+            // Boot `bw serve` now (on its own thread) rather than on the first `v`
+            // query, so the vault answers the moment it is summoned. With the
+            // provider toggled off nothing starts; re-enabling falls back to the
+            // lazy first-query start.
+            if settings.provider_enabled("vault") {
+                app.state::<AppState>().vault.ensure_started();
+            }
 
             // Registered here (not via Builder::with_shortcuts) so a conflict with another
             // launcher degrades to a warning instead of aborting startup.
@@ -669,8 +771,17 @@ fn main() {
             }
             match event {
                 // Clicking outside dismisses the overlay; focus already moved on its own,
-                // so don't steal it back.
+                // so don't steal it back. (Unless the blur is the Windows Hello dialog
+                // taking over mid-unlock — the overlay must survive that.)
                 WindowEvent::Focused(false) => {
+                    let hello = window
+                        .app_handle()
+                        .state::<AppState>()
+                        .hello_in_flight
+                        .load(std::sync::atomic::Ordering::SeqCst);
+                    if hello {
+                        return;
+                    }
                     let _ = window.hide();
                     let _ = window.emit("overlay-hidden", ());
                 }
