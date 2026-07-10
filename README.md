@@ -10,6 +10,7 @@
 
   <br>
 
+  [![CI](https://img.shields.io/github/actions/workflow/status/klappstuhlpy/funke/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/klappstuhlpy/funke/actions/workflows/ci.yml)
   ![Rust](https://img.shields.io/badge/Rust-1.85%2B-d97757?style=flat-square&logo=rust&logoColor=white)
   ![Tauri](https://img.shields.io/badge/Tauri-v2-262624?style=flat-square&logo=tauri&logoColor=ffc131)
   ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-262624?style=flat-square)
