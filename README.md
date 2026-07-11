@@ -63,8 +63,6 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   overlay width, web engine, provider toggles, file-index folders, plugins, launch-at-startup —
   all applied live.
 
-**Status:** M0–M5 complete — the full roadmap lives in [docs/PLAN.md](docs/PLAN.md).
-
 ## Screenshots
 
 <table>
@@ -90,12 +88,16 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
 <table>
   <tr>
     <td width="33%" align="center">
-      <img src="assets/vault-calculator.png" alt="Calculator: 2+2*3=8, Enter copies the result">
+      <img src="assets/calculator.png" alt="Calculator: 2+2*3=8, Enter copies the result">
       <sub><b>Calculator</b> — solve simple mathematical equations</sub>
     </td>
     <td width="33%" align="center">
-      <img src="assets/vault-windows.png" alt="Search open windows by using the 'w' prefix">
+      <img src="assets/windows.png" alt="Search open windows by using the 'w' prefix">
       <sub><b>Windows</b> — search for open apps</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="assets/clipboard.png" alt="View and manage your clipboard history">
+      <sub><b>Clipboard</b> — in-memory history of what you copied</sub>
     </td>
   </tr>
 </table>

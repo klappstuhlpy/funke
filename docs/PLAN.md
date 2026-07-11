@@ -250,7 +250,7 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   copy inside the installer, and the installer itself — the old post-hoc step could not sign
   the inner exe. **Pending — an actual certificate** (Azure Trusted Signing account; budget
   for it). Until then binaries ship unsigned and SmartScreen warns.
-- **M7 — clipboard history** (`c`, landed 2026-07). **Decision: in memory, never on disk.**
+- **M7 — clipboard history** ✅ (`c`, landed 2026-07). **Decision: in memory, never on disk.**
   A persisted history is what every other launcher ships, and it is the wrong default here:
   the clipboard catches passwords, tokens and 2FA codes by nature, so persisting it would
   create the single worst artifact this app could leave at rest — worse than the vault's,
