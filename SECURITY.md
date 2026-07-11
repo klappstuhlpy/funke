@@ -80,8 +80,13 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   (Settings, or an entry's `autotype` field) is typed exactly as written: a sequence that
   types the password into the wrong field of the wrong form is the author's to get right.
 - Context matching can be wrong. It is deliberately conservative — a hit needs the URL's
-  registrable domain, the process name, or the window title to *name* the entry — but a
-  suggestion is only ever an offer: nothing is typed until you press Enter on it.
+  registrable domain, the process name, or (for a native app) the window title to *name*
+  the entry — but a suggestion is only ever an offer: nothing is typed until you press
+  Enter on it. **In a browser, only the address bar's host is trusted to identify the
+  site**: a page's title is content the site controls, so it may confirm a host that
+  already matched but can never produce a match of its own, and a browser window whose
+  URL cannot be read suggests nothing. Path, query and fragment are discarded — a site
+  cannot steer a suggestion by what it puts after the host.
 - The master password crosses the webview IPC boundary as a string once per unlock.
   Rust-side copies are zeroized immediately; the webview side is cleared but JS string
   lifetime is ultimately up to the engine's garbage collector.

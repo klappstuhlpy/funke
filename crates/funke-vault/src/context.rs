@@ -11,6 +11,14 @@
 //! the wrong password into a window, so a hit needs a real signal (host equality, the
 //! process *being* the site, the window title naming the entry) rather than a fuzzy
 //! near-miss.
+//!
+//! In a **browser** that conservatism goes further: the host from the address bar is the
+//! *only* thing allowed to name the credential. Everything else a page contributes —
+//! its title, and with it any path text the site chose to put there — is content the
+//! site controls. A page titled "discord/discord-api-docs · GitHub" must not float the
+//! Discord credential, or any site could bait Enter into typing a password of its
+//! choosing into its own tab. So for browsers the title only *confirms* a host hit; it
+//! can never produce one, and a browser whose URL we cannot read suggests nothing.
 
 use crate::VaultEntry;
 
@@ -82,10 +90,15 @@ impl FocusContext {
         }
     }
 
-    /// How to name this context in the UI ("github.com", "Discord").
+    /// How to name this context in the UI ("github.com", "Discord"). A browser is named
+    /// by its site or not at all — "autofill Chrome" would name the browser, not the
+    /// credential, and offering to unlock *for* it is the same category error.
     pub fn label(&self) -> Option<String> {
         if let Some(host) = self.host() {
             return Some(host.to_string());
+        }
+        if self.browser {
+            return None;
         }
         self.process.as_deref().map(capitalize)
     }
@@ -108,10 +121,15 @@ pub fn score(entry: &VaultEntry, context: &FocusContext) -> Option<i64> {
 
     if let Some(title) = context.title.as_deref() {
         if title_names(entry, title) {
-            best = if best > 0 {
-                best + SCORE_TITLE_BONUS
-            } else {
-                SCORE_TITLE
+            best = match (best, context.browser) {
+                // Confirming a host we already matched: safe, the site is established.
+                (hit, _) if hit > 0 => hit + SCORE_TITLE_BONUS,
+                // A browser's title is the *page's* text — the site writes it, so it may
+                // name any service it likes (path text included). It cannot be the thing
+                // that identifies a credential; only the address bar's host may.
+                (_, true) => 0,
+                // A native app's title comes from the app itself: "Steam Login" → Steam.
+                (_, false) => SCORE_TITLE,
             };
         }
     }
@@ -279,6 +297,68 @@ mod tests {
             score(&entry("BBC", Some("bbc.co.uk")), &browsing("https://gov.co.uk")),
             None
         );
+    }
+
+    /// The page's own text must never name the credential: a site can title itself
+    /// anything, so honouring it would let any tab bait Enter into typing the password
+    /// it asked for. Only the address bar's host identifies a site.
+    #[test]
+    fn a_page_title_cannot_conjure_a_credential_for_another_site() {
+        let discord = entry("Discord", Some("discord.com"));
+
+        // Browsing GitHub. The page (and the URL's path) is *about* Discord — the title
+        // says so — but the credential for github.com is the only honest suggestion.
+        let context = FocusContext {
+            title: Some("discord/discord-api-docs · GitHub".into()),
+            process: Some("chrome".into()),
+            url: Some("https://github.com/discord/discord-api-docs".into()),
+            browser: true,
+        };
+        assert_eq!(score(&discord, &context), None);
+
+        // Same page under the real host: the title now confirms rather than invents.
+        let context = FocusContext {
+            url: Some("https://discord.com/login".into()),
+            ..context
+        };
+        assert_eq!(score(&discord, &context), Some(SCORE_HOST_EXACT + SCORE_TITLE_BONUS));
+    }
+
+    #[test]
+    fn a_browser_with_no_readable_url_suggests_nothing() {
+        let discord = entry("Discord", Some("discord.com"));
+        let context = FocusContext {
+            title: Some("Discord — the place to talk".into()),
+            process: Some("firefox".into()),
+            url: None,
+            browser: true,
+        };
+        // No host means no idea which site is in front — and a locked vault must not
+        // offer to unlock "for Firefox" either.
+        assert_eq!(score(&discord, &context), None);
+        assert_eq!(context.label(), None);
+    }
+
+    /// Paths are stripped everywhere a URL is read, so nothing below the host — query
+    /// strings, ports and userinfo included — can steer a suggestion.
+    #[test]
+    fn only_the_host_of_a_url_is_ever_matched() {
+        let github = entry("GitHub", Some("github.com"));
+        for url in [
+            "https://github.com",
+            "https://github.com/discord/discord-api-docs",
+            "https://github.com:443/login?next=/steam#top",
+            "github.com/paypal",
+        ] {
+            let context = FocusContext {
+                title: Some("Sign in".into()),
+                process: Some("chrome".into()),
+                url: Some(url.into()),
+                browser: true,
+            };
+            assert_eq!(context.host(), Some("github.com"), "{url}");
+            assert_eq!(score(&github, &context), Some(SCORE_HOST_EXACT), "{url}");
+        }
     }
 
     #[test]

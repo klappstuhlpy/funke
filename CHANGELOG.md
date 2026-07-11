@@ -9,6 +9,18 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+### Security
+- **A web page's title could conjure a credential suggestion for a different site.** The
+  focus-context scorer let the window title carry a match on its own, worth exactly the
+  threshold a suggestion needs. In a browser that title is the *page's* text — the site
+  writes it, path text and all — so visiting `github.com/discord/discord-api-docs` floated
+  the **Discord** credential with Enter wired to autotype it into a **github.com** tab, and
+  any site could have titled itself to bait whichever password it wanted. In a browser the
+  address bar's host is now the only thing that may identify the site: the title can
+  confirm a host that already matched but never produce a match, a browser whose URL can't
+  be read suggests nothing, and it no longer offers to unlock "for Chrome". Native apps are
+  unchanged — their title comes from the app itself, not from a page.
+
 ### Added
 - **Screenshots in the README** — a hero shot of the overlay mid-search, a three-up gallery
   (overview, vault search, actions menu) and the four settings pages behind a collapsed
