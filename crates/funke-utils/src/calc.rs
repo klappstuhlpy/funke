@@ -58,7 +58,7 @@ fn looks_like_math(text: &str) -> bool {
 }
 
 fn evaluate(text: &str) -> Option<String> {
-    let value = meval::eval_str(text).ok()?;
+    let value = fasteval::ez_eval(text, &mut fasteval::EmptyNamespace).ok()?;
     if !value.is_finite() {
         return None;
     }
