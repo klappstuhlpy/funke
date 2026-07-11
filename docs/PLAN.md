@@ -67,7 +67,23 @@ important thing for perceived speed), merges results, and ranks with **frecency*
   Windows service; the launcher works without it at Phase-A quality.
 - **Phase C (optional):** content search by *querying* the existing Windows Search index
   (never build your own content indexer).
-- Cheap win: detect an installed Everything instance and offer its IPC as a provider.
+- ✅ **Cheap win, done:** detect a running Everything and use its IPC (`funke-everything`).
+  It buys Phase B's *result* — a whole-volume index that is current to the second — for the
+  users who already have it, without the USN/MFT work or the elevated service Phase B needs.
+  Not a provider of its own: it is a **backend of `funke-files`**, chosen per query by
+  `is_running()`, so there is no second `f` in the results and nothing to configure. When
+  Everything is up the walk doesn't run at all (and its index is dropped); when it goes away
+  the walk resumes. Phase B is *not* cancelled — this only helps people who installed
+  Everything — but it is no longer the only road to fresh, whole-disk search.
+  - **Scope stays `index_roots`, not the whole disk.** Everything caps a reply and fills it
+    in its own (path) order, so "report" on this machine (4,366 whole-disk matches) would
+    spend the entire candidate budget inside `C:\Windows\WinSxS` and `C:\ProgramData` and
+    surface none of the user's own files. Home by default, as before; `C:\` is one root away.
+  - **Substring, not fuzzy.** Everything decides the candidates by substring; we still rank
+    them. `rprt` → `report.txt` works only on the built-in index. Accepted, and documented in
+    the crate.
+  - **No DLL.** The `WM_COPYDATA` protocol is spoken directly, so `Everything64.dll` is
+    neither vendored nor shipped and no foreign license enters the tree.
 
 ## 4. Bitwarden / Vaultwarden plugin (M4)
 

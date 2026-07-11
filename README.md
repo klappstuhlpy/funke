@@ -31,7 +31,9 @@ corners, sized to its content) in a warm Anthropic-inspired theme. Type to searc
 arrive in labeled sections, frequently picked ones bubble up (frecency).
 
 - **Applications** — fuzzy-search installed apps (Start Menu, Store/UWP, PATH) with real icons.
-- **Files** (`f`) — background filename index of your chosen folders, watcher-refreshed.
+- **Files** (`f`) — background filename index of your chosen folders, watcher-refreshed. If
+  you run [Everything](https://www.voidtools.com/), Funke uses its live index instead — no
+  waiting for a walk, results current to the second. Detected automatically; nothing to set up.
 - **Windows** (`w`) — switch to any open window (Enter focuses, restores minimized) or end its process.
 - **Vault** (`v`) — Bitwarden/Vaultwarden via the official `bw` CLI: unlock in the overlay
   (or via **Windows Hello** after the first unlock, opt-in), autotype into the previous
@@ -173,6 +175,7 @@ crates/
 ├── funke-shell/     # Windows shell helpers shared by providers (COM icon extraction)
 ├── funke-apps/      # installed-apps provider: Get-StartApps (AUMIDs) + PATH executables
 ├── funke-files/     # filename index of chosen roots: walkdir + notify refresh, `f` prefix
+├── funke-everything/ # Everything's WM_COPYDATA IPC — used by funke-files when it is running
 ├── funke-utils/     # utility providers: calculator, web search (`g`, engine from settings), system commands
 ├── funke-windows/   # window switcher (`w`): switch to or kill open top-level windows
 ├── funke-clipboard/ # clipboard history (`c`): in-memory ring, secret-aware, never persisted

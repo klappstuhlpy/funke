@@ -55,6 +55,26 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   competitor.)
 
 ### Added
+- **Everything integration** — if voidtools' [Everything](https://www.voidtools.com/) is
+  running, file search asks *it* instead of walking the disk: no index to build at startup,
+  none held in memory, and no minute-long wait before a file you just saved can be found.
+  Detected, never required — close Everything and the built-in index takes over again, with
+  no setting to find and nothing to configure. Settings → Commands says which one is
+  answering.
+
+  It changes **how** files are indexed, not **which** files are searched: the query is scoped
+  to the same index folders as before (your home folder by default). Searching every drive is
+  deliberately not the default — Everything caps a reply and fills it in its own order, so on
+  a whole-disk query a common word like "report" (4,366 matches here) spends the entire
+  budget on `C:\Windows\WinSxS` before reaching anything of yours. Add `C:\` as a folder if
+  you want it anyway.
+
+  One difference is worth knowing: Everything matches **substrings**, where the built-in
+  index matches fuzzy subsequences — `rprt` finds `report.txt` in the built-in index and
+  nothing in Everything. Ranking stays ours either way.
+
+  Spoken over Everything's `WM_COPYDATA` IPC directly, so there is no `Everything64.dll` to
+  vendor and no third-party license in the tree.
 - **Snippets** (`s`) — text you paste often (a signature, an address, a block of
   boilerplate), created in Settings → Snippets and pasted into the window you came from.
   Found by name or abbreviation from an ordinary search; the *body* is only searched behind

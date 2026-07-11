@@ -665,6 +665,13 @@ struct Engine {
     name: &'static str,
 }
 
+/// Whether Everything is serving file search right now, so the Files pane can say which
+/// index it is talking about. Asked when the pane opens — it is a fact about this moment.
+#[tauri::command]
+fn everything_is_indexing() -> bool {
+    funke_files::everything_is_indexing()
+}
+
 #[tauri::command]
 fn list_engines() -> Vec<Engine> {
     funke_utils::ENGINES
@@ -990,6 +997,7 @@ fn main() {
             save_settings,
             list_providers,
             list_engines,
+            everything_is_indexing,
             pick_index_root,
             settings_ready,
             close_settings,

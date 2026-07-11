@@ -1252,11 +1252,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "funke-everything"
+version = "0.1.0"
+dependencies = [
+ "windows",
+]
+
+[[package]]
 name = "funke-files"
 version = "0.1.0"
 dependencies = [
  "dirs 6.0.0",
  "funke-core",
+ "funke-everything",
  "funke-shell",
  "notify",
  "walkdir",

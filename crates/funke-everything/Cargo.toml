@@ -1,0 +1,17 @@
+﻿[package]
+name = "funke-everything"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+description = "Everything (voidtools) IPC client: an always-current file index, when the user already runs Everything"
+
+[dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    # WNDCLASSW carries an HBRUSH, so the message-only window needs the GDI types.
+    "Win32_Graphics_Gdi",
+    "Win32_System_DataExchange",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_WindowsAndMessaging",
+] }
+

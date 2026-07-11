@@ -5,6 +5,7 @@ members = [
     "crates/funke-shell",
     "crates/funke-apps",
     "crates/funke-files",
+    "crates/funke-everything",
     "crates/funke-utils",
     "crates/funke-windows",
     "crates/funke-clipboard",

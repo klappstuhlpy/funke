@@ -349,7 +349,8 @@ function renderRoots() {
     what.className = "what";
     const desc = document.createElement("div");
     desc.className = "desc";
-    desc.textContent = "Indexing your home folder (default).";
+    // "Searching", not "indexing": with Everything running, Funke indexes nothing at all.
+    desc.textContent = "Searching your home folder (default).";
     what.appendChild(desc);
     row.appendChild(what);
     box.appendChild(row);
@@ -623,13 +624,17 @@ document.addEventListener("keydown", (e) => {
 
 async function init() {
   try {
-    const [loaded, engines, providers, plugins] = await Promise.all([
+    const [loaded, engines, providers, plugins, everything] = await Promise.all([
       invoke("get_settings"),
       invoke("list_engines"),
       invoke("list_providers"),
       invoke("list_plugins"),
+      invoke("everything_is_indexing"),
     ]);
     settings = loaded;
+    // Which index the Files pane is describing is a fact about right now — Everything can be
+    // started or closed while Funke runs, so it is read when the pane opens, not cached.
+    document.getElementById("everything-row").hidden = !everything;
     // Version is inferred from funke-app's Cargo.toml at build time (single source of truth).
     window.__TAURI__.app
       .getVersion()

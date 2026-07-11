@@ -8,6 +8,22 @@
 //!
 //! Queries prefilter with a cheap byte-subsequence check before nucleo scores the
 //! survivors, so a six-figure index stays comfortably inside a keystroke budget.
+//!
+//! **Unless Everything is running.** voidtools' Everything already keeps a live index of
+//! every NTFS volume off the USN journal — exactly the work Phase B has yet to do — so when
+//! it is there we ask it instead ([`funke_everything`]) and don't walk at all: no index of
+//! our own to build, hold in memory, or rebuild a minute after the disk changes. Its answers
+//! are current to the second. The walk resumes by itself if Everything is closed; it is
+//! detected, never required, and it is the same provider either way.
+//!
+//! It changes *how* the index is built, not *what* is searched: the query is scoped to the
+//! same `index_roots` the walk would have used (home by default). Searching every volume is
+//! one root away — add `C:\` — but it is not the default, and [`everything_search`] says why.
+//!
+//! The two backends do not answer identically, and the difference is worth knowing:
+//! Everything matches **substrings** (spaces AND together), while the built-in index matches
+//! fuzzy subsequences — `rprt` finds `report.txt` in one and nothing in the other. Ranking is
+//! ours in both cases; only candidate selection differs.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -23,6 +39,10 @@ use walkdir::WalkDir;
 const MAX_ENTRIES: usize = 400_000;
 const MAX_RESULTS: usize = 40;
 const MIN_QUERY_CHARS: usize = 2;
+/// How many candidates to take from Everything before ranking them ourselves. Generous,
+/// because Everything truncates by *its* sort order: ask for exactly the 40 we will show and
+/// the best fuzzy match may never be among them.
+const EVERYTHING_CANDIDATES: u32 = 300;
 /// Files compete with apps in unscoped searches; nudge them below equally good app hits.
 /// (Scoped `f …` queries only contain files, so relative order is unaffected.)
 const GLOBAL_SCORE_PENALTY: i64 = 8;
@@ -56,6 +76,8 @@ struct FileEntry {
 
 pub struct FilesProvider {
     entries: Arc<RwLock<Vec<FileEntry>>>,
+    settings: Arc<RwLock<Settings>>,
+    everything: funke_everything::Everything,
     /// Icon data URLs keyed by extension (or `<dir>`/`<none>`), filled lazily at query
     /// time — only the handful of extensions that actually appear in results pay the
     /// shell-extraction cost.
@@ -69,10 +91,81 @@ impl FilesProvider {
     pub fn spawn(settings: Arc<RwLock<Settings>>) -> Self {
         let entries = Arc::new(RwLock::new(Vec::new()));
         let handle = Arc::clone(&entries);
-        thread::spawn(move || index_loop(handle, settings));
+        let indexed = Arc::clone(&settings);
+        thread::spawn(move || index_loop(handle, indexed));
         Self {
             entries,
+            settings,
+            everything: funke_everything::Everything::spawn(),
             icon_cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Everything's answer, ranked by our scorer. Everything decides which files are
+    /// candidates; we decide the order they appear in, so an `f` search feels the same
+    /// whichever index is behind it.
+    fn query_everything(&self, text: &str, matcher: &FuzzyMatcher) -> Vec<ResultItem> {
+        // The same roots the walk would have used — Everything changes how the index is
+        // built, not which files the user asked to search.
+        let roots = resolve_roots(&self.settings.read().unwrap().index_roots);
+        let hits = self
+            .everything
+            .search(&everything_search(text, &roots), EVERYTHING_CANDIDATES);
+
+        let mut scored: Vec<(i64, funke_everything::Hit)> = hits
+            .into_iter()
+            .filter(|hit| !junk_path(&hit.path))
+            .filter_map(|hit| {
+                matcher
+                    .score(&hit.name)
+                    .map(|score| (score - GLOBAL_SCORE_PENALTY, hit))
+            })
+            .collect();
+        scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+        scored.truncate(MAX_RESULTS);
+
+        scored
+            .into_iter()
+            .map(|(score, hit)| {
+                let entry = FileEntry {
+                    name_lower: hit.name.to_lowercase(),
+                    name: hit.name,
+                    path: hit.path,
+                    is_dir: hit.is_dir,
+                };
+                self.item(score, &entry)
+            })
+            .collect()
+    }
+
+    fn item(&self, score: i64, entry: &FileEntry) -> ResultItem {
+        ResultItem {
+            id: format!("files:{}", entry.path),
+            provider: "files".into(),
+            title: entry.name.clone(),
+            subtitle: Some(entry.path.clone()),
+            icon: self.icon_for(entry),
+            score,
+            actions: vec![
+                NamedAction::new(
+                    "Open",
+                    Action::OpenPath {
+                        path: entry.path.clone(),
+                    },
+                ),
+                NamedAction::new(
+                    "Reveal in Explorer",
+                    Action::RevealPath {
+                        path: entry.path.clone(),
+                    },
+                ),
+                NamedAction::new(
+                    "Copy path",
+                    Action::CopyText {
+                        text: entry.path.clone(),
+                    },
+                ),
+            ],
         }
     }
 
@@ -114,6 +207,13 @@ impl SearchProvider for FilesProvider {
         let Some(matcher) = FuzzyMatcher::new(text) else {
             return Vec::new();
         };
+        // Asked per keystroke on purpose: Everything can be started or quit while Funke
+        // stays up, and a stale answer to "is it there?" is the one way this feature could
+        // silently return nothing at all.
+        if funke_everything::is_running() {
+            return self.query_everything(text, &matcher);
+        }
+
         let needle_lower = text.to_lowercase();
 
         let entries = self.entries.read().unwrap();
@@ -131,36 +231,44 @@ impl SearchProvider for FilesProvider {
 
         scored
             .into_iter()
-            .map(|(score, entry)| ResultItem {
-                id: format!("files:{}", entry.path),
-                provider: "files".into(),
-                title: entry.name.clone(),
-                subtitle: Some(entry.path.clone()),
-                icon: self.icon_for(entry),
-                score,
-                actions: vec![
-                    NamedAction::new(
-                        "Open",
-                        Action::OpenPath {
-                            path: entry.path.clone(),
-                        },
-                    ),
-                    NamedAction::new(
-                        "Reveal in Explorer",
-                        Action::RevealPath {
-                            path: entry.path.clone(),
-                        },
-                    ),
-                    NamedAction::new(
-                        "Copy path",
-                        Action::CopyText {
-                            text: entry.path.clone(),
-                        },
-                    ),
-                ],
-            })
+            .map(|(score, entry)| self.item(score, entry))
             .collect()
     }
+}
+
+/// Build Everything's query: its own `path:` filter per root, then the user's text.
+///
+/// The roots are [`resolve_roots`]' — the same ones the walk indexes, home by default — and
+/// **not** the whole disk, however tempting an index of every volume is. Everything caps a
+/// reply at [`EVERYTHING_CANDIDATES`] and fills it in its own order, so the whole disk means
+/// a common word like "report" (four thousand matches on this machine) spends the entire
+/// budget on `C:\Windows\WinSxS` and `C:\ProgramData` before reaching anything of the
+/// user's. Whole-disk search is a root away for anyone who wants it: add `C:\`.
+fn everything_search(text: &str, roots: &[PathBuf]) -> String {
+    let scope = roots
+        .iter()
+        .map(|root| format!("path:\"{}\"", root.to_string_lossy().trim_end_matches('\\')))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    if scope.is_empty() {
+        text.to_string()
+    } else {
+        // `<…>` groups the alternatives, so the OR binds to the paths and not to the text.
+        format!("<{scope}> {text}")
+    }
+}
+
+/// Is file search currently being served by Everything rather than the built-in walk? For
+/// the settings pane, whose account of what gets indexed would otherwise be a fiction.
+pub fn everything_is_indexing() -> bool {
+    funke_everything::is_running()
+}
+
+/// The walk skips junk directories; Everything doesn't know to, so its hits are filtered
+/// the same way. Whole-disk search is only a gift if it isn't three screens of
+/// `node_modules`.
+fn junk_path(path: &str) -> bool {
+    path.split('\\').any(|segment| denied_dir_name(&segment.to_lowercase()))
 }
 
 fn index_loop(handle: Arc<RwLock<Vec<FileEntry>>>, settings: Arc<RwLock<Settings>>) {
@@ -172,6 +280,24 @@ fn index_loop(handle: Arc<RwLock<Vec<FileEntry>>>, settings: Arc<RwLock<Settings
     let mut first = true;
 
     loop {
+        // Everything is already indexing every volume off the USN journal; walking the disk
+        // to build a second, worse copy of that would be pure waste — of startup, of CPU on
+        // every filesystem event, and of the memory the index sits in. Drop what we have and
+        // idle. If Everything is closed, `first` sends us straight back to work.
+        if funke_everything::is_running() {
+            if !first {
+                let mut entries = handle.write().unwrap();
+                entries.clear();
+                entries.shrink_to_fit(); // Give the memory back, not just the slots.
+                drop(entries);
+                _watcher = None;
+                watched.clear();
+                first = true;
+            }
+            thread::sleep(REBUILD_POLL);
+            continue;
+        }
+
         let roots = resolve_roots(&settings.read().unwrap().index_roots);
         if first || roots != watched {
             // New roots (or startup): rebuild immediately and move the watcher over.
@@ -308,6 +434,37 @@ mod tests {
     fn missing_roots_fall_back_to_home() {
         let roots = resolve_roots(&["Z:\\does\\not\\exist".to_string()]);
         assert_eq!(roots, dirs::home_dir().into_iter().collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn an_everything_query_is_scoped_to_the_roots_the_walk_would_have_used() {
+        assert_eq!(
+            everything_search("report", &[PathBuf::from(r"C:\Users\me\Documents")]),
+            r#"<path:"C:\Users\me\Documents"> report"#
+        );
+
+        // Several roots are alternatives, grouped so the OR binds to the paths — not to
+        // the search text, which would make every root optional.
+        assert_eq!(
+            everything_search("report", &[PathBuf::from(r"C:\work"), PathBuf::from(r"D:\archive\")]),
+            r#"<path:"C:\work" | path:"D:\archive"> report"#
+        );
+
+        // Never reachable through the provider (`resolve_roots` always yields at least the
+        // home directory), and deliberately not special-cased into a whole-disk search: an
+        // unscoped query is what an empty root list *means*, not what the user gets.
+        assert_eq!(everything_search("report", &[]), "report");
+    }
+
+    #[test]
+    fn everythings_hits_are_filtered_like_the_walk_is() {
+        assert!(junk_path(r"C:\dev\app\node_modules\left-pad\index.js"));
+        assert!(junk_path(r"C:\Users\me\AppData\Local\cache.db"));
+        assert!(junk_path(r"C:\Users\me\.git\config"));
+        assert!(junk_path(r"C:\$Recycle.Bin\S-1-5-21\deleted.docx"));
+
+        assert!(!junk_path(r"C:\Users\me\Documents\report.xlsx"));
+        assert!(!junk_path(r"C:\Windows\explorer.exe"));
     }
 
     #[test]
