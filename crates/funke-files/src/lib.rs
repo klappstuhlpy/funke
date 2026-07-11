@@ -1,4 +1,4 @@
-//! Filename search provider — indexing Phase A from docs/PLAN.md.
+//! Filename search provider — indexing Phase A from docs/DESIGN.md §4.
 //!
 //! A background thread walks the user's home directory (skipping dot-dirs and a junk
 //! denylist) into an in-memory filename index, then watches the roots with `notify`:

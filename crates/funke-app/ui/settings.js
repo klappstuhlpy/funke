@@ -38,6 +38,43 @@ const LANGUAGES = [
   ["de", () => "Deutsch"],
 ];
 
+// Where Funke lives. Everything the About pane links to hangs off the repository, so there
+// is one URL to change if it ever moves.
+const REPO = "https://github.com/klappstuhlpy/funke";
+
+// Stroke glyphs in the sidebar's family — no vendor marks, no bitmaps.
+const ICONS = {
+  code: '<path d="M9.5 7 5 12l4.5 5M14.5 7l4.5 5-4.5 5" />',
+  bug: '<circle cx="12" cy="12" r="8.5" /><path d="M12 7.8v5M12 15.9v.01" />',
+  tag: '<path d="M12.6 4H20v7.4l-8 8a1.4 1.4 0 0 1-2 0l-5.4-5.4a1.4 1.4 0 0 1 0-2L12.6 4z" /><path d="M16.4 7.6v.01" />',
+  list: '<path d="M5 6.5h14M5 12h14M5 17.5h9" />',
+  book: '<path d="M12 6.6C10.6 5.2 8.6 4.5 5 4.5v13c3.6 0 5.6.7 7 2.1 1.4-1.4 3.4-2.1 7-2.1v-13c-3.6 0-5.6.7-7 2.1z" /><path d="M12 6.6v13" />',
+  shield: '<path d="M12 3.6l7 2.9v5c0 4-2.9 7.1-7 8.9-4.1-1.8-7-4.9-7-8.9v-5l7-2.9z" />',
+  scale: '<path d="M6 3.6h7l5 5v11.8H6z" /><path d="M13 3.6v5h5" /><path d="M9 13h6M9 16.5h4" />',
+};
+
+const LINKS = [
+  ["settings.about.source", REPO, "code"],
+  ["settings.about.issues", `${REPO}/issues`, "bug"],
+  ["settings.about.releases", `${REPO}/releases`, "tag"],
+  ["settings.about.changelog", `${REPO}/blob/main/CHANGELOG.md`, "list"],
+  ["settings.about.design", `${REPO}/blob/main/docs/DESIGN.md`, "book"],
+  ["settings.about.plugins", `${REPO}/blob/main/docs/PLUGINS.md`, "book"],
+  ["settings.about.security", `${REPO}/blob/main/SECURITY.md`, "shield"],
+  ["settings.about.license", `${REPO}/blob/main/LICENSE`, "scale"],
+];
+
+// The keys that work *inside* the overlay, next to the one that summons it — the hotkey pane
+// is where you look for "what do I press", so both halves of the answer live there.
+const SHORTCUTS = [
+  ["Up+Down", "settings.shortcuts.navigate"],
+  ["Enter", "settings.shortcuts.open"],
+  ["Shift+Enter", "settings.shortcuts.alt"],
+  ["Tab", "settings.shortcuts.actions"],
+  ["Ctrl+1…9", "settings.shortcuts.nth"],
+  ["Esc", "settings.shortcuts.dismiss"],
+];
+
 let settings = null;
 let recording = false;
 // The id of the snippet the editor is editing, "" while creating a new one, null when the
@@ -141,8 +178,55 @@ function renderAll() {
 
   renderRoots();
   renderSnippets();
+  // Both take their words from the catalogue, so they are rebuilt rather than translated in
+  // place — a language change repaints them for free.
+  renderShortcuts();
+  renderLinks();
 
-  if (!recording) recorder.textContent = settings.hotkey;
+  if (!recording) showChord(settings.hotkey);
+}
+
+/* ── the recorder shows a chord as keys, and prose as prose ── */
+
+function showChord(chord) {
+  fillKeycaps(recorder, chord);
+}
+
+function showText(text) {
+  recorder.classList.remove("chord");
+  recorder.textContent = text;
+}
+
+function renderShortcuts() {
+  const card = document.getElementById("shortcuts");
+  card.replaceChildren(
+    ...SHORTCUTS.map(([chord, key]) => {
+      const row = pluginRow(t(key), "");
+      row.querySelector(".desc").remove();
+      row.appendChild(keycaps(chord));
+      return row;
+    }),
+  );
+}
+
+function renderLinks() {
+  const box = document.getElementById("links");
+  box.replaceChildren(
+    ...LINKS.map(([key, url, icon]) => {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.innerHTML = `<svg viewBox="0 0 24 24">${ICONS[icon]}</svg>`;
+      chip.append(t(key));
+      const arrow = document.createElement("span");
+      arrow.className = "external";
+      arrow.textContent = "↗";
+      chip.appendChild(arrow);
+      // The browser opens it, not the webview: these are the user's links, in the user's
+      // browser, and the settings window is not a place to navigate away from.
+      chip.addEventListener("click", () => invoke("open_url", { url }).catch((err) => showError(String(err))));
+      return chip;
+    }),
+  );
 }
 
 function buildStaticControls() {
@@ -622,7 +706,7 @@ function stopRecording() {
 recorder.addEventListener("click", () => {
   recording = true;
   recorder.classList.add("recording");
-  recorder.textContent = t("settings.hotkey.recording");
+  showText(t("settings.hotkey.recording"));
   recorder.focus();
 });
 
@@ -642,13 +726,19 @@ recorder.addEventListener("keydown", (e) => {
     const held = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"]
       .filter(Boolean)
       .join("+");
-    recorder.textContent = held ? `${held}+…` : t("settings.hotkey.recording");
+    // The modifiers already down, as caps, with the key still to come.
+    if (held) {
+      showChord(held);
+      recorder.append("…");
+    } else {
+      showText(t("settings.hotkey.recording"));
+    }
     return;
   }
   const key = keyName(e);
   const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
   if (!key || !mods.length) {
-    recorder.textContent = t("settings.hotkey.needs_modifier");
+    showText(t("settings.hotkey.needs_modifier"));
     return;
   }
   stopRecording();
@@ -685,7 +775,10 @@ async function init() {
     // Version is inferred from funke-app's Cargo.toml at build time (single source of truth).
     window.__TAURI__.app
       .getVersion()
-      .then((v) => (document.getElementById("version").textContent = `Funke ${v}`))
+      .then((v) => {
+        document.getElementById("version").textContent = `Funke ${v}`;
+        document.getElementById("about-version").textContent = `v${v}`;
+      })
       .catch(() => {});
     buildStaticControls();
     buildEngineOptions(engines);

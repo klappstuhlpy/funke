@@ -1,5 +1,5 @@
 //! The Funke plugin system: out-of-process providers speaking JSON-RPC 2.0 over stdio
-//! (docs/PLUGINS.md is the authoring guide, docs/PLAN.md §2 the rationale — plugins are
+//! (docs/PLUGINS.md is the authoring guide, docs/DESIGN.md §3 the rationale — plugins are
 //! separate executables in any language; no dylibs, no stable-ABI problems, crash
 //! isolation for free).
 //!

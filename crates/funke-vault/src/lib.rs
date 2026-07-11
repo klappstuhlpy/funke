@@ -1,7 +1,7 @@
 //! Bitwarden/Vaultwarden vault provider (M4).
 //!
 //! All vault crypto stays in the official CLI: we spawn `bw serve` on a random
-//! localhost port and talk REST to it (see docs/PLAN.md §4 — never reimplement the
+//! localhost port and talk REST to it (see docs/DESIGN.md §5 — never reimplement the
 //! client protocol by hand). The `serve` process holds the unlocked state; this crate
 //! caches only non-secret fields (names, usernames, URI hosts, a has-TOTP flag, the
 //! organization label) for fuzzy search and fetches secrets by id at action time, so

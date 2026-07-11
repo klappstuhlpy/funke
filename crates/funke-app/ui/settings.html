@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>Funke Settings</title>
     <link rel="stylesheet" href="settings.css" />
+    <link rel="stylesheet" href="keys.css" />
   </head>
   <body>
     <main id="window">
@@ -47,6 +48,10 @@
             <svg viewBox="0 0 24 24"><path d="M9.5 4.5v3h5v-3a1.5 1.5 0 0 1 3 0v3H20a.8.8 0 0 1 .8.8v3.5a5.3 5.3 0 0 1-4.3 5.2v2.5a1.5 1.5 0 0 1-3 0" transform="rotate(45 12 12)" /></svg>
             <span data-i18n="settings.nav.plugins"></span>
           </button>
+          <button class="nav" data-pane="about">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5" /><path d="M12 7.8v.01" /></svg>
+            <span data-i18n="settings.nav.about"></span>
+          </button>
 
           <div id="version">Funke</div>
         </nav>
@@ -57,6 +62,8 @@
           <div class="pane active" id="pane-general">
             <h1 data-i18n="settings.general.heading"></h1>
             <p class="lead" data-i18n="settings.general.lead"></p>
+
+            <h2 class="section" data-i18n="settings.section.startup"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -73,6 +80,8 @@
                 <select id="language"></select>
               </div>
             </div>
+
+            <h2 class="section" data-i18n="settings.section.updates"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -87,6 +96,8 @@
           <div class="pane" id="pane-appearance">
             <h1 data-i18n="settings.appearance.heading"></h1>
             <p class="lead" data-i18n="settings.appearance.lead"></p>
+
+            <h2 class="section" data-i18n="settings.section.overlay"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -108,6 +119,8 @@
           <div class="pane" id="pane-hotkey">
             <h1 data-i18n="settings.nav.hotkey"></h1>
             <p class="lead" data-i18n="settings.hotkey.lead"></p>
+
+            <h2 class="section" data-i18n="settings.section.summon"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -118,12 +131,19 @@
               </div>
             </div>
             <p class="fineprint" data-i18n-html="settings.hotkey.fineprint"></p>
+
+            <h2 class="section" data-i18n="settings.section.inside"></h2>
+            <div class="card" id="shortcuts"></div>
           </div>
 
           <div class="pane" id="pane-commands">
             <h1 data-i18n="settings.commands.heading"></h1>
             <p class="lead" data-i18n="settings.commands.lead"></p>
+
+            <h2 class="section" data-i18n="settings.section.providers"></h2>
             <div class="card" id="providers"></div>
+
+            <h2 class="section" data-i18n="settings.section.web"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -133,6 +153,29 @@
                 <select id="engine"></select>
               </div>
             </div>
+
+            <h2 class="section" data-i18n="settings.section.files"></h2>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.roots"></div>
+                  <div class="desc" data-i18n="settings.roots.desc"></div>
+                </div>
+                <button class="button" id="add-root" data-i18n="settings.roots.add"></button>
+              </div>
+              <div id="roots"></div>
+              <div class="row" id="everything-row" hidden>
+                <div class="what">
+                  <div class="label">
+                    <span data-i18n="settings.everything"></span>
+                    <span class="tag" data-i18n="settings.everything.detected"></span>
+                  </div>
+                  <div class="desc" data-i18n-html="settings.everything.desc"></div>
+                </div>
+              </div>
+            </div>
+
+            <h2 class="section" data-i18n="settings.section.vault_unlock"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -143,18 +186,22 @@
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label" data-i18n="settings.vault.icons"></div>
-                  <div class="desc" data-i18n="settings.vault.icons.desc"></div>
+                  <div class="label" data-i18n="settings.vault.lock_screen"></div>
+                  <div class="desc" data-i18n="settings.vault.lock_screen.desc"></div>
                 </div>
-                <button class="toggle" id="vault-icons" role="switch" aria-checked="true"></button>
+                <button class="toggle" id="vault-lock-screen" role="switch" aria-checked="true"></button>
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label" data-i18n="settings.vault.context"></div>
-                  <div class="desc" data-i18n-html="settings.vault.context.desc"></div>
+                  <div class="label" data-i18n="settings.vault.idle"></div>
+                  <div class="desc" data-i18n="settings.vault.idle.desc"></div>
                 </div>
-                <button class="toggle" id="vault-context" role="switch" aria-checked="true"></button>
+                <select id="vault-idle"></select>
               </div>
+            </div>
+
+            <h2 class="section" data-i18n="settings.section.vault_autotype"></h2>
+            <div class="card">
               <div class="row">
                 <div class="what">
                   <div class="label" data-i18n="settings.vault.autotype_enter"></div>
@@ -175,38 +222,23 @@
                   placeholder="{USERNAME}{TAB}{PASSWORD}"
                 />
               </div>
-              <div class="row">
-                <div class="what">
-                  <div class="label" data-i18n="settings.vault.lock_screen"></div>
-                  <div class="desc" data-i18n="settings.vault.lock_screen.desc"></div>
-                </div>
-                <button class="toggle" id="vault-lock-screen" role="switch" aria-checked="true"></button>
-              </div>
-              <div class="row">
-                <div class="what">
-                  <div class="label" data-i18n="settings.vault.idle"></div>
-                  <div class="desc" data-i18n="settings.vault.idle.desc"></div>
-                </div>
-                <select id="vault-idle"></select>
-              </div>
             </div>
+
+            <h2 class="section" data-i18n="settings.section.vault_suggest"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label" data-i18n="settings.roots"></div>
-                  <div class="desc" data-i18n="settings.roots.desc"></div>
+                  <div class="label" data-i18n="settings.vault.context"></div>
+                  <div class="desc" data-i18n-html="settings.vault.context.desc"></div>
                 </div>
-                <button class="button" id="add-root" data-i18n="settings.roots.add"></button>
+                <button class="toggle" id="vault-context" role="switch" aria-checked="true"></button>
               </div>
-              <div id="roots"></div>
-              <div class="row" id="everything-row" hidden>
+              <div class="row">
                 <div class="what">
-                  <div class="label">
-                    <span data-i18n="settings.everything"></span>
-                    <span class="tag" data-i18n="settings.everything.detected"></span>
-                  </div>
-                  <div class="desc" data-i18n-html="settings.everything.desc"></div>
+                  <div class="label" data-i18n="settings.vault.icons"></div>
+                  <div class="desc" data-i18n="settings.vault.icons.desc"></div>
                 </div>
+                <button class="toggle" id="vault-icons" role="switch" aria-checked="true"></button>
               </div>
             </div>
           </div>
@@ -214,11 +246,13 @@
           <div class="pane" id="pane-snippets">
             <h1 data-i18n="settings.nav.snippets"></h1>
             <p class="lead" data-i18n-html="settings.snippets.lead"></p>
+
+            <h2 class="section" data-i18n="settings.section.your_snippets"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label" data-i18n="settings.snippets.placeholders"></div>
-                  <div class="desc" data-i18n-html="settings.snippets.placeholders.desc"></div>
+                  <div class="label" data-i18n="settings.snippets.manage"></div>
+                  <div class="desc" data-i18n="settings.snippets.manage.desc"></div>
                 </div>
                 <button class="button" id="add-snippet" data-i18n="settings.snippets.new"></button>
               </div>
@@ -251,11 +285,23 @@
               <div class="mark">◇</div>
               <p data-i18n-html="settings.snippets.empty"></p>
             </div>
+
+            <h2 class="section" data-i18n="settings.section.placeholders"></h2>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.snippets.placeholders"></div>
+                  <div class="desc" data-i18n-html="settings.snippets.placeholders.desc"></div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="pane" id="pane-plugins">
             <h1 data-i18n="settings.nav.plugins"></h1>
             <p class="lead" data-i18n-html="settings.plugins.lead"></p>
+
+            <h2 class="section" data-i18n="settings.section.installed"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -274,6 +320,7 @@
               <p data-i18n-html="settings.plugins.empty"></p>
             </div>
 
+            <h2 class="section" data-i18n="settings.section.catalog"></h2>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -287,10 +334,42 @@
             </div>
             <div class="card" id="catalog-list" hidden></div>
           </div>
+
+          <div class="pane" id="pane-about">
+            <h1 data-i18n="settings.nav.about"></h1>
+            <p class="lead" data-i18n="settings.about.lead"></p>
+
+            <div class="card" id="about">
+              <div class="row" id="about-identity">
+                <img src="icon.png" alt="" width="44" height="44" />
+                <div class="what">
+                  <div class="label">
+                    <span>Funke</span>
+                    <span class="tag" id="about-version">—</span>
+                  </div>
+                  <div class="desc" data-i18n="settings.about.tagline"></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.about.built"></div>
+                  <div class="desc" data-i18n="settings.about.built.desc"></div>
+                </div>
+              </div>
+            </div>
+
+            <h2 class="section" data-i18n="settings.section.links"></h2>
+            <div class="card">
+              <div class="links" id="links"></div>
+            </div>
+
+            <p class="fineprint" data-i18n="settings.about.fineprint"></p>
+          </div>
         </section>
       </div>
     </main>
     <script src="i18n.js"></script>
+    <script src="keys.js"></script>
     <script src="settings.js"></script>
   </body>
 </html>

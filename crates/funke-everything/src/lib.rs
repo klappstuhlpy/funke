@@ -2,7 +2,7 @@
 //! **if the user already runs Everything** — and nothing at all if they don't.
 //!
 //! Everything keeps a live index of every NTFS volume by reading the USN journal, which is
-//! precisely the work `funke-files` cannot do yet (PLAN.md M6). So when it is running we ask
+//! precisely the work `funke-files` cannot do yet (DESIGN.md §4, Phase B). So when it is running we ask
 //! it instead of walking the disk ourselves: no index to build at startup, none to hold in
 //! memory, and no minute-long staleness after a file appears. When it isn't, nothing changes
 //! — [`is_running`] comes back false and the built-in index carries the feature as before.

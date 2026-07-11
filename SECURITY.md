@@ -116,7 +116,7 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   the classic convenience/security tradeoff of biometric vault unlock — leave the
   setting off if your threat model includes malware running as your user.
 - In-browser DOM autofill is **out of scope by design** — use the Bitwarden browser
-  extension for that (see docs/PLAN.md §4).
+  extension for that (see docs/DESIGN.md §5).
 - Native passkey provision is **out of scope by design**: answering the Windows
   passkey (WebAuthn) prompt would mean registering as a system passkey provider and
   performing FIDO2 signing with key material outside the CLI. Bitwarden's desktop app

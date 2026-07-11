@@ -7,7 +7,7 @@ dynamic linking, and a crashing plugin can never take the launcher down.
 
 > Why out-of-process? Rust has no stable ABI, so "download a .dll" plugins are off the
 > table by design; stdio JSON-RPC is how Flow Launcher/Wox grew their ecosystems. See
-> `docs/PLAN.md` §2.
+> `docs/DESIGN.md` §3.
 
 ## Quick start (Rust)
 

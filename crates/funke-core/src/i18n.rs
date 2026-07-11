@@ -188,6 +188,16 @@ const EN: &[(&str, &str)] = &[
     ),
     // Reads on from "Bitwarden — ", so it is a clause, not a label.
     ("vault.how.master", "prompts for your master password"),
+    // What the app itself answers the settings window with. The section fallback is only
+    // reached by a provider the registry cannot name — a bug, but a visible one.
+    ("results.fallback", "Results"),
+    ("hotkey.rejected", "Couldn't bind “{hotkey}”: {error}"),
+    ("update.none", "You're on the latest version."),
+    ("update.installed", "Updated to {version} — restart Funke to finish."),
+    (
+        "update.unconfigured",
+        "Auto-updates aren't set up yet (no update endpoint configured).",
+    ),
 ];
 
 /// German. Written, not translated: du-form, short, and using the words a German user
@@ -292,6 +302,15 @@ const DE: &[(&str, &str)] = &[
         "Enter nutzt Windows Hello, ⇧Enter das Master-Passwort",
     ),
     ("vault.how.master", "fragt nach dem Master-Passwort"),
+
+    ("results.fallback", "Treffer"),
+    ("hotkey.rejected", "„{hotkey}“ ließ sich nicht belegen: {error}"),
+    ("update.none", "Du hast die neueste Version."),
+    ("update.installed", "Auf {version} aktualisiert — starte Funke neu, um fertig zu werden."),
+    (
+        "update.unconfigured",
+        "Automatische Updates sind noch nicht eingerichtet (keine Update-Adresse konfiguriert).",
+    ),
 ];
 
 /// Score a candidate against both the localized string and its English original, keeping the

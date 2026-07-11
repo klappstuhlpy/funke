@@ -225,6 +225,22 @@ h1 {
   line-height: 1.5;
 }
 
+/* Category headings. A pane is a list of subjects, not a list of switches: every card sits
+   under one of these, so a row says "Autotype sequence" and the heading above it says which
+   thing's autotype we are talking about — no row has to repeat its own subject. */
+h2.section {
+  margin: 22px 0 8px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.lead + .section {
+  margin-top: 0;
+}
+
 #error {
   margin: 0 0 14px;
   padding: 9px 12px;
@@ -542,6 +558,13 @@ option {
   cursor: pointer;
 }
 
+/* Showing the bound hotkey as keys (keys.css) turns the button into a flex box — keep its
+   contents centered, so the caps sit where the words used to. */
+.recorder.chord {
+  display: inline-flex;
+  justify-content: center;
+}
+
 .recorder:hover {
   background: var(--surface-hover);
 }
@@ -552,16 +575,6 @@ option {
   color: var(--text-dim);
 }
 
-kbd {
-  font-family: inherit;
-  font-size: 11px;
-  color: var(--text-dim);
-  background: var(--surface);
-  border: 1px solid var(--stroke);
-  border-radius: 5px;
-  padding: 1px 6px;
-}
-
 code {
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 11px;
@@ -570,6 +583,66 @@ code {
   border: 1px solid var(--stroke);
   border-radius: 4px;
   padding: 0 4px;
+}
+
+/* ── about: who this is, and where the rest of it lives ── */
+
+#about-identity {
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+#about-identity img {
+  flex: none;
+  border-radius: 10px;
+}
+
+/* Links are chips rather than rows: eight of them as rows would read as eight settings,
+   and none of them is one. */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: var(--pad);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: 99px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-stroke);
+}
+
+.chip svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chip .external {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.chip:hover .external {
+  color: var(--accent);
 }
 
 /* ── plugins placeholder ── */

@@ -1,4 +1,4 @@
-//! Reading the focused browser's address bar via UI Automation (PLAN.md §4).
+//! Reading the focused browser's address bar via UI Automation (DESIGN.md §5).
 //!
 //! This is how a credential suggestion knows *which site* you are on rather than just
 //! "a browser is open". UIA is the same public accessibility surface password managers

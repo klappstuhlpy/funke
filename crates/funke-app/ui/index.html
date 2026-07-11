@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>Funke</title>
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="keys.css" />
   </head>
   <body>
     <main id="panel">
@@ -19,14 +20,27 @@
       <footer id="status" hidden>
         <span id="count"></span>
         <span class="keys">
-          <kbd>↑↓</kbd> <span data-i18n="overlay.keys.navigate"></span>
-          <kbd>↵</kbd> <span data-i18n="overlay.keys.open"></span>
-          <kbd>⇥</kbd> <span data-i18n="overlay.keys.actions"></span>
-          <kbd>esc</kbd> <span data-i18n="overlay.keys.dismiss"></span>
+          <span class="key-hint">
+            <span data-keys="Up+Down"></span>
+            <span data-i18n="overlay.keys.navigate"></span>
+          </span>
+          <span class="key-hint">
+            <span data-keys="Enter"></span>
+            <span data-i18n="overlay.keys.open"></span>
+          </span>
+          <span class="key-hint">
+            <span data-keys="Tab"></span>
+            <span data-i18n="overlay.keys.actions"></span>
+          </span>
+          <span class="key-hint">
+            <span data-keys="Esc"></span>
+            <span data-i18n="overlay.keys.dismiss"></span>
+          </span>
         </span>
       </footer>
     </main>
     <script src="i18n.js"></script>
+    <script src="keys.js"></script>
     <script src="main.js"></script>
   </body>
 </html>

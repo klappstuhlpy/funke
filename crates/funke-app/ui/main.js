@@ -98,16 +98,15 @@ function itemRow(item, index, { removable = false } = {}) {
   }
   li.appendChild(text);
 
-  const hint = document.createElement("kbd");
-  hint.className = "hint";
-  hint.textContent = "↵";
+  const hint = keycaps("Enter");
+  hint.classList.add("hint");
   li.appendChild(hint);
 
   if (removable && !actionsFor && index >= 0) {
     // Recents are removable: the ✕ deletes the entry without running it.
     const remove = document.createElement("button");
     remove.className = "remove";
-    remove.title = "Remove from recents";
+    remove.title = t("overlay.forget");
     remove.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">' +
       '<path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -145,12 +144,12 @@ function actionRow(item, named, index) {
   }
   li.appendChild(text);
 
-  const hint = document.createElement("kbd");
-  hint.className = "hint";
   // Every action has a shortcut: Enter / Shift+Enter for the first two, Ctrl+digit
   // beyond (Ctrl+1/2 also work, but the Enter forms are the memorable labels).
-  hint.textContent = index === 0 ? "↵" : index === 1 ? "⇧↵" : index < 9 ? `Ctrl+${index + 1}` : "";
-  if (!hint.textContent) hint.style.visibility = "hidden";
+  const chord = index === 0 ? "Enter" : index === 1 ? "Shift+Enter" : index < 9 ? `Ctrl+${index + 1}` : "";
+  const hint = keycaps(chord);
+  hint.classList.add("hint");
+  if (!chord) hint.style.visibility = "hidden";
   li.appendChild(hint);
 
   li.addEventListener("click", () => maybeRun(item, index, { fromMenu: true }));
@@ -248,7 +247,7 @@ function exitVaultPrompt(restoreQuery) {
   unlocking = false;
   input.value = "";
   input.type = "text";
-  input.placeholder = SEARCH_PLACEHOLDER;
+  input.placeholder = t("overlay.placeholder");
   input.value = restoreQuery ? vaultReturnQuery : "";
   vaultReturnQuery = "";
   input.focus();
@@ -263,7 +262,7 @@ function renderVaultPrompt(error) {
 
   const tip = document.createElement("li");
   tip.className = "tip";
-  tip.textContent = unlocking ? "Unlocking…" : "Enter unlocks the vault — Esc cancels";
+  tip.textContent = unlocking ? t("overlay.vault.unlocking") : t("overlay.vault.prompt");
   list.appendChild(tip);
 
   if (error) {
@@ -534,6 +533,7 @@ listen("settings-changed", async (e) => {
 (async () => {
   setLocale(await invoke("locale"));
   applyTranslations();
+  applyKeycaps(); // the footer's key hints: markup, so they are drawn once
   invoke("get_settings").then(applyAccent);
   await loadOverview();
   input.focus();

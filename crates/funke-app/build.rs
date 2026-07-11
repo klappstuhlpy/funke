@@ -11,9 +11,15 @@ fn main() {
 /// actually differ, since rewriting it every build would churn the mtime and recompile the
 /// crate each time.
 fn stage_brand_icon() {
-    println!("cargo:rerun-if-changed=icons/icon.png");
-    let bytes = std::fs::read(Path::new("icons/icon.png")).expect("icons/icon.png is the app mark");
     let staged = Path::new("ui/icon.png");
+    println!("cargo:rerun-if-changed=icons/icon.png");
+    // …and on the staged copy itself, or the staging is not self-healing: with only the source
+    // watched, a `ui/icon.png` that goes missing (a clean checkout of an ignored file, a stray
+    // delete) never comes back — cargo sees no reason to re-run this script, and the settings
+    // window quietly renders a broken image where the brand mark should be. A missing file
+    // counts as changed, so naming the output here is what brings it back.
+    println!("cargo:rerun-if-changed=ui/icon.png");
+    let bytes = std::fs::read(Path::new("icons/icon.png")).expect("icons/icon.png is the app mark");
     if std::fs::read(staged).ok().as_deref() != Some(&bytes) {
         std::fs::write(staged, &bytes).expect("failed to stage the app mark into ui/");
     }

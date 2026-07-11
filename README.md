@@ -187,7 +187,7 @@ crates/
 └── funke-app/       # Tauri shell: tray, hotkey, overlay + settings windows, IPC commands, built-in providers
     └── ui/          # static frontend (HTML/CSS/JS, embedded via frontendDist)
 funke-plugins/       # first-party out-of-process plugins (template/ is the authoring starting point)
-docs/PLAN.md         # full project plan: architecture, indexing, Bitwarden, roadmap
+docs/DESIGN.md       # what is built and why: stack, architecture, file search, vault, plugins
 docs/PLUGINS.md      # how to write a plugin (manifest, protocol, distribution)
 ```
 

@@ -9,6 +9,8 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-11
+
 ### Security
 - **A web page's title could conjure a credential suggestion for a different site.** The
   focus-context scorer let the window title carry a match on its own, worth exactly the
@@ -29,6 +31,17 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   invisible to all of them — Funke's own new history included.
 
 ### Fixed
+- **A successful vault unlock reported itself as a `ReferenceError`.** `exitVaultPrompt`
+  still referenced a constant the string catalogue had removed (`SEARCH_PLACEHOLDER`), so it
+  threw halfway through — and at the call site that matters, inside the unlock's own `try`,
+  that throw was caught by the `catch` meant for a *wrong password*: the vault had in fact
+  unlocked, and the overlay answered by re-rendering the masked prompt with
+  "ReferenceError: SEARCH_PLACEHOLDER is not defined" where the error message goes. Escaping
+  out of the prompt hit the same throw and left the input wearing the password placeholder,
+  with the query you had typed gone. The query is restored and re-run on both paths again.
+- **Two strings the overlay writes itself stayed English in a German UI** — the vault
+  prompt's "Enter unlocks the vault" line and the ✕ tooltip on a recent. Both are in the
+  catalogue now, which is where invariant 0 says they belong.
 - **"Open settings" from the overlay hung the launcher's windows.** Picking it built the
   settings window from the command handler — which runs on the main thread, and the main
   thread *is* the event loop. `WebviewWindowBuilder::build()` creates the window there and
@@ -55,6 +68,17 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   competitor.)
 
 ### Added
+- **An About pane in settings** — what Funke is, which version is running, and one click to
+  everything around it: the source, the issue tracker, releases, the changelog, the design
+  record, the plugin guide, the security policy, the license. Links open in your browser, not
+  inside the settings window (a new `open_url` command, which refuses anything that isn't
+  `https://` — a command is callable by anything in the webview, and the shell would happily
+  launch a local executable).
+- **The Hotkey pane lists the keys that work *inside* the overlay** too — navigate, open, run
+  the second action, list all actions, run the nth, dismiss. "What do I press" now has one
+  answer in one place, instead of being folded into a footer legend you only see while the
+  overlay is open.
+
 - **German, and a seam for the next language.** Everything Funke writes — result titles and
   subtitles, action labels, section headers, the tray menu, both windows — comes from a
   string catalogue with an English and a German half (`funke_core::i18n` for what providers
@@ -126,6 +150,28 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   (overview, vault search, actions menu) and the four settings pages behind a collapsed
   `<details>`, so the page shows the app without turning into a scroll. Images live in
   `assets/` under descriptive names.
+
+### Changed
+- **Shortcuts are drawn as keys, not as strings.** `⇧↵` was one box with two glyphs crammed
+  into it, which reads as a symbol rather than as two fingers. Shift+Enter is now two caps
+  side by side, the way the keyboard has it — in the result rows, in the actions menu, in the
+  footer legend, in the new shortcut list, and on the hotkey recorder, which now builds the
+  combination out of caps as you hold the modifiers down. One shared component
+  (`ui/keys.css` + `ui/keys.js`), and one spelling of a chord (`"Ctrl+Shift+Enter"` — the same
+  string the settings file and the shortcut registration already use), so a key is drawn one
+  way, in one place.
+- **The settings panes are grouped into categories.** Commands was a flat wall of switches,
+  seven of which had to begin with the word "Vault:" to say what they were even about. That
+  prefix is now the heading above the card — *Providers*, *Web search*, *File search*,
+  *Vault · unlocking*, *Vault · autotype*, *Vault · suggestions* — so no row has to repeat its
+  own subject, and every other pane is grouped the same way.
+- **The settings window is a fixed size.** It is frameless (there was no grip to drag anyway),
+  its panes are laid out for one width, and nothing in it rewards being made bigger — the
+  content column scrolls instead.
+- **`docs/PLAN.md` is now `docs/DESIGN.md`**: a record of what is built and *why* — including
+  what was deliberately not built and the reason it wasn't — rather than a roadmap whose
+  milestones have all landed. The milestone list survives as one condensed section of it, and
+  the open ground is stated as open ground rather than as a schedule.
 
 ## [0.3.1] - 2026-07-11
 
@@ -293,7 +339,8 @@ plugin foundation.
 - Repo went public with `LICENSE` (MIT), `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and
   `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/klappstuhlpy/funke/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/klappstuhlpy/funke/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/klappstuhlpy/funke/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/klappstuhlpy/funke/compare/v0.1.1...v0.2.0

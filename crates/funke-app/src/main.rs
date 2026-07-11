@@ -94,7 +94,9 @@ fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
     // sits where its best item ranks) and within each section.
     let mut sections: Vec<Section> = Vec::new();
     for item in items {
-        let label = registry.provider_name(&item.provider).unwrap_or("Results");
+        let label = registry
+            .provider_name(&item.provider)
+            .unwrap_or_else(|| funke_core::i18n::t("results.fallback"));
         match sections.iter_mut().find(|section| section.label == label) {
             Some(section) => section.items.push(item),
             None => sections.push(Section {
@@ -465,7 +467,10 @@ fn save_settings(app: AppHandle, state: tauri::State<'_, AppState>, settings: Se
         let _ = app.global_shortcut().unregister(old.hotkey.as_str());
         if let Err(e) = register_hotkey(&app, &settings.hotkey) {
             let _ = register_hotkey(&app, &old.hotkey);
-            return Err(format!("Couldn't bind “{}”: {e}", settings.hotkey));
+            return Err(funke_core::i18n::tf(
+                "hotkey.rejected",
+                &[("hotkey", &settings.hotkey), ("error", &e.to_string())],
+            ));
         }
     }
 
@@ -692,6 +697,18 @@ fn everything_is_indexing() -> bool {
     funke_files::everything_is_indexing()
 }
 
+/// Open a link from the settings window in the user's browser (the About pane's links).
+/// The scheme is checked rather than trusted: a command is callable by anything running in
+/// the webview, and `open` hands whatever it is given to the shell — which would happily
+/// launch a local executable or a UNC path.
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err(format!("refusing to open a non-https link: {url}"));
+    }
+    open::that_detached(&url).map_err(|e| format!("failed to open {url}: {e}"))
+}
+
 #[tauri::command]
 fn list_engines() -> Vec<Engine> {
     funke_utils::ENGINES
@@ -711,13 +728,13 @@ fn pick_index_root(app: AppHandle) -> Option<String> {
 /// Check GitHub Releases for a newer version and, if found, download + stage the update
 /// (applied on next launch). **Dormant until configured**: returns a friendly message
 /// when `plugins.updater` (endpoints + a signing `pubkey`) isn't set in tauri.conf.json —
-/// see docs/PLAN.md M3 for the one-time keypair setup.
+/// see docs/DESIGN.md §8 for the one-time keypair setup.
 #[tauri::command]
 async fn check_update(app: AppHandle) -> Result<String, String> {
     use tauri_plugin_updater::UpdaterExt;
     let updater = app
         .updater()
-        .map_err(|_| "Auto-updates aren't set up yet (no update endpoint configured).".to_string())?;
+        .map_err(|_| funke_core::i18n::t("update.unconfigured").to_string())?;
     match updater.check().await.map_err(|e| e.to_string())? {
         Some(update) => {
             let version = update.version.clone();
@@ -725,9 +742,9 @@ async fn check_update(app: AppHandle) -> Result<String, String> {
                 .download_and_install(|_, _| {}, || {})
                 .await
                 .map_err(|e| e.to_string())?;
-            Ok(format!("Updated to {version} — restart Funke to finish."))
+            Ok(funke_core::i18n::tf("update.installed", &[("version", &version)]))
         }
-        None => Ok("You're on the latest version.".into()),
+        None => Ok(funke_core::i18n::t("update.none").to_string()),
     }
 }
 
@@ -774,7 +791,11 @@ fn build_settings_window(app: &AppHandle) {
     let built = WebviewWindowBuilder::new(app, SETTINGS_WINDOW, WebviewUrl::App("settings.html".into()))
         .title("Funke Settings")
         .inner_size(780.0, 560.0)
-        .min_inner_size(640.0, 440.0)
+        // Fixed size: the panes are laid out for this one, the window is frameless (there is
+        // no grip to drag anyway), and a settings window is a dialog — nothing in it rewards
+        // being made bigger. The content column scrolls instead.
+        .resizable(false)
+        .maximizable(false)
         .decorations(false)
         .shadow(true)
         .center()
@@ -1019,6 +1040,7 @@ fn main() {
             list_engines,
             locale,
             everything_is_indexing,
+            open_url,
             pick_index_root,
             settings_ready,
             close_settings,

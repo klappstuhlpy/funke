@@ -199,11 +199,13 @@ body {
    danger rule below still wins on selected destructive rows.) */
 .item.action .hint {
   visibility: visible;
-  color: var(--text-faint);
-  border-color: var(--stroke);
 }
 
-.item.action.selected .hint {
+.item.action .hint .cap {
+  color: var(--text-faint);
+}
+
+.item.action.selected .hint .cap {
   color: var(--accent);
   border-color: var(--accent-stroke);
 }
@@ -218,7 +220,7 @@ body {
   color: var(--danger);
 }
 
-.item.danger.selected .hint {
+.item.danger.selected .hint .cap {
   color: var(--danger);
   border-color: var(--danger-stroke);
 }
@@ -267,25 +269,20 @@ body {
   text-overflow: ellipsis;
 }
 
-kbd {
-  font-family: inherit;
-  font-size: 11px;
-  color: var(--text-dim);
-  background: var(--surface);
-  border: 1px solid var(--stroke);
-  border-radius: 5px;
-  padding: 1px 6px;
-}
-
+/* The row's own shortcut, in keycaps (keys.css): shown on the selected row only, so a
+   list of results isn't a wall of ↵. */
 .hint {
   visibility: hidden;
   flex: none;
-  color: var(--accent);
-  border-color: var(--accent-stroke);
 }
 
 .item.selected .hint {
   visibility: visible;
+}
+
+.item.selected .hint .cap {
+  color: var(--accent);
+  border-color: var(--accent-stroke);
 }
 
 /* Overview rows only: the ✕ that removes an entry from Recents. */
@@ -346,10 +343,17 @@ kbd {
   display: none;
 }
 
+/* The legend: each cap sits tight against the word it explains, the pairs sit apart. */
 #status .keys {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
+}
+
+.key-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 /* ── scrollbar: subtle overlay pill, no track ── */

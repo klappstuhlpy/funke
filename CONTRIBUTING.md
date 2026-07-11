@@ -45,7 +45,7 @@ UI by hand (`Ctrl+Space`).
 ## Where things go
 
 The workspace is one crate per concern with strictly downward dependencies
-(`funke-app` → provider crates → `funke-core`). `docs/PLAN.md` is the document of
+(`funke-app` → provider crates → `funke-core`). `docs/DESIGN.md` is the document of
 record for architectural decisions; update it when a decision changes or a milestone
 lands. A few **invariants** hold everywhere — violating one is a bug even if it works:
 
