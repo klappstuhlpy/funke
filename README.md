@@ -136,8 +136,18 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   </tr>
   <tr>
     <td width="50%" align="center">
+      <img src="assets/settings-snippets.png" alt="Settings: Snippets — saved snippets and the curated catalog">
+      <sub><b>Snippets</b> — saved snippets and the curated catalog</sub>
+    </td>
+    <td width="50%" align="center">
       <img src="assets/settings-plugins.png" alt="Settings: Plugins — installed plugins and the curated catalog">
       <sub><b>Plugins</b> — installed plugins and the curated catalog</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="assets/settings-about.png" alt="Settings: About — version information and credits">
+      <sub><b>About</b> — version information and credits</sub>
     </td>
   </tr>
 </table>
