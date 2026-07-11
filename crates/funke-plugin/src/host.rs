@@ -10,17 +10,21 @@
 //!     └── my-plugin.exe    ← `entry`, any executable speaking the protocol
 //! ```
 //!
+//! The `entry` is any executable relative to the plugin folder — a compiled binary, or a
+//! `.cmd`/script launcher that starts an interpreter (see the Python template).
+//!
 //! Each plugin gets one worker thread that owns its stdio and serializes requests.
 //! Queries wait [`QUERY_TIMEOUT`] then give up (invariant 6: a slow plugin may lose
 //! its own results, never block the launcher); a dead/crashed plugin yields empty
-//! results until restart. Discovery runs once at startup.
+//! results until restart. Discovery runs at startup; [`PluginManager::reload`] adds
+//! newly installed plugins live (additive — removals still need a restart).
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, SyncSender};
-use std::sync::{mpsc, Arc, Mutex, OnceLock};
+use std::sync::{mpsc, Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
 use funke_core::{Action, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider};
@@ -210,48 +214,78 @@ fn roundtrip(
     }
 }
 
+/// Read every `<dir>/*/plugin.json`. Unreadable manifests are skipped with a log line —
+/// one broken plugin must not take the launcher down (invariant 4).
+fn read_manifests(dir: &Path) -> Vec<(Manifest, PathBuf)> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut manifests = Vec::new();
+    for entry in entries.flatten() {
+        let folder = entry.path();
+        let manifest_path = folder.join("plugin.json");
+        if !manifest_path.is_file() {
+            continue;
+        }
+        match std::fs::read_to_string(&manifest_path)
+            .map_err(|e| e.to_string())
+            .and_then(|raw| serde_json::from_str::<Manifest>(&raw).map_err(|e| e.to_string()))
+        {
+            Ok(manifest) => manifests.push((manifest, folder)),
+            Err(e) => eprintln!("skipping plugin at {}: {e}", manifest_path.display()),
+        }
+    }
+    manifests
+}
+
 /// All installed plugins, shared between their providers and `run_action` routing.
+/// The map is behind an `RwLock` so [`reload`](Self::reload) can add plugins that were
+/// dropped in after startup without a relaunch.
 #[derive(Default)]
 pub struct PluginManager {
-    plugins: HashMap<String, Arc<PluginHandle>>,
+    plugins: RwLock<HashMap<String, Arc<PluginHandle>>>,
 }
 
 impl PluginManager {
-    /// Scan `<dir>/*/plugin.json` once. Unreadable manifests are skipped with a log
-    /// line — one broken plugin must not take the launcher down (invariant 4).
+    /// Scan the plugins directory once at startup.
     pub fn discover(dir: &Path) -> Self {
         let mut plugins = HashMap::new();
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return Self { plugins };
-        };
-        for entry in entries.flatten() {
-            let folder = entry.path();
-            let manifest_path = folder.join("plugin.json");
-            if !manifest_path.is_file() {
-                continue;
-            }
-            let manifest: Manifest = match std::fs::read_to_string(&manifest_path)
-                .map_err(|e| e.to_string())
-                .and_then(|raw| serde_json::from_str(&raw).map_err(|e| e.to_string()))
-            {
-                Ok(manifest) => manifest,
-                Err(e) => {
-                    eprintln!("skipping plugin at {}: {e}", manifest_path.display());
-                    continue;
-                }
-            };
+        for (manifest, folder) in read_manifests(dir) {
             plugins.insert(manifest.id.clone(), Arc::new(PluginHandle::new(manifest, folder)));
         }
-        Self { plugins }
+        Self {
+            plugins: RwLock::new(plugins),
+        }
     }
 
-    pub fn handles(&self) -> impl Iterator<Item = &Arc<PluginHandle>> {
-        self.plugins.values()
+    /// Re-scan the directory and create handles for folders not already loaded,
+    /// returning the newly added handles so the caller can register providers for them.
+    /// **Additive only** — a plugin deleted from disk keeps running until the next
+    /// launch (unregistering a live provider + tearing down its worker mid-flight isn't
+    /// worth the complexity for the rare case).
+    pub fn reload(&self, dir: &Path) -> Vec<Arc<PluginHandle>> {
+        let mut added = Vec::new();
+        let mut plugins = self.plugins.write().unwrap();
+        for (manifest, folder) in read_manifests(dir) {
+            if plugins.contains_key(&manifest.id) {
+                continue;
+            }
+            let handle = Arc::new(PluginHandle::new(manifest.clone(), folder));
+            plugins.insert(manifest.id.clone(), Arc::clone(&handle));
+            added.push(handle);
+        }
+        added
+    }
+
+    pub fn handles(&self) -> Vec<Arc<PluginHandle>> {
+        self.plugins.read().unwrap().values().cloned().collect()
     }
 
     pub fn invoke(&self, plugin_id: &str, item_id: &str, action_index: usize) -> Result<(), String> {
-        self.plugins
-            .get(plugin_id)
+        // Clone the handle out and drop the lock before the (blocking) request, so a
+        // slow invoke can't stall reload/discovery.
+        let handle = self.plugins.read().unwrap().get(plugin_id).cloned();
+        handle
             .ok_or_else(|| format!("no such plugin: {plugin_id}"))?
             .invoke(item_id, action_index)
     }
@@ -259,7 +293,7 @@ impl PluginManager {
     /// Ask every *running* plugin to exit (never-started ones have no process).
     /// The worker kills the child if the polite shutdown doesn't take.
     pub fn shutdown(&self) {
-        for handle in self.plugins.values() {
+        for handle in self.plugins.read().unwrap().values() {
             if let Some(Some(sender)) = handle.worker.get() {
                 let (reply_tx, reply_rx) = mpsc::sync_channel(1);
                 let _ = sender.send((Request::new(u64::MAX, "shutdown", serde_json::Value::Null), reply_tx));
@@ -405,7 +439,7 @@ mod tests {
     #[test]
     fn discovery_survives_missing_dirs_and_broken_manifests() {
         let manager = PluginManager::discover(Path::new("Z:\\definitely\\missing"));
-        assert_eq!(manager.handles().count(), 0);
+        assert_eq!(manager.handles().len(), 0);
 
         let dir = std::env::temp_dir().join("funke-plugin-discovery-test");
         let broken = dir.join("broken");
@@ -420,8 +454,41 @@ mod tests {
         .unwrap();
 
         let manager = PluginManager::discover(&dir);
-        assert_eq!(manager.handles().count(), 1);
-        assert!(manager.plugins.contains_key("good"));
+        assert_eq!(manager.handles().len(), 1);
+        assert!(manager.plugins.read().unwrap().contains_key("good"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reload_adds_only_new_plugins() {
+        let dir = std::env::temp_dir().join("funke-plugin-reload-test");
+        let one = dir.join("one");
+        std::fs::create_dir_all(&one).unwrap();
+        std::fs::write(
+            one.join("plugin.json"),
+            r#"{"id":"one","name":"One","entry":"one.exe"}"#,
+        )
+        .unwrap();
+
+        let manager = PluginManager::discover(&dir);
+        assert_eq!(manager.handles().len(), 1);
+
+        // A second plugin dropped in after startup is picked up; the existing one isn't
+        // duplicated.
+        let two = dir.join("two");
+        std::fs::create_dir_all(&two).unwrap();
+        std::fs::write(
+            two.join("plugin.json"),
+            r#"{"id":"two","name":"Two","entry":"two.exe"}"#,
+        )
+        .unwrap();
+
+        let added = manager.reload(&dir);
+        assert_eq!(added.len(), 1, "only the new plugin is returned");
+        assert_eq!(added[0].manifest.id, "two");
+        assert_eq!(manager.handles().len(), 2);
+        assert!(manager.reload(&dir).is_empty(), "a second reload finds nothing new");
+
         std::fs::remove_dir_all(&dir).ok();
     }
 }

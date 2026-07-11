@@ -28,7 +28,7 @@ exe plus its manifest:
     └── funke-plugin-template.exe
 ```
 
-Restart Funke (plugins are discovered at startup), then type `tp hello`.
+Then **Settings → Plugins → Refresh** (or restart Funke) and type `tp hello`.
 
 Rust authors implement two-method trait and are done:
 
@@ -50,6 +50,27 @@ fn main() -> std::io::Result<()> {
     serve(MyPlugin)
 }
 ```
+
+## Quick start (Python)
+
+No build step — copy `funke-plugins/template-python/`. It's the same demo in ~70 lines of
+dependency-free Python:
+
+```text
+%APPDATA%\funke\plugins\
+└── template-python\
+    ├── plugin.json     ← "entry": "run.cmd"
+    ├── run.cmd         ← launcher: starts Python on plugin.py
+    └── plugin.py       ← your logic (reads/writes line-delimited JSON on stdio)
+```
+
+The host runs an *executable*, and a `.py` isn't one — so `run.cmd` is the entry and it
+starts `py -3 plugin.py` (edit it to `python` if you don't have the `py` launcher). Python
+must be on PATH. Install it via **Settings → Plugins → Open folder**, then hit **Refresh**
+(no restart needed) and type `tpy hello`.
+
+The protocol is language-agnostic — anything that reads stdin lines and writes JSON works;
+`plugin.py` is just the shortest complete example. See the protocol section below.
 
 ## The manifest — `plugin.json`
 
@@ -127,6 +148,8 @@ lingering processes.
   only read memory. Your process stays alive between queries precisely so you can.
 - **Spawned lazily**: your process starts on the first query that reaches you (type
   your prefix once), not at launcher startup.
+- **Discovery** is at startup, plus **Settings → Plugins → Refresh** for newly added
+  plugins (additive — removing one still needs a restart).
 - Users can disable you in **Settings → Plugins** (you won't be queried or spawned).
 
 ## Distribution

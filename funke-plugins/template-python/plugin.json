@@ -1,0 +1,9 @@
+{
+  "id": "template-python",
+  "name": "Template (Python)",
+  "version": "0.1.0",
+  "description": "The Rust template's UPPERCASE/lowercase/reversed demo, reimplemented in ~70 lines of dependency-free Python — the starting point for Python plugins",
+  "entry": "run.cmd",
+  "prefix": "tpy",
+  "prefix_only": true
+}
