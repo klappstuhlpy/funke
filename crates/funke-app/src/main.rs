@@ -24,7 +24,8 @@ const OVERLAY_MIN_HEIGHT: f64 = 56.0;
 const OVERLAY_MAX_HEIGHT: f64 = 560.0;
 
 struct AppState {
-    registry: Registry,
+    /// Behind an `RwLock` so `reload_plugins` can register newly installed plugins live.
+    registry: RwLock<Registry>,
     /// Shared with providers that read preferences per query (e.g. the web engine).
     settings: Arc<RwLock<Settings>>,
     settings_path: PathBuf,
@@ -61,9 +62,8 @@ struct Section {
 #[tauri::command]
 fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
     let settings = state.settings.read().unwrap().clone();
-    let mut items = state
-        .registry
-        .search_enabled(&Query::new(text), |meta| settings.provider_enabled(meta.id));
+    let registry = state.registry.read().unwrap();
+    let mut items = registry.search_enabled(&Query::new(text), |meta| settings.provider_enabled(meta.id));
     let store = state.frecency.lock().unwrap();
     let now = unix_now();
     for item in &mut items {
@@ -87,7 +87,7 @@ fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
     // sits where its best item ranks) and within each section.
     let mut sections: Vec<Section> = Vec::new();
     for item in items {
-        let label = state.registry.provider_name(&item.provider).unwrap_or("Results");
+        let label = registry.provider_name(&item.provider).unwrap_or("Results");
         match sections.iter_mut().find(|section| section.label == label) {
             Some(section) => section.items.push(item),
             None => sections.push(Section {
@@ -242,7 +242,9 @@ fn run_action(
             }
             if let Some(password) = creds.password.as_deref() {
                 autotype::type_text(password);
-                autotype::press(autotype::VK_RETURN);
+                if state.settings.read().unwrap().vault_autotype_enter {
+                    autotype::press(autotype::VK_RETURN);
+                }
             }
             // creds zeroize on drop (funke-vault Credentials).
         }
@@ -417,6 +419,8 @@ struct ToggleableProvider {
 fn list_providers(state: tauri::State<'_, AppState>) -> Vec<ToggleableProvider> {
     state
         .registry
+        .read()
+        .unwrap()
         .providers()
         .into_iter()
         // Plugins get their own settings pane; apps + launcher control stay always-on.
@@ -444,6 +448,7 @@ fn list_plugins(state: tauri::State<'_, AppState>) -> Vec<InstalledPlugin> {
     let mut plugins: Vec<InstalledPlugin> = state
         .plugins
         .handles()
+        .into_iter()
         .map(|handle| {
             let manifest = &handle.manifest;
             InstalledPlugin {
@@ -466,6 +471,21 @@ fn open_plugins_folder(state: tauri::State<'_, AppState>) -> Result<(), String> 
     open::that_detached(&state.plugins_dir).map_err(|e| e.to_string())
 }
 
+/// Re-scan the plugins folder and register any newly installed plugins live, so a
+/// freshly dropped-in plugin works without relaunching. Additive only (see
+/// `PluginManager::reload`); returns the refreshed installed list for the UI.
+#[tauri::command]
+fn reload_plugins(state: tauri::State<'_, AppState>) -> Vec<InstalledPlugin> {
+    let added = state.plugins.reload(&state.plugins_dir);
+    if !added.is_empty() {
+        let mut registry = state.registry.write().unwrap();
+        for handle in added {
+            registry.register(Box::new(funke_plugin::host::PluginProvider::new(handle)));
+        }
+    }
+    list_plugins(state)
+}
+
 #[derive(serde::Serialize)]
 struct Engine {
     id: &'static str,
@@ -486,6 +506,29 @@ fn list_engines() -> Vec<Engine> {
 fn pick_index_root(app: AppHandle) -> Option<String> {
     use tauri_plugin_dialog::DialogExt;
     app.dialog().file().blocking_pick_folder().map(|path| path.to_string())
+}
+
+/// Check GitHub Releases for a newer version and, if found, download + stage the update
+/// (applied on next launch). **Dormant until configured**: returns a friendly message
+/// when `plugins.updater` (endpoints + a signing `pubkey`) isn't set in tauri.conf.json —
+/// see docs/PLAN.md M3 for the one-time keypair setup.
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<String, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app
+        .updater()
+        .map_err(|_| "Auto-updates aren't set up yet (no update endpoint configured).".to_string())?;
+    match updater.check().await.map_err(|e| e.to_string())? {
+        Some(update) => {
+            let version = update.version.clone();
+            update
+                .download_and_install(|_, _| {}, || {})
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(format!("Updated to {version} — restart Funke to finish."))
+        }
+        None => Ok("You're on the latest version.".into()),
+    }
 }
 
 /// The settings window starts hidden and calls this once its DOM is styled, so it
@@ -635,7 +678,7 @@ fn build_registry(
     registry.register(Box::new(funke_windows::WindowsProvider::new()));
     registry.register(Box::new(funke_vault::VaultProvider::new(vault)));
     for handle in plugins.handles() {
-        registry.register(Box::new(funke_plugin::host::PluginProvider::new(Arc::clone(handle))));
+        registry.register(Box::new(funke_plugin::host::PluginProvider::new(handle)));
     }
     registry
 }
@@ -663,8 +706,9 @@ fn main() {
             None,
         ))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
-            registry: build_registry(Arc::clone(&settings), Arc::clone(&vault), &plugins),
+            registry: RwLock::new(build_registry(Arc::clone(&settings), Arc::clone(&vault), &plugins)),
             settings,
             settings_path,
             vault,
@@ -693,7 +737,9 @@ fn main() {
             close_settings,
             vault_unlock,
             list_plugins,
-            open_plugins_folder
+            open_plugins_folder,
+            reload_plugins,
+            check_update
         ])
         .setup(|app| {
             // Native glass: acrylic backdrop + DWM rounded corners; the window shadow

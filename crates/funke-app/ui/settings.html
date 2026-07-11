@@ -44,7 +44,7 @@
             Plugins
           </button>
 
-          <div id="version">Funke 0.1.0</div>
+          <div id="version">Funke</div>
         </nav>
 
         <section id="content">
@@ -60,6 +60,15 @@
                   <div class="desc">Start Funke in the tray when you sign in to Windows.</div>
                 </div>
                 <button class="toggle" id="autostart" role="switch" aria-checked="false"></button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Updates</div>
+                  <div class="desc" id="update-status">Check GitHub for a newer release.</div>
+                </div>
+                <button class="button" id="check-update">Check for updates</button>
               </div>
             </div>
           </div>
@@ -137,6 +146,30 @@
                 </div>
                 <button class="toggle" id="vault-icons" role="switch" aria-checked="true"></button>
               </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label">Vault: autotype presses Enter</div>
+                  <div class="desc">
+                    After typing the password, submit the form automatically. Turn off to type the
+                    credentials and stop, leaving Enter to you.
+                  </div>
+                </div>
+                <button class="toggle" id="vault-autotype-enter" role="switch" aria-checked="true"></button>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label">Vault: lock on screen lock</div>
+                  <div class="desc">Lock the vault immediately when you lock Windows (Win+L).</div>
+                </div>
+                <button class="toggle" id="vault-lock-screen" role="switch" aria-checked="true"></button>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label">Vault: auto-lock after idle</div>
+                  <div class="desc">Lock the vault after this long without using it.</div>
+                </div>
+                <select id="vault-idle"></select>
+              </div>
             </div>
             <div class="card">
               <div class="row">
@@ -156,26 +189,32 @@
             <h1>Plugins</h1>
             <p class="lead">
               Out-of-process providers in any language — drop a folder with a
-              <code>plugin.json</code> into the plugins directory and restart Funke.
+              <code>plugin.json</code> into the plugins directory, then Refresh.
             </p>
             <div class="card">
               <div class="row">
                 <div class="what">
                   <div class="label">Plugins folder</div>
-                  <div class="desc">New plugins are detected at startup. See docs/PLUGINS.md to write one.</div>
+                  <div class="desc">
+                    Drop a plugin in, then Refresh to load it without a restart. See docs/PLUGINS.md
+                    to write one.
+                  </div>
                 </div>
-                <button class="button" id="open-plugins">Open folder</button>
+                <div class="button-group">
+                  <button class="button" id="refresh-plugins">Refresh</button>
+                  <button class="button" id="open-plugins">Open folder</button>
+                </div>
               </div>
             </div>
             <div class="card" id="plugin-list" hidden></div>
             <div class="placeholder" id="plugins-empty">
               <div class="mark">◇</div>
               <p>
-                No plugins installed yet. The repository ships a template
-                (<code>funke-plugins/template</code>) — build it, copy the exe next to its
-                <code>plugin.json</code> into the folder above, restart, then try
-                <kbd>tp hello</kbd>. A browsable catalog of suggested plugins arrives with
-                the public releases (M5).
+                No plugins installed yet. The repository ships templates
+                (<code>funke-plugins/template</code> in Rust, <code>funke-plugins/template-python</code>
+                in Python) — build/copy one next to its <code>plugin.json</code> into the folder
+                above, hit Refresh, then try <kbd>tp hello</kbd>. A browsable catalog of suggested
+                plugins arrives with the public releases (M5).
               </p>
             </div>
           </div>

@@ -18,6 +18,16 @@ const WIDTHS = [
   ["Wide", 780],
 ];
 
+const IDLE_MINUTES = [
+  [1, "1 minute"],
+  [5, "5 minutes"],
+  [10, "10 minutes"],
+  [15, "15 minutes"],
+  [30, "30 minutes"],
+  [60, "1 hour"],
+  [0, "Never"],
+];
+
 let settings = null;
 let recording = false;
 
@@ -68,6 +78,13 @@ function renderAll() {
 
   document.getElementById("vault-hello").setAttribute("aria-checked", String(settings.vault_hello));
   document.getElementById("vault-icons").setAttribute("aria-checked", String(settings.vault_icons));
+  document
+    .getElementById("vault-autotype-enter")
+    .setAttribute("aria-checked", String(settings.vault_autotype_enter));
+  document.getElementById("vault-lock-screen").setAttribute("aria-checked", String(settings.vault_lock_on_screen_lock));
+
+  const idle = document.getElementById("vault-idle");
+  if (idle.options.length) idle.value = String(settings.vault_idle_lock_minutes);
 
   document.querySelectorAll(".swatch").forEach((el) => {
     el.classList.toggle("active", el.dataset.accent === settings.accent);
@@ -112,8 +129,37 @@ function buildStaticControls() {
   });
 
   document.getElementById("autostart").addEventListener("click", () => save({ autostart: !settings.autostart }));
+
+  const checkUpdate = document.getElementById("check-update");
+  checkUpdate.addEventListener("click", async () => {
+    const status = document.getElementById("update-status");
+    checkUpdate.disabled = true;
+    status.textContent = "Checking…";
+    try {
+      status.textContent = await invoke("check_update");
+    } catch (err) {
+      status.textContent = String(err);
+    } finally {
+      checkUpdate.disabled = false;
+    }
+  });
   document.getElementById("vault-hello").addEventListener("click", () => save({ vault_hello: !settings.vault_hello }));
   document.getElementById("vault-icons").addEventListener("click", () => save({ vault_icons: !settings.vault_icons }));
+  document
+    .getElementById("vault-autotype-enter")
+    .addEventListener("click", () => save({ vault_autotype_enter: !settings.vault_autotype_enter }));
+  document
+    .getElementById("vault-lock-screen")
+    .addEventListener("click", () => save({ vault_lock_on_screen_lock: !settings.vault_lock_on_screen_lock }));
+
+  const idleSelect = document.getElementById("vault-idle");
+  IDLE_MINUTES.forEach(([minutes, label]) => {
+    const option = document.createElement("option");
+    option.value = String(minutes);
+    option.textContent = label;
+    idleSelect.appendChild(option);
+  });
+  idleSelect.addEventListener("change", (e) => save({ vault_idle_lock_minutes: Number(e.target.value) }));
   document.getElementById("engine").addEventListener("change", (e) => save({ web_engine: e.target.value }));
   document.getElementById("add-root").addEventListener("click", async () => {
     const picked = await invoke("pick_index_root");
@@ -122,11 +168,21 @@ function buildStaticControls() {
     }
   });
   document.getElementById("open-plugins").addEventListener("click", () => invoke("open_plugins_folder"));
+  document.getElementById("refresh-plugins").addEventListener("click", async () => {
+    try {
+      buildPluginRows(await invoke("reload_plugins"));
+      renderAll();
+      hideError();
+    } catch (err) {
+      showError(String(err));
+    }
+  });
 }
 
 function buildPluginRows(plugins) {
   const card = document.getElementById("plugin-list");
   const empty = document.getElementById("plugins-empty");
+  card.innerHTML = ""; // rebuilt from scratch (also on Refresh)
   card.hidden = plugins.length === 0;
   empty.hidden = plugins.length > 0;
   plugins.forEach((plugin) => {
@@ -344,6 +400,11 @@ async function init() {
     invoke("list_plugins"),
   ]);
   settings = loaded;
+  // Version is inferred from funke-app's Cargo.toml at build time (single source of truth).
+  window.__TAURI__.app
+    .getVersion()
+    .then((v) => (document.getElementById("version").textContent = `Funke ${v}`))
+    .catch(() => {});
   buildStaticControls();
   buildEngineOptions(engines);
   buildProviderRows(providers);
