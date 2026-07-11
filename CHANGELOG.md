@@ -9,6 +9,14 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+### Fixed
+- **A credential suggestion wore an empty "Recent" heading.** The overview's standing
+  "Recent" strip is the heading for the *unlabelled* case — the one group it could possibly
+  be about. As soon as a suggestion arrives the groups grow their own headings ("For
+  github.com", then "Recent"), and the strip became a second heading stacked above the first:
+  it said "Recent" while sitting over a vault credential, and read as an empty label when
+  there were no recents underneath at all. It now appears only when the groups are unlabelled.
+
 ## [0.4.0] - 2026-07-11
 
 ### Security

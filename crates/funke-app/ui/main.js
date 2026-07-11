@@ -179,7 +179,11 @@ function render() {
     return;
   }
 
-  context.hidden = !(mode === "overview" && items.length > 0);
+  // The standing "Recent" strip is the heading for an *unlabelled* overview — the one group
+  // it could possibly be about. The moment a suggestion arrives, the groups grow their own
+  // headings ("For github.com", then "Recent"), and the strip becomes a second heading above
+  // the first: it names the recents while sitting over the credential.
+  context.hidden = !(mode === "overview" && items.length > 0 && !overviewLabels);
   footer.hidden = mode === "results" && items.length === 0;
 
   if (!items.length) {
