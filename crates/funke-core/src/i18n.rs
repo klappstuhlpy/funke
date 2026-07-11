@@ -190,7 +190,10 @@ const EN: &[(&str, &str)] = &[
     ("vault.how.master", "prompts for your master password"),
 ];
 
-/// German. Sie-form throughout — a launcher addresses its user politely and briefly.
+/// German. Written, not translated: du-form, short, and using the words a German user
+/// actually says — Snippet, Hotkey, App, TOTP stay as they are, because "Textbaustein" and
+/// "Zusatztaste" would be correct and nobody would type them. Bitwarden's own German says
+/// "Tresor", so an entry lives in one here too.
 const DE: &[(&str, &str)] = &[
     ("provider.apps", "Apps"),
     ("provider.files", "Dateien"),
@@ -256,10 +259,10 @@ const DE: &[(&str, &str)] = &[
         "Löscht den gesamten Verlauf — zum Bestätigen Enter erneut drücken",
     ),
 
-    ("clipboard.empty.title", "Die Zwischenablage ist leer"),
+    ("clipboard.empty.title", "Noch nichts kopiert"),
     (
         "clipboard.empty.subtitle",
-        "Kopiere etwas, um es hier wiederzufinden. Der Verlauf wird nur im Arbeitsspeicher gespeichert und ist nach jedem Neustart leer.",
+        "Kopier etwas, dann findest du es hier wieder. Der Verlauf liegt nur im Arbeitsspeicher und ist nach jedem Neustart leer.",
     ),
 
     ("vault.starting", "Tresor wird gestartet…"),
@@ -281,12 +284,12 @@ const DE: &[(&str, &str)] = &[
     ),
 
     ("vault.unlock", "Tresor entsperren"),
-    ("vault.unlock_for", "Tresor entsperren, um {app} auszufüllen"),
+    ("vault.unlock_for", "Tresor entsperren und bei {app} anmelden"),
     ("vault.unlock.subtitle", "Bitwarden — {how}"),
 
     (
         "vault.how.hello",
-        "Enter verwendet Windows Hello, ⇧Enter das Master-Passwort",
+        "Enter nutzt Windows Hello, ⇧Enter das Master-Passwort",
     ),
     ("vault.how.master", "fragt nach dem Master-Passwort"),
 ];
@@ -370,7 +373,7 @@ mod tests {
         assert_eq!(t("action.open"), "Öffnen");
         assert_eq!(
             tf("vault.unlock_for", &[("app", "Discord")]),
-            "Tresor entsperren, um Discord auszufüllen"
+            "Tresor entsperren und bei Discord anmelden"
         );
 
         set_locale(Locale::En);
