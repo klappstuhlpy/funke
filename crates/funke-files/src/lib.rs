@@ -32,7 +32,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use funke_core::{Action, FuzzyMatcher, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider, Settings};
+use funke_core::{t, Action, FuzzyMatcher, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider, Settings};
 use notify::{RecursiveMode, Watcher};
 use walkdir::WalkDir;
 
@@ -148,19 +148,19 @@ impl FilesProvider {
             score,
             actions: vec![
                 NamedAction::new(
-                    "Open",
+                    t("action.open"),
                     Action::OpenPath {
                         path: entry.path.clone(),
                     },
                 ),
                 NamedAction::new(
-                    "Reveal in Explorer",
+                    t("action.reveal"),
                     Action::RevealPath {
                         path: entry.path.clone(),
                     },
                 ),
                 NamedAction::new(
-                    "Copy path",
+                    t("action.copy_path"),
                     Action::CopyText {
                         text: entry.path.clone(),
                     },
@@ -193,7 +193,7 @@ impl SearchProvider for FilesProvider {
     fn metadata(&self) -> ProviderMeta {
         ProviderMeta {
             id: "files",
-            name: "Files",
+            name: t("provider.files"),
             prefix: Some("f"),
             prefix_only: false,
         }

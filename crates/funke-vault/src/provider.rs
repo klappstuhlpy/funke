@@ -32,7 +32,7 @@ impl SearchProvider for VaultProvider {
     fn metadata(&self) -> ProviderMeta {
         ProviderMeta {
             id: "vault",
-            name: "Vault",
+            name: funke_core::t("provider.vault"),
             prefix: Some("v"),
             // Privacy: account names never surface in unscoped searches.
             prefix_only: true,
@@ -47,8 +47,8 @@ impl SearchProvider for VaultProvider {
         match self.vault.status() {
             VaultStatus::Idle | VaultStatus::Starting => vec![status_row(
                 "vault:starting",
-                "Starting the vault backend…",
-                "bw serve is coming up — try again in a second",
+                "vault.starting",
+                "vault.starting.subtitle",
                 LOCK_GLYPH,
                 Action::OpenUrl {
                     url: CLI_HELP_URL.into(),
@@ -56,8 +56,8 @@ impl SearchProvider for VaultProvider {
             )],
             VaultStatus::NoCli => vec![status_row(
                 "vault:no-cli",
-                "Bitwarden CLI not found",
-                "Install bw.exe and put it on PATH — Enter opens the setup guide",
+                "vault.cli_missing",
+                "vault.cli_missing.subtitle",
                 LOCK_GLYPH,
                 Action::OpenUrl {
                     url: CLI_HELP_URL.into(),
@@ -65,8 +65,8 @@ impl SearchProvider for VaultProvider {
             )],
             VaultStatus::Unauthenticated => vec![status_row(
                 "vault:login",
-                "Vault not logged in",
-                "Run `bw login` in a terminal once — Enter opens the guide",
+                "vault.not_logged_in",
+                "vault.not_logged_in.subtitle",
                 LOCK_GLYPH,
                 Action::OpenUrl {
                     url: CLI_HELP_URL.into(),
@@ -166,40 +166,40 @@ pub fn suggestions(vault: &Arc<Vault>, focus: &FocusContext, limit: usize) -> Ve
 fn unlock_row(hello: bool, context: Option<&str>) -> ResultItem {
     let mut actions = Vec::new();
     if hello {
-        actions.push(NamedAction::new("Unlock with Windows Hello", Action::VaultHelloUnlock));
+        actions.push(NamedAction::new(
+            funke_core::t("action.unlock_hello"),
+            Action::VaultHelloUnlock,
+        ));
     }
     actions.push(NamedAction::new(
-        "Unlock with master password",
+        funke_core::t("action.unlock_master"),
         Action::PromptVaultUnlock,
     ));
-    let how = if hello {
-        "Enter uses Windows Hello, ⇧Enter the master password"
-    } else {
-        "prompts for your master password"
-    };
+    let how = funke_core::t(if hello { "vault.how.hello" } else { "vault.how.master" });
     ResultItem {
         id: "vault:unlock".into(),
         provider: "vault".into(),
         title: match context {
-            Some(context) => format!("Unlock vault to autofill {context}"),
-            None => "Unlock vault".into(),
+            Some(context) => funke_core::tf("vault.unlock_for", &[("app", context)]),
+            None => funke_core::t("vault.unlock").into(),
         },
-        subtitle: Some(format!("Bitwarden — {how}")),
+        subtitle: Some(funke_core::tf("vault.unlock.subtitle", &[("how", how)])),
         icon: Some(glyph_data_url(LOCK_GLYPH)),
         score: STATUS_SCORE,
         actions,
     }
 }
 
+/// `title` and `subtitle` are catalogue keys, not text — the id stays English and stable.
 fn status_row(id: &str, title: &str, subtitle: &str, glyph: &str, action: Action) -> ResultItem {
     ResultItem {
         id: id.into(),
         provider: "vault".into(),
-        title: title.into(),
-        subtitle: Some(subtitle.into()),
+        title: funke_core::t(title).into(),
+        subtitle: Some(funke_core::t(subtitle).into()),
         icon: Some(glyph_data_url(glyph)),
         score: STATUS_SCORE,
-        actions: vec![NamedAction::new("Open", action)],
+        actions: vec![NamedAction::new(funke_core::t("action.open"), action)],
     }
 }
 
@@ -218,18 +218,18 @@ fn entry_row(entry: crate::VaultEntry, score: i64, icon: Option<String>) -> Resu
     }
     let mut actions = vec![
         NamedAction::new(
-            "Autotype into last window",
+            funke_core::t("action.autotype"),
             Action::VaultAutotype { id: entry.id.clone() },
         ),
         NamedAction::new(
-            "Copy password",
+            funke_core::t("action.copy_password"),
             Action::VaultCopy {
                 id: entry.id.clone(),
                 field: "password".into(),
             },
         ),
         NamedAction::new(
-            "Copy username",
+            funke_core::t("action.copy_username"),
             Action::VaultCopy {
                 id: entry.id.clone(),
                 field: "username".into(),
@@ -238,7 +238,7 @@ fn entry_row(entry: crate::VaultEntry, score: i64, icon: Option<String>) -> Resu
     ];
     if entry.has_totp {
         actions.push(NamedAction::new(
-            "Copy TOTP",
+            funke_core::t("action.copy_totp"),
             Action::VaultCopy {
                 id: entry.id.clone(),
                 field: "totp".into(),

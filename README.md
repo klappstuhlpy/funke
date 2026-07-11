@@ -52,6 +52,8 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
 - **Snippets** (`s`) — text you paste often, kept in Settings → Snippets and typed into the
   window you came from. Found by name or abbreviation; placeholders resolve as you paste
   (`{DATE}`, `{CLIPBOARD}`, `{CURSOR}`, …).
+- **English and German** — results, menus and both windows follow your Windows language, or
+  whichever you pick in Settings. Typing the English word still works either way.
 - **Web search** (`g`) — configurable engine, wearing your default browser's icon.
 - **Calculator** — `2+2*3` inline; Enter copies the result.
 - **System commands** — lock, sleep, shut down, restart, empty recycle bin; destructive ones ask to confirm.

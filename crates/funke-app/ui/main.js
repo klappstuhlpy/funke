@@ -8,14 +8,9 @@ const list = document.getElementById("results");
 const footer = document.getElementById("status");
 const count = document.getElementById("count");
 
-const TIPS = [
-  "Type to search apps, files, and windows",
-  "f <query> searches files only, w windows, g the web, v your vault",
-  "c shows what you copied — Enter pastes it back into the window you came from",
-  "Tab lists every action of the selected result",
-];
-
-const SEARCH_PLACEHOLDER = "Search…";
+// Keys, not text: the tips are re-read on every render, so they follow a language change
+// without the overlay being reopened.
+const TIPS = ["overlay.tip.search", "overlay.tip.prefixes", "overlay.tip.clipboard", "overlay.tip.actions"];
 
 let items = [];
 let sections = []; // results mode: [{ label, items }] — `items` stays the flat list for navigation
@@ -58,16 +53,16 @@ function applyAccent(settings) {
 
 function greeting() {
   const h = new Date().getHours();
-  if (h < 5) return "Good night";
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 5) return t("overlay.greeting.night");
+  if (h < 12) return t("overlay.greeting.morning");
+  if (h < 18) return t("overlay.greeting.afternoon");
+  return t("overlay.greeting.evening");
 }
 
 function formatUptime(secs) {
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
-  return h ? `up ${h} h ${m} min` : `up ${m} min`;
+  return h ? t("overlay.uptime.hours", { hours: h, minutes: m }) : t("overlay.uptime.minutes", { minutes: m });
 }
 
 function iconFor(item) {
@@ -145,7 +140,7 @@ function actionRow(item, named, index) {
   if (armed) {
     const sub = document.createElement("div");
     sub.className = "subtitle";
-    sub.textContent = "Press Enter again to confirm — Esc cancels";
+    sub.textContent = t("overlay.confirm");
     text.appendChild(sub);
   }
   li.appendChild(text);
@@ -177,7 +172,7 @@ function render() {
 
     const label = document.createElement("li");
     label.className = "group";
-    label.textContent = "Actions";
+    label.textContent = t("overlay.actions");
     list.appendChild(label);
 
     actionsFor.actions.forEach((named, i) => list.appendChild(actionRow(actionsFor, named, i)));
@@ -193,13 +188,13 @@ function render() {
       TIPS.forEach((tip) => {
         const li = document.createElement("li");
         li.className = "tip";
-        li.textContent = tip;
+        li.textContent = t(tip);
         list.appendChild(li);
       });
     } else if (input.value.trim()) {
       const li = document.createElement("li");
       li.className = "empty";
-      li.textContent = "No results";
+      li.textContent = t("overlay.no_results");
       list.appendChild(li);
     }
     resize();
@@ -243,7 +238,7 @@ function enterVaultPrompt() {
   closeActions();
   input.value = "";
   input.type = "password";
-  input.placeholder = "Master password…";
+  input.placeholder = t("overlay.master_password");
   input.focus();
   renderVaultPrompt(null);
 }
@@ -264,7 +259,7 @@ function renderVaultPrompt(error) {
   list.innerHTML = "";
   context.hidden = true;
   footer.hidden = false;
-  count.textContent = "Bitwarden vault";
+  count.textContent = t("overlay.vault");
 
   const tip = document.createElement("li");
   tip.className = "tip";
@@ -308,13 +303,15 @@ async function loadOverview({ keepSelection = false } = {}) {
   overviewLabels = data.suggestions.length > 0;
   if (overviewLabels) {
     groups.push({
-      label: data.suggestion_label ? `For ${data.suggestion_label}` : "Suggested",
+      label: data.suggestion_label
+        ? t("overlay.suggested_for", { app: data.suggestion_label })
+        : t("overlay.suggested"),
       items: data.suggestions,
       removable: false,
     });
   }
   if (data.recents.length) {
-    groups.push({ label: "Recent", items: data.recents, removable: true });
+    groups.push({ label: t("overlay.recent"), items: data.recents, removable: true });
   }
   items = groups.flatMap((group) => group.items);
   selected = keepSelection ? Math.min(previous, Math.max(0, items.length - 1)) : 0;
@@ -336,7 +333,7 @@ async function search() {
   sections = await invoke("search", { text });
   items = sections.flatMap((section) => section.items);
   selected = 0;
-  count.textContent = items.length === 1 ? "1 result" : `${items.length} results`;
+  count.textContent = items.length === 1 ? t("overlay.result") : t("overlay.results", { count: items.length });
   render();
 }
 
@@ -355,7 +352,7 @@ async function refreshResults() {
   sections = await invoke("search", { text });
   items = sections.flatMap((section) => section.items);
   selected = Math.min(prev, Math.max(0, items.length - 1));
-  count.textContent = items.length === 1 ? "1 result" : `${items.length} results`;
+  count.textContent = items.length === 1 ? t("overlay.result") : t("overlay.results", { count: items.length });
   render();
 }
 
@@ -467,7 +464,7 @@ listen("overlay-hidden", () => {
     unlocking = false;
     vaultReturnQuery = "";
     input.type = "text";
-    input.placeholder = SEARCH_PLACEHOLDER;
+    input.placeholder = t("overlay.placeholder");
   }
   input.value = "";
   loadOverview();
@@ -511,7 +508,7 @@ listen("overlay-shown", () => {
     unlocking = false;
     vaultReturnQuery = "";
     input.type = "text";
-    input.placeholder = SEARCH_PLACEHOLDER;
+    input.placeholder = t("overlay.placeholder");
   }
   input.value = "";
   loadOverview(); // refreshes greeting/uptime; content is already reset
@@ -521,13 +518,23 @@ listen("overlay-shown", () => {
   panel.classList.add("opening");
 });
 
-// Re-theme and re-measure while hidden, so changes from the settings window are
-// already in place the next time the overlay shows.
-listen("settings-changed", (e) => {
+// Re-theme, re-translate and re-measure while hidden, so changes from the settings window
+// are already in place the next time the overlay shows.
+listen("settings-changed", async (e) => {
   applyAccent(e.payload);
+  // Rust resolves `auto` against Windows, so ask it rather than reading the raw setting.
+  setLocale(await invoke("locale"));
+  applyTranslations();
+  await loadOverview();
   resize();
 });
 
-invoke("get_settings").then(applyAccent);
-loadOverview();
-input.focus();
+// The locale first: everything below renders text, and rendering it twice would flash
+// English at a German user on every launch.
+(async () => {
+  setLocale(await invoke("locale"));
+  applyTranslations();
+  invoke("get_settings").then(applyAccent);
+  await loadOverview();
+  input.focus();
+})();

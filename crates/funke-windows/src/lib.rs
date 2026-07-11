@@ -46,7 +46,7 @@ impl SearchProvider for WindowsProvider {
     fn metadata(&self) -> ProviderMeta {
         ProviderMeta {
             id: "windows",
-            name: "Windows",
+            name: funke_core::t("provider.windows"),
             prefix: Some("w"),
             prefix_only: false,
         }
@@ -78,8 +78,14 @@ impl SearchProvider for WindowsProvider {
                     icon: win.exe.as_deref().and_then(|exe| self.icon_for(exe)),
                     score,
                     actions: vec![
-                        NamedAction::new("Switch to", Action::FocusWindow { hwnd: win.hwnd }),
-                        NamedAction::confirmed("End process", Action::KillProcess { pid: win.pid }),
+                        NamedAction::new(
+                            funke_core::t("action.switch_to"),
+                            Action::FocusWindow { hwnd: win.hwnd },
+                        ),
+                        NamedAction::confirmed(
+                            funke_core::t("action.end_process"),
+                            Action::KillProcess { pid: win.pid },
+                        ),
                     ],
                 })
             })

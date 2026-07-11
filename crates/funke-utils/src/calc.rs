@@ -15,7 +15,7 @@ impl SearchProvider for CalcProvider {
     fn metadata(&self) -> ProviderMeta {
         ProviderMeta {
             id: "calc",
-            name: "Calculator",
+            name: funke_core::t("provider.calculator"),
             prefix: None,
             prefix_only: false,
         }
@@ -33,10 +33,13 @@ impl SearchProvider for CalcProvider {
             id: format!("calc:{text}"),
             provider: "calc".into(),
             title: format!("= {value}"),
-            subtitle: Some(format!("{text} — Enter copies the result")),
+            subtitle: Some(funke_core::tf("calc.subtitle", &[("expression", text)])),
             icon: Some(glyph_data_url(CALC_GLYPH)),
             score: CALC_SCORE,
-            actions: vec![NamedAction::new("Copy result", Action::CopyText { text: value })],
+            actions: vec![NamedAction::new(
+                funke_core::t("action.copy_result"),
+                Action::CopyText { text: value },
+            )],
         }]
     }
 }

@@ -486,13 +486,33 @@ fn save_settings(app: AppHandle, state: tauri::State<'_, AppState>, settings: Se
         state.vault.forget_hello_session();
     }
 
+    // Providers read the locale as they build each row, so this is all a language change
+    // takes — the next keystroke comes back translated, with no restart and no re-index.
+    apply_locale(&settings);
+
     *state.settings.write().unwrap() = settings.clone();
     if let Err(e) = settings.save(&state.settings_path) {
         eprintln!("failed to persist settings: {e}");
     }
-    // The overlay re-themes itself (accent, width) off this event.
+    // The overlay re-themes itself (accent, width) and re-translates itself off this event.
     let _ = app.emit("settings-changed", &settings);
     Ok(())
+}
+
+/// Resolve `language` (`auto` → whatever Windows is set to) and hand it to the catalogue.
+fn apply_locale(settings: &Settings) {
+    let tag = match settings.language.as_str() {
+        "auto" | "" => native::user_locale(),
+        explicit => explicit.to_string(),
+    };
+    funke_core::i18n::set_locale(funke_core::Locale::parse(&tag));
+}
+
+/// The language the UI should render in — `auto` already resolved, so the frontend never has
+/// to guess what Windows is set to.
+#[tauri::command]
+fn locale() -> &'static str {
+    funke_core::i18n::locale().tag()
 }
 
 /// A provider the settings UI may toggle (apps and launcher control stay always-on).
@@ -997,6 +1017,7 @@ fn main() {
             save_settings,
             list_providers,
             list_engines,
+            locale,
             everything_is_indexing,
             pick_index_root,
             settings_ready,
@@ -1023,6 +1044,10 @@ fn main() {
             }
 
             let settings = app.state::<AppState>().settings.read().unwrap().clone();
+
+            // Before anything builds a row or a menu: providers translate as they go, so the
+            // catalogue has to know the language first.
+            apply_locale(&settings);
 
             // Re-render the overlay when background favicon fetches land, so vault
             // icons appear in place instead of only after a close/reopen.
@@ -1058,9 +1083,18 @@ fn main() {
                 }
             }
 
-            let show_item = MenuItem::with_id(app, "show", format!("Show ({})", settings.hotkey), true, None::<&str>)?;
-            let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            // The tray menu is built once, so it wears the language chosen at startup; a
+            // change takes effect on the next launch. Everything the user reads *during* a
+            // session — results, settings — retranslates live.
+            let show_item = MenuItem::with_id(
+                app,
+                "show",
+                funke_core::tf("tray.show", &[("hotkey", &settings.hotkey)]),
+                true,
+                None::<&str>,
+            )?;
+            let settings_item = MenuItem::with_id(app, "settings", funke_core::t("tray.settings"), true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", funke_core::t("tray.quit"), true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &settings_item, &quit_item])?;
             TrayIconBuilder::with_id("funke-tray")
                 .icon(app.default_window_icon().expect("bundle icon is configured").clone())

@@ -7,19 +7,26 @@
   </head>
   <body>
     <main id="panel">
-      <input id="query" type="text" placeholder="Search…" autocomplete="off" spellcheck="false" />
-      <div id="context" hidden>Recent</div>
+      <input
+        id="query"
+        type="text"
+        data-i18n-placeholder="overlay.placeholder"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <div id="context" data-i18n="overlay.recent" hidden></div>
       <ul id="results"></ul>
       <footer id="status" hidden>
         <span id="count"></span>
         <span class="keys">
-          <kbd>↑↓</kbd> navigate
-          <kbd>↵</kbd> open
-          <kbd>⇥</kbd> actions
-          <kbd>esc</kbd> dismiss
+          <kbd>↑↓</kbd> <span data-i18n="overlay.keys.navigate"></span>
+          <kbd>↵</kbd> <span data-i18n="overlay.keys.open"></span>
+          <kbd>⇥</kbd> <span data-i18n="overlay.keys.actions"></span>
+          <kbd>esc</kbd> <span data-i18n="overlay.keys.dismiss"></span>
         </span>
       </footer>
     </main>
+    <script src="i18n.js"></script>
     <script src="main.js"></script>
   </body>
 </html>

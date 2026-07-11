@@ -38,7 +38,7 @@ impl SearchProvider for SnippetsProvider {
     fn metadata(&self) -> ProviderMeta {
         ProviderMeta {
             id: PROVIDER_ID,
-            name: "Snippets",
+            name: funke_core::t("provider.snippets"),
             prefix: Some("s"),
             prefix_only: false,
         }
@@ -99,8 +99,11 @@ fn row(snippet: Snippet, score: i64) -> ResultItem {
         icon: Some(glyph_data_url(SNIPPET_GLYPH)),
         score,
         actions: vec![
-            NamedAction::new("Paste into last window", Action::SnippetPaste { id: id.clone() }),
-            NamedAction::new("Copy to clipboard", Action::SnippetCopy { id }),
+            NamedAction::new(
+                funke_core::t("action.paste_into_last_window"),
+                Action::SnippetPaste { id: id.clone() },
+            ),
+            NamedAction::new(funke_core::t("action.copy_to_clipboard"), Action::SnippetCopy { id }),
         ],
     }
 }

@@ -21,7 +21,10 @@ struct AppEntry {
     name: String,
     /// `shell:AppsFolder\<AUMID>` for Start apps, an absolute path for PATH executables.
     target: String,
-    subtitle: String,
+    /// The executable's path, for PATH entries. `None` for Start-menu apps, whose subtitle
+    /// is just the word "Application" — translated per query, so it follows a language
+    /// change without re-indexing.
+    subtitle: Option<String>,
     icon: Option<String>,
 }
 
@@ -54,7 +57,7 @@ impl SearchProvider for AppsProvider {
     fn metadata(&self) -> ProviderMeta {
         ProviderMeta {
             id: "apps",
-            name: "Applications",
+            name: funke_core::t("provider.apps"),
             prefix: None,
             prefix_only: false,
         }
@@ -72,7 +75,12 @@ impl SearchProvider for AppsProvider {
                     id: format!("apps:{}", entry.target),
                     provider: "apps".into(),
                     title: entry.name.clone(),
-                    subtitle: Some(entry.subtitle.clone()),
+                    subtitle: Some(
+                        entry
+                            .subtitle
+                            .clone()
+                            .unwrap_or_else(|| funke_core::t("apps.subtitle").to_string()),
+                    ),
                     icon: entry.icon.clone(),
                     score,
                     actions: vec![NamedAction::new(
@@ -126,7 +134,7 @@ fn parse_start_apps(json: &str) -> Vec<AppEntry> {
         .map(|app| AppEntry {
             name: app.name,
             target: format!("shell:AppsFolder\\{}", app.app_id),
-            subtitle: "Application".into(),
+            subtitle: None,
             icon: None,
         })
         .collect()
@@ -166,7 +174,7 @@ fn path_executables() -> Vec<AppEntry> {
                     entries.push(AppEntry {
                         name: stem.to_string(),
                         target: path.to_string_lossy().into_owned(),
-                        subtitle: path.to_string_lossy().into_owned(),
+                        subtitle: Some(path.to_string_lossy().into_owned()),
                         icon: None,
                     });
                 }

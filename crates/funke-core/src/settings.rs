@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    /// UI language: `auto` (follow Windows), `en`, or `de`. Resolved to a
+    /// [`crate::Locale`] by the app at startup and whenever this changes.
+    pub language: String,
     /// Global summon hotkey in `tauri-plugin-global-shortcut` syntax, e.g. `Ctrl+Space`.
     pub hotkey: String,
     /// Accent color as `#rrggbb`; drives the UI's `--accent` token family.
@@ -70,6 +73,7 @@ pub struct Snippet {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            language: "auto".into(),
             hotkey: "Ctrl+Space".into(),
             accent: "#d97757".into(),
             overlay_width: 680.0,

@@ -7,12 +7,14 @@
 mod frecency;
 mod fuzzy;
 mod glyph;
+pub mod i18n;
 mod recents;
 mod settings;
 
 pub use frecency::FrecencyStore;
 pub use fuzzy::FuzzyMatcher;
 pub use glyph::glyph_data_url;
+pub use i18n::{alias_score, t, tf, Locale};
 pub use recents::RecentsStore;
 pub use settings::{Settings, Snippet};
 

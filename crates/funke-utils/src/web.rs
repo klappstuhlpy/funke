@@ -49,7 +49,7 @@ impl SearchProvider for WebSearchProvider {
     fn metadata(&self) -> ProviderMeta {
         ProviderMeta {
             id: "web",
-            name: "Web",
+            name: funke_core::t("provider.web"),
             prefix: Some("g"),
             prefix_only: false,
         }
@@ -64,12 +64,12 @@ impl SearchProvider for WebSearchProvider {
         vec![ResultItem {
             id: format!("web:{text}"),
             provider: "web".into(),
-            title: format!("Search the web for “{text}”"),
+            title: funke_core::tf("web.search_for", &[("query", text)]),
             subtitle: Some(name.into()),
             icon: self.browser_icon.get().cloned().flatten(),
             score: WEB_SCORE,
             actions: vec![NamedAction::new(
-                "Search",
+                funke_core::t("action.search"),
                 Action::OpenUrl {
                     url: url_for(template, text),
                 },

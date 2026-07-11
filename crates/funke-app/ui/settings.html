@@ -8,7 +8,7 @@
   <body>
     <main id="window">
       <header id="titlebar" data-tauri-drag-region>
-        <button id="close" title="Close (Esc)" aria-label="Close">
+        <button id="close" data-i18n-title="settings.close" aria-label="Close">
           <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" /></svg>
         </button>
       </header>
@@ -19,33 +19,33 @@
             <img src="icon.png" alt="Funke" width="24" height="24"/>
             <div>
               <div class="name">Funke</div>
-              <div class="sub">Settings</div>
+              <div class="sub" data-i18n="settings.title"></div>
             </div>
           </div>
 
           <button class="nav active" data-pane="general">
             <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10" /></svg>
-            General
+            <span data-i18n="settings.nav.general"></span>
           </button>
           <button class="nav" data-pane="appearance">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" /></svg>
-            Appearance
+            <span data-i18n="settings.nav.appearance"></span>
           </button>
           <button class="nav" data-pane="hotkey">
             <svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="11" rx="2.5" /><path d="M7.5 14.5h9" /></svg>
-            Hotkey
+            <span data-i18n="settings.nav.hotkey"></span>
           </button>
           <button class="nav" data-pane="commands">
             <svg viewBox="0 0 24 24"><path d="M5 6.5l5 5.5-5 5.5" /><path d="M12.5 17.5H19" /></svg>
-            Commands
+            <span data-i18n="settings.nav.commands"></span>
           </button>
           <button class="nav" data-pane="snippets">
             <svg viewBox="0 0 24 24"><path d="M6 3.5h7l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z" /><path d="M13 3.5v5h5" /></svg>
-            Snippets
+            <span data-i18n="settings.nav.snippets"></span>
           </button>
           <button class="nav" data-pane="plugins">
             <svg viewBox="0 0 24 24"><path d="M9.5 4.5v3h5v-3a1.5 1.5 0 0 1 3 0v3H20a.8.8 0 0 1 .8.8v3.5a5.3 5.3 0 0 1-4.3 5.2v2.5a1.5 1.5 0 0 1-3 0" transform="rotate(45 12 12)" /></svg>
-            Plugins
+            <span data-i18n="settings.nav.plugins"></span>
           </button>
 
           <div id="version">Funke</div>
@@ -55,43 +55,50 @@
           <div id="error" hidden></div>
 
           <div class="pane active" id="pane-general">
-            <h1>General</h1>
-            <p class="lead">How Funke lives on this machine.</p>
+            <h1 data-i18n="settings.general.heading"></h1>
+            <p class="lead" data-i18n="settings.general.lead"></p>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Launch at startup</div>
-                  <div class="desc">Start Funke in the tray when you sign in to Windows.</div>
+                  <div class="label" data-i18n="settings.autostart"></div>
+                  <div class="desc" data-i18n="settings.autostart.desc"></div>
                 </div>
                 <button class="toggle" id="autostart" role="switch" aria-checked="false"></button>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.language"></div>
+                  <div class="desc" data-i18n="settings.language.desc"></div>
+                </div>
+                <select id="language"></select>
               </div>
             </div>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Updates</div>
-                  <div class="desc" id="update-status">Check GitHub for a newer release.</div>
+                  <div class="label" data-i18n="settings.updates"></div>
+                  <div class="desc" id="update-status" data-i18n="settings.updates.desc"></div>
                 </div>
-                <button class="button" id="check-update">Check for updates</button>
+                <button class="button" id="check-update" data-i18n="settings.updates.check"></button>
               </div>
             </div>
           </div>
 
           <div class="pane" id="pane-appearance">
-            <h1>Appearance</h1>
-            <p class="lead">The overlay stays native glass — these tune its character.</p>
+            <h1 data-i18n="settings.appearance.heading"></h1>
+            <p class="lead" data-i18n="settings.appearance.lead"></p>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Accent</div>
-                  <div class="desc">Used for the selection, caret, and key hints.</div>
+                  <div class="label" data-i18n="settings.accent"></div>
+                  <div class="desc" data-i18n="settings.accent.desc"></div>
                 </div>
                 <div class="swatches" id="accents"></div>
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label">Overlay width</div>
-                  <div class="desc">How wide the search bar is, in any mode.</div>
+                  <div class="label" data-i18n="settings.width"></div>
+                  <div class="desc" data-i18n="settings.width.desc"></div>
                 </div>
                 <div class="segmented" id="widths"></div>
               </div>
@@ -99,32 +106,29 @@
           </div>
 
           <div class="pane" id="pane-hotkey">
-            <h1>Hotkey</h1>
-            <p class="lead">The global shortcut that summons the overlay.</p>
+            <h1 data-i18n="settings.nav.hotkey"></h1>
+            <p class="lead" data-i18n="settings.hotkey.lead"></p>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Summon Funke</div>
-                  <div class="desc">Click, then press the new combination. Applied immediately.</div>
+                  <div class="label" data-i18n="settings.hotkey.label"></div>
+                  <div class="desc" data-i18n="settings.hotkey.desc"></div>
                 </div>
                 <button id="recorder" class="recorder"></button>
               </div>
             </div>
-            <p class="fineprint">
-              If another app owns the combination (PowerToys Run also likes
-              <kbd>Ctrl</kbd>+<kbd>Space</kbd>), binding fails and the previous hotkey stays active.
-            </p>
+            <p class="fineprint" data-i18n-html="settings.hotkey.fineprint"></p>
           </div>
 
           <div class="pane" id="pane-commands">
-            <h1>Commands</h1>
-            <p class="lead">Which built-in providers answer your searches.</p>
+            <h1 data-i18n="settings.commands.heading"></h1>
+            <p class="lead" data-i18n="settings.commands.lead"></p>
             <div class="card" id="providers"></div>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Web search engine</div>
-                  <div class="desc">Where “Search the web for …” sends you.</div>
+                  <div class="label" data-i18n="settings.engine"></div>
+                  <div class="desc" data-i18n="settings.engine.desc"></div>
                 </div>
                 <select id="engine"></select>
               </div>
@@ -132,55 +136,36 @@
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Vault: unlock with Windows Hello</div>
-                  <div class="desc">
-                    After one master-password unlock, later unlocks are a Hello prompt. Stores a
-                    session key protected by Windows — tradeoff in SECURITY.md.
-                  </div>
+                  <div class="label" data-i18n="settings.vault.hello"></div>
+                  <div class="desc" data-i18n="settings.vault.hello.desc"></div>
                 </div>
                 <button class="toggle" id="vault-hello" role="switch" aria-checked="false"></button>
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label">Vault: website icons</div>
-                  <div class="desc">
-                    Show site favicons on vault entries, fetched from your Bitwarden server's icon
-                    service (it learns the sites you search).
-                  </div>
+                  <div class="label" data-i18n="settings.vault.icons"></div>
+                  <div class="desc" data-i18n="settings.vault.icons.desc"></div>
                 </div>
                 <button class="toggle" id="vault-icons" role="switch" aria-checked="true"></button>
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label">Vault: suggest for the focused app</div>
-                  <div class="desc">
-                    When you summon Funke over Discord (or a GitHub tab), offer that credential in
-                    the empty overlay — matched by process, window title, and the browser's address
-                    bar. Off means vault entries only ever appear behind <code>v</code>.
-                  </div>
+                  <div class="label" data-i18n="settings.vault.context"></div>
+                  <div class="desc" data-i18n-html="settings.vault.context.desc"></div>
                 </div>
                 <button class="toggle" id="vault-context" role="switch" aria-checked="true"></button>
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label">Vault: autotype presses Enter</div>
-                  <div class="desc">
-                    After typing the password, submit the form automatically. Turn off to type the
-                    credentials and stop, leaving Enter to you. Applies to the built-in sequence
-                    only — a custom one below is typed exactly as written.
-                  </div>
+                  <div class="label" data-i18n="settings.vault.autotype_enter"></div>
+                  <div class="desc" data-i18n="settings.vault.autotype_enter.desc"></div>
                 </div>
                 <button class="toggle" id="vault-autotype-enter" role="switch" aria-checked="true"></button>
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label">Vault: autotype sequence</div>
-                  <div class="desc">
-                    What autotype types, if not the usual username ⇥ password. Tokens:
-                    <code>{USERNAME}</code> <code>{PASSWORD}</code> <code>{TOTP}</code>
-                    <code>{TAB}</code> <code>{ENTER}</code> <code>{DELAY=500}</code>. A single entry
-                    can override this with an <code>autotype</code> custom field in Bitwarden.
-                  </div>
+                  <div class="label" data-i18n="settings.vault.sequence"></div>
+                  <div class="desc" data-i18n-html="settings.vault.sequence.desc"></div>
                 </div>
                 <input
                   class="text-input"
@@ -192,15 +177,15 @@
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label">Vault: lock on screen lock</div>
-                  <div class="desc">Lock the vault immediately when you lock Windows (Win+L).</div>
+                  <div class="label" data-i18n="settings.vault.lock_screen"></div>
+                  <div class="desc" data-i18n="settings.vault.lock_screen.desc"></div>
                 </div>
                 <button class="toggle" id="vault-lock-screen" role="switch" aria-checked="true"></button>
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label">Vault: auto-lock after idle</div>
-                  <div class="desc">Lock the vault after this long without using it.</div>
+                  <div class="label" data-i18n="settings.vault.idle"></div>
+                  <div class="desc" data-i18n="settings.vault.idle.desc"></div>
                 </div>
                 <select id="vault-idle"></select>
               </div>
@@ -208,125 +193,95 @@
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">File index folders</div>
-                  <div class="desc">
-                    What file search covers. Empty means your home folder; changes re-index within seconds.
-                  </div>
+                  <div class="label" data-i18n="settings.roots"></div>
+                  <div class="desc" data-i18n="settings.roots.desc"></div>
                 </div>
-                <button class="button" id="add-root">Add folder</button>
+                <button class="button" id="add-root" data-i18n="settings.roots.add"></button>
               </div>
               <div id="roots"></div>
               <div class="row" id="everything-row" hidden>
                 <div class="what">
-                  <div class="label">Everything is doing the indexing <span class="tag">detected</span></div>
-                  <div class="desc">
-                    Everything keeps a live index of your drives, so Funke asks it instead of
-                    walking the disk itself — results are current to the second and nothing is
-                    indexed twice. The folders above still scope the search; add <code>C:\</code>
-                    to search every drive. Close Everything and Funke goes back to its own index.
+                  <div class="label">
+                    <span data-i18n="settings.everything"></span>
+                    <span class="tag" data-i18n="settings.everything.detected"></span>
                   </div>
+                  <div class="desc" data-i18n-html="settings.everything.desc"></div>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="pane" id="pane-snippets">
-            <h1>Snippets</h1>
-            <p class="lead">
-              Text you paste often — a signature, an address, a block of boilerplate. Find one
-              with <kbd>s</kbd>, and Enter types it into the window you came from.
-            </p>
+            <h1 data-i18n="settings.nav.snippets"></h1>
+            <p class="lead" data-i18n-html="settings.snippets.lead"></p>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Placeholders</div>
-                  <div class="desc">
-                    Resolved when the snippet is pasted, not when it is saved:
-                    <code>{DATE}</code>, <code>{TIME}</code>, <code>{DATETIME}</code>
-                    (or your own format, <code>{DATE:%d.%m.%Y}</code>),
-                    <code>{CLIPBOARD}</code> for what you last copied, and
-                    <code>{CURSOR}</code> for where the caret should land. Anything else in
-                    braces is typed exactly as written.
-                  </div>
+                  <div class="label" data-i18n="settings.snippets.placeholders"></div>
+                  <div class="desc" data-i18n-html="settings.snippets.placeholders.desc"></div>
                 </div>
-                <button class="button" id="add-snippet">New snippet</button>
+                <button class="button" id="add-snippet" data-i18n="settings.snippets.new"></button>
               </div>
             </div>
 
             <form class="card" id="snippet-editor" hidden>
               <div class="field">
-                <label for="snippet-name">Name</label>
+                <label for="snippet-name" data-i18n="settings.snippets.name"></label>
                 <input id="snippet-name" type="text" placeholder="Email signature" maxlength="80" required />
               </div>
               <div class="field">
-                <label for="snippet-abbr">Abbreviation <span class="hint">optional</span></label>
+                <label for="snippet-abbr">
+                  <span data-i18n="settings.snippets.abbr"></span>
+                  <span class="hint" data-i18n="settings.snippets.optional"></span>
+                </label>
                 <input id="snippet-abbr" type="text" placeholder="sig" maxlength="24" />
               </div>
               <div class="field">
-                <label for="snippet-content">Content</label>
+                <label for="snippet-content" data-i18n="settings.snippets.content"></label>
                 <textarea id="snippet-content" rows="6" placeholder="Viele Grüße&#10;Benedikt" required></textarea>
               </div>
               <div class="button-group">
-                <button class="button primary" type="submit" id="snippet-save">Save</button>
-                <button class="button" type="button" id="snippet-cancel">Cancel</button>
+                <button class="button primary" type="submit" id="snippet-save"></button>
+                <button class="button" type="button" id="snippet-cancel" data-i18n="settings.snippets.cancel"></button>
               </div>
             </form>
 
             <div class="card" id="snippet-list" hidden></div>
             <div class="placeholder" id="snippets-empty">
               <div class="mark">◇</div>
-              <p>
-                No snippets yet. Create one above, then reach it with <kbd>s</kbd> — or by the
-                name you gave it, straight from the search.
-              </p>
+              <p data-i18n-html="settings.snippets.empty"></p>
             </div>
           </div>
 
           <div class="pane" id="pane-plugins">
-            <h1>Plugins</h1>
-            <p class="lead">
-              Out-of-process providers in any language — drop a folder with a
-              <code>plugin.json</code> into the plugins directory, then Refresh.
-            </p>
+            <h1 data-i18n="settings.nav.plugins"></h1>
+            <p class="lead" data-i18n-html="settings.plugins.lead"></p>
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Plugins folder</div>
-                  <div class="desc">
-                    Drop a plugin in, then Refresh to load it without a restart. See docs/PLUGINS.md
-                    to write one.
-                  </div>
+                  <div class="label" data-i18n="settings.plugins.folder"></div>
+                  <div class="desc" data-i18n="settings.plugins.folder.desc"></div>
                 </div>
                 <div class="button-group">
-                  <button class="button" id="refresh-plugins">Refresh</button>
-                  <button class="button" id="open-plugins">Open folder</button>
+                  <button class="button" id="refresh-plugins" data-i18n="settings.plugins.refresh"></button>
+                  <button class="button" id="open-plugins" data-i18n="settings.plugins.open"></button>
                 </div>
               </div>
             </div>
             <div class="card" id="plugin-list" hidden></div>
             <div class="placeholder" id="plugins-empty">
               <div class="mark">◇</div>
-              <p>
-                No plugins installed yet. Browse the catalog below, or write your own with
-                <code>docs/PLUGINS.md</code> — the repository ships templates
-                (<code>funke-plugins/template</code> in Rust, <code>funke-plugins/template-python</code>
-                in Python): build one next to its <code>plugin.json</code> into the folder above,
-                hit Refresh, then try <kbd>tp hello</kbd>.
-              </p>
+              <p data-i18n-html="settings.plugins.empty"></p>
             </div>
 
             <div class="card">
               <div class="row">
                 <div class="what">
-                  <div class="label">Suggested plugins</div>
-                  <div class="desc">
-                    A curated catalog from the Funke repository. Every entry is pinned to a
-                    checksum, so what installs is what was reviewed — but a plugin is a program
-                    that runs with your rights, not a sandbox. Install only what you trust.
-                  </div>
+                  <div class="label" data-i18n="settings.plugins.suggested"></div>
+                  <div class="desc" data-i18n="settings.plugins.suggested.desc"></div>
                 </div>
                 <div class="button-group">
-                  <button class="button" id="browse-plugins">Browse</button>
+                  <button class="button" id="browse-plugins" data-i18n="settings.plugins.browse"></button>
                 </div>
               </div>
             </div>
@@ -335,6 +290,7 @@
         </section>
       </div>
     </main>
+    <script src="i18n.js"></script>
     <script src="settings.js"></script>
   </body>
 </html>

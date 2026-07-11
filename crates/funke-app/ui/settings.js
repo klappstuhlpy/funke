@@ -18,14 +18,24 @@ const WIDTHS = [
   ["Wide", 780],
 ];
 
+// Minutes, and how to say them: the label is a key so the dropdown follows the language.
 const IDLE_MINUTES = [
-  [1, "1 minute"],
-  [5, "5 minutes"],
-  [10, "10 minutes"],
-  [15, "15 minutes"],
-  [30, "30 minutes"],
-  [60, "1 hour"],
-  [0, "Never"],
+  [1, () => t("settings.idle.minute")],
+  [5, () => t("settings.idle.minutes", { count: 5 })],
+  [10, () => t("settings.idle.minutes", { count: 10 })],
+  [15, () => t("settings.idle.minutes", { count: 15 })],
+  [30, () => t("settings.idle.minutes", { count: 30 })],
+  [60, () => t("settings.idle.hour")],
+  [0, () => t("settings.idle.never")],
+];
+
+// `auto` first: it is the default, and the one most people should stay on. The language
+// names are deliberately *not* translated — you look for "Deutsch" when you want German,
+// whatever the UI currently says.
+const LANGUAGES = [
+  ["auto", () => t("settings.language.auto")],
+  ["en", () => "English"],
+  ["de", () => "Deutsch"],
 ];
 
 let settings = null;
@@ -46,7 +56,26 @@ async function save(patch) {
     settings = previous;
     showError(String(err));
   }
+  // A language change repaints this window immediately — being told to restart to see your
+  // own setting take effect is the kind of thing that makes a setting feel broken.
+  if (patch.language !== undefined) await retranslate();
   renderAll();
+}
+
+/// Ask Rust which locale won (it resolves `auto` against Windows) and repaint every string.
+async function retranslate() {
+  setLocale(await invoke("locale"));
+  applyTranslations();
+  relabel(document.getElementById("vault-idle"), IDLE_MINUTES);
+  relabel(document.getElementById("language"), LANGUAGES);
+}
+
+// The <option>s were filled in from the catalogue, so they need re-filling too — they are
+// the one piece of text `applyTranslations` cannot reach from the markup.
+function relabel(select, entries) {
+  entries.forEach(([value, label], index) => {
+    if (select.options[index]) select.options[index].textContent = label(value);
+  });
 }
 
 function showError(message) {
@@ -107,6 +136,9 @@ function renderAll() {
   const engine = document.getElementById("engine");
   if (engine.options.length) engine.value = settings.web_engine;
 
+  const language = document.getElementById("language");
+  if (language.options.length) language.value = settings.language;
+
   renderRoots();
   renderSnippets();
 
@@ -142,7 +174,7 @@ function buildStaticControls() {
   checkUpdate.addEventListener("click", async () => {
     const status = document.getElementById("update-status");
     checkUpdate.disabled = true;
-    status.textContent = "Checking…";
+    status.textContent = t("settings.updates.checking");
     try {
       status.textContent = await invoke("check_update");
     } catch (err) {
@@ -170,10 +202,19 @@ function buildStaticControls() {
   IDLE_MINUTES.forEach(([minutes, label]) => {
     const option = document.createElement("option");
     option.value = String(minutes);
-    option.textContent = label;
+    option.textContent = label();
     idleSelect.appendChild(option);
   });
   idleSelect.addEventListener("change", (e) => save({ vault_idle_lock_minutes: Number(e.target.value) }));
+
+  const languageSelect = document.getElementById("language");
+  LANGUAGES.forEach(([tag, label]) => {
+    const option = document.createElement("option");
+    option.value = tag;
+    option.textContent = label();
+    languageSelect.appendChild(option);
+  });
+  languageSelect.addEventListener("change", (e) => save({ language: e.target.value }));
   document.getElementById("engine").addEventListener("change", (e) => save({ web_engine: e.target.value }));
   document.getElementById("add-root").addEventListener("click", async () => {
     const picked = await invoke("pick_index_root");
@@ -199,7 +240,7 @@ function buildStaticControls() {
 // must not depend on GitHub being reachable.
 async function browseCatalog() {
   const button = document.getElementById("browse-plugins");
-  await withBusy(button, "Loading…", async () => {
+  await withBusy(button, t("settings.plugins.loading"), async () => {
     const available = await invoke("browse_plugins");
     buildCatalogRows(available);
   });
@@ -226,7 +267,7 @@ function buildCatalogRows(available) {
   card.innerHTML = "";
   card.hidden = false;
   if (!available.length) {
-    card.appendChild(pluginRow("Nothing here yet", "The catalog is empty — write the first one!"));
+    card.appendChild(pluginRow(t("settings.plugins.catalog_empty"), t("settings.plugins.catalog_empty.desc")));
     return;
   }
   available.forEach((plugin) => {
@@ -241,12 +282,12 @@ function buildCatalogRows(available) {
     const button = document.createElement("button");
     button.className = "button";
     if (plugin.installed) {
-      button.textContent = "Installed";
+      button.textContent = t("settings.plugins.installed");
       button.disabled = true;
     } else {
-      button.textContent = "Install";
+      button.textContent = t("settings.plugins.install");
       button.addEventListener("click", () =>
-        withBusy(button, "Installing…", async () => {
+        withBusy(button, t("settings.plugins.installing"), async () => {
           buildPluginRows(await invoke("install_plugin", { id: plugin.id }));
           renderAll();
           await browseCatalog(); // re-fetch so this row flips to "Installed"
@@ -307,12 +348,12 @@ function buildPluginRows(plugins) {
 function uninstallButton(plugin) {
   const button = document.createElement("button");
   button.className = "remove";
-  button.title = `Uninstall ${plugin.name}`;
+  button.title = t("settings.plugins.uninstall", { name: plugin.name });
   button.textContent = "✕";
   let armed = null;
   button.addEventListener("click", async () => {
     if (!armed) {
-      button.textContent = "Remove?";
+      button.textContent = t("settings.plugins.remove_confirm");
       button.style.width = "auto";
       armed = setTimeout(() => {
         armed = null;
@@ -324,7 +365,7 @@ function uninstallButton(plugin) {
     clearTimeout(armed);
     armed = null;
     button.disabled = true;
-    button.textContent = "Removing…";
+    button.textContent = t("settings.plugins.removing");
     try {
       buildPluginRows(await invoke("remove_plugin", { id: plugin.id })); // rebuilds this row away
       renderAll();
@@ -350,7 +391,7 @@ function renderRoots() {
     const desc = document.createElement("div");
     desc.className = "desc";
     // "Searching", not "indexing": with Everything running, Funke indexes nothing at all.
-    desc.textContent = "Searching your home folder (default).";
+    desc.textContent = t("settings.roots.default");
     what.appendChild(desc);
     row.appendChild(what);
     box.appendChild(row);
@@ -370,7 +411,7 @@ function renderRoots() {
 
     const remove = document.createElement("button");
     remove.className = "remove";
-    remove.title = "Remove folder";
+    remove.title = t("settings.roots.remove");
     remove.textContent = "✕";
     remove.addEventListener("click", () => {
       save({ index_roots: settings.index_roots.filter((existing) => existing !== root) });
@@ -403,7 +444,9 @@ function openSnippetEditor(snippet) {
   snippetName.value = snippet ? snippet.name : "";
   snippetAbbr.value = snippet ? snippet.abbreviation : "";
   snippetContent.value = snippet ? snippet.content : "";
-  document.getElementById("snippet-save").textContent = snippet ? "Save changes" : "Create snippet";
+  document.getElementById("snippet-save").textContent = snippet
+    ? t("settings.snippets.save")
+    : t("settings.snippets.create");
   snippetEditor.hidden = false;
   snippetName.focus();
 }
@@ -417,7 +460,7 @@ function commitSnippet() {
   const name = snippetName.value.trim();
   const content = snippetContent.value;
   if (!name || !content.trim()) {
-    showError("A snippet needs a name and some content.");
+    showError(t("settings.snippets.incomplete"));
     return;
   }
   const edited = {
@@ -465,12 +508,12 @@ function renderSnippets() {
 
     const edit = document.createElement("button");
     edit.className = "button";
-    edit.textContent = "Edit";
+    edit.textContent = t("settings.snippets.edit");
     edit.addEventListener("click", () => openSnippetEditor(snippet));
 
     const remove = document.createElement("button");
     remove.className = "remove";
-    remove.title = "Delete snippet";
+    remove.title = t("settings.snippets.delete");
     remove.textContent = "✕";
     remove.addEventListener("click", () => {
       if (editingSnippet === snippet.id) closeSnippetEditor();
@@ -579,7 +622,7 @@ function stopRecording() {
 recorder.addEventListener("click", () => {
   recording = true;
   recorder.classList.add("recording");
-  recorder.textContent = "Press keys…";
+  recorder.textContent = t("settings.hotkey.recording");
   recorder.focus();
 });
 
@@ -599,13 +642,13 @@ recorder.addEventListener("keydown", (e) => {
     const held = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"]
       .filter(Boolean)
       .join("+");
-    recorder.textContent = held ? `${held}+…` : "Press keys…";
+    recorder.textContent = held ? `${held}+…` : t("settings.hotkey.recording");
     return;
   }
   const key = keyName(e);
   const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
   if (!key || !mods.length) {
-    recorder.textContent = "Add a modifier…";
+    recorder.textContent = t("settings.hotkey.needs_modifier");
     return;
   }
   stopRecording();
@@ -624,14 +667,18 @@ document.addEventListener("keydown", (e) => {
 
 async function init() {
   try {
-    const [loaded, engines, providers, plugins, everything] = await Promise.all([
+    const [loaded, engines, providers, plugins, everything, tag] = await Promise.all([
       invoke("get_settings"),
       invoke("list_engines"),
       invoke("list_providers"),
       invoke("list_plugins"),
       invoke("everything_is_indexing"),
+      invoke("locale"),
     ]);
     settings = loaded;
+    // Before a single control is built: they take their labels from the catalogue.
+    setLocale(tag);
+    applyTranslations();
     // Which index the Files pane is describing is a fact about right now — Everything can be
     // started or closed while Funke runs, so it is read when the pane opens, not cached.
     document.getElementById("everything-row").hidden = !everything;
@@ -649,7 +696,7 @@ async function init() {
     // A half-built pane the user can see and close beats a window that silently never
     // appears: the window is created hidden and only this call reveals it, so anything
     // thrown on the way here would strand it invisible forever.
-    showError(`Settings didn't load fully: ${err}`);
+    showError(t("settings.load_failed", { error: String(err) }));
   } finally {
     // Painted and styled — the window may show itself now (created hidden).
     requestAnimationFrame(() => invoke("settings_ready"));

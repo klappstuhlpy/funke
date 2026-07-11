@@ -39,7 +39,7 @@ impl SearchProvider for ClipboardProvider {
     fn metadata(&self) -> ProviderMeta {
         ProviderMeta {
             id: PROVIDER_ID,
-            name: "Clipboard",
+            name: funke_core::t("provider.clipboard"),
             prefix: Some("c"),
             // Privacy: what you copied stays out of unscoped results.
             prefix_only: true,
@@ -84,18 +84,21 @@ fn clip_row(clip: Clip, score: i64) -> ResultItem {
         score,
         actions: vec![
             NamedAction::new(
-                "Paste into last window",
+                funke_core::t("action.paste_into_last_window"),
                 Action::PasteText {
                     text: clip.text.clone(),
                 },
             ),
             NamedAction::new(
-                "Copy to clipboard",
+                funke_core::t("action.copy_to_clipboard"),
                 Action::CopyText {
                     text: clip.text.clone(),
                 },
             ),
-            NamedAction::confirmed("Remove from history", Action::ClipboardForget { id }),
+            NamedAction::confirmed(
+                funke_core::t("action.remove_from_history"),
+                Action::ClipboardForget { id },
+            ),
         ],
     }
 }
@@ -106,12 +109,12 @@ fn clear_row() -> ResultItem {
     ResultItem {
         id: "clipboard:clear".into(),
         provider: PROVIDER_ID.into(),
-        title: "Clear clipboard history".into(),
-        subtitle: Some("Forgets every clip — press Enter again to confirm".into()),
+        title: funke_core::t("clipboard.clear.title").into(),
+        subtitle: Some(funke_core::t("clipboard.clear.subtitle").into()),
         icon: Some(glyph_data_url(CLEAR_GLYPH)),
         score: CLEAR_SCORE,
         actions: vec![NamedAction::confirmed(
-            "Clear clipboard history",
+            funke_core::t("clipboard.clear.title"),
             Action::AppControl {
                 command: "clipboard-clear".into(),
             },
@@ -125,8 +128,8 @@ fn empty_row() -> ResultItem {
     ResultItem {
         id: "clipboard:empty".into(),
         provider: PROVIDER_ID.into(),
-        title: "Clipboard history is empty".into(),
-        subtitle: Some("Copy something — history is kept in memory only, so it starts empty each launch".into()),
+        title: funke_core::t("clipboard.empty.title").into(),
+        subtitle: Some(funke_core::t("clipboard.empty.subtitle").into()),
         icon: Some(glyph_data_url(CLIP_GLYPH)),
         score: 0,
         actions: Vec::new(),

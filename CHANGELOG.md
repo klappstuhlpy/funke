@@ -55,6 +55,24 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   competitor.)
 
 ### Added
+- **German, and a seam for the next language.** Everything Funke writes — result titles and
+  subtitles, action labels, section headers, the tray menu, both windows — comes from a
+  string catalogue with an English and a German half (`funke_core::i18n` for what providers
+  produce, `ui/i18n.js` for what the UI writes itself). Settings → General → *Sprache* picks
+  one; the default follows Windows, and a change repaints both windows at once — no restart,
+  no re-index.
+
+  Two rules keep localization from quietly breaking the launcher, and both are tested:
+  - **A result's id is never translated.** Ids key frecency and recents, which outlive a
+    language change — build one out of a title and switching to German silently orphans
+    everything you have ever launched. Ids come from stable keys (`system:lock`); only the
+    text is looked up.
+  - **The English word keeps working.** A German UI still answers to `settings`, because the
+    matcher scores the localized title *and* the English one and keeps the better. Muscle
+    memory is not a language.
+
+  Untranslated keys render as the key itself rather than as a blank, so a hole in the
+  catalogue is visible the first time it renders instead of being silently swallowed.
 - **Everything integration** — if voidtools' [Everything](https://www.voidtools.com/) is
   running, file search asks *it* instead of walking the disk: no index to build at startup,
   none held in memory, and no minute-long wait before a file you just saved can be found.

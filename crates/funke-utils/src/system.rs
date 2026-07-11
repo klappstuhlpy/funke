@@ -1,11 +1,17 @@
 //! System commands: a handful of static power/session actions, fuzzy-matched like any
 //! other result. Destructive entries carry `confirm`, so the UI demands a second Enter.
 
-use funke_core::{glyph_data_url, Action, FuzzyMatcher, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider};
+use funke_core::{
+    alias_score, glyph_data_url, t, Action, FuzzyMatcher, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider,
+};
 
 pub struct SystemProvider;
 
 struct SystemEntry {
+    /// Stable across languages: it is what the item's id — and so the user's frecency
+    /// history — is keyed on. The visible strings are looked up from it.
+    key: &'static str,
+    /// Catalogue keys, resolved per query so a language change needs no restart.
     title: &'static str,
     subtitle: &'static str,
     /// SVG paths for the row icon (24×24 viewbox, see [`glyph_data_url`]).
@@ -18,40 +24,45 @@ struct SystemEntry {
 
 const ENTRIES: &[SystemEntry] = &[
     SystemEntry {
-        title: "Lock",
-        subtitle: "Lock this PC",
+        key: "lock",
+        title: "system.lock.title",
+        subtitle: "system.lock.subtitle",
         glyph: "<rect x='5' y='10.5' width='14' height='9.5' rx='2'/><path d='M8 10.5V7.5a4 4 0 0 1 8 0v3'/>",
         program: "rundll32",
         args: &["user32.dll,LockWorkStation"],
         confirm: false,
     },
     SystemEntry {
-        title: "Sleep",
-        subtitle: "Put the PC to sleep",
+        key: "sleep",
+        title: "system.sleep.title",
+        subtitle: "system.sleep.subtitle",
         glyph: "<path d='M20.2 13.6A8.2 8.2 0 0 1 10.4 3.8a8.2 8.2 0 1 0 9.8 9.8z'/>",
         program: "rundll32",
         args: &["powrprof.dll,SetSuspendState", "0", "1", "0"],
         confirm: false,
     },
     SystemEntry {
-        title: "Shut down",
-        subtitle: "Shut down this PC",
+        key: "shutdown",
+        title: "system.shutdown.title",
+        subtitle: "system.shutdown.subtitle",
         glyph: "<path d='M12 3.5v8'/><path d='M7.2 6.4a7.5 7.5 0 1 0 9.6 0'/>",
         program: "shutdown",
         args: &["/s", "/t", "0"],
         confirm: true,
     },
     SystemEntry {
-        title: "Restart",
-        subtitle: "Restart this PC",
+        key: "restart",
+        title: "system.restart.title",
+        subtitle: "system.restart.subtitle",
         glyph: "<path d='M20.5 5.5v5h-5'/><path d='M18.9 14.4a7.2 7.2 0 1 1-1.7-7.5l3.3 3.6'/>",
         program: "shutdown",
         args: &["/r", "/t", "0"],
         confirm: true,
     },
     SystemEntry {
-        title: "Empty Recycle Bin",
-        subtitle: "Delete the recycle bin contents",
+        key: "recycle",
+        title: "system.recycle.title",
+        subtitle: "system.recycle.subtitle",
         glyph: "<path d='M4.5 6.5h15'/><path d='M8.5 6.5V5A1.5 1.5 0 0 1 10 3.5h4A1.5 1.5 0 0 1 15.5 5v1.5'/>\
                 <path d='M6.5 6.5l.9 12.6a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12.6'/>",
         program: "powershell",
@@ -69,7 +80,7 @@ impl SearchProvider for SystemProvider {
         ProviderMeta {
             id: "system",
             // Shares the section label with the launcher's ControlProvider on purpose.
-            name: "Commands",
+            name: t("provider.commands"),
             prefix: None,
             prefix_only: false,
         }
@@ -82,15 +93,18 @@ impl SearchProvider for SystemProvider {
         ENTRIES
             .iter()
             .filter_map(|entry| {
-                matcher.score(entry.title).map(|score| ResultItem {
-                    id: format!("system:{}", entry.title),
+                // Matched against the German *and* the English title: `lock` must keep
+                // working for someone whose UI says "Sperren".
+                alias_score(&matcher, entry.title).map(|score| ResultItem {
+                    // Never the title — a language change would orphan its frecency.
+                    id: format!("system:{}", entry.key),
                     provider: "system".into(),
-                    title: entry.title.into(),
-                    subtitle: Some(entry.subtitle.into()),
+                    title: t(entry.title).into(),
+                    subtitle: Some(t(entry.subtitle).into()),
                     icon: Some(glyph_data_url(entry.glyph)),
                     score,
                     actions: vec![NamedAction {
-                        label: entry.title.into(),
+                        label: t(entry.title).into(),
                         action: Action::RunCommand {
                             program: entry.program.into(),
                             args: entry.args.iter().map(|arg| (*arg).to_string()).collect(),
