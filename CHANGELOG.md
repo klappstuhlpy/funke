@@ -28,7 +28,30 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   `CanUploadToCloudClipboard=0`), which every clipboard monitor honours, so they are
   invisible to all of them — Funke's own new history included.
 
+### Fixed
+- **The clipboard recorder could silently drop a clip.** Reading returned a bare
+  `Option<String>`, which conflated "somebody's excluded secret", "not text", and **"another
+  process had the clipboard open"** — so losing the race for a lock that *every* clipboard
+  monitor grabs the instant a copy happens meant the clip was dropped and the history got a
+  hole in it, for no reason. The read now says which of the three it was, the recorder waits
+  and comes back for a busy clipboard instead of giving up on it, and the retry budget is
+  long enough to sit out ordinary contention. (Found because the round-trip test started
+  failing the moment it ran with a Funke instance up — its listener is exactly such a
+  competitor.)
+
 ### Added
+- **Snippets** (`s`) — text you paste often (a signature, an address, a block of
+  boilerplate), created in Settings → Snippets and pasted into the window you came from.
+  Found by name or abbreviation from an ordinary search; the *body* is only searched behind
+  the `s` prefix, so a global query can't surface your address because you typed a street
+  name. Placeholders resolve at paste time, not save time: `{DATE}` `{TIME}` `{DATETIME}`
+  (with your own format, `{DATE:%d.%m.%Y}`), `{CLIPBOARD}` for what you last copied,
+  `{CURSOR}` for where the caret should land, `{NEWLINE}` `{TAB}` — and, as in vault
+  autotype sequences, an unknown token is typed exactly as written, so
+  `fn main() { … }` survives intact. Snippets live in `settings.json`, so they need no
+  store of their own and travel with the rest of your preferences.
+- **Providers can tell a keyword-scoped query from a global one** (`Query::scoped`) — the
+  seam that lets snippets be forthcoming when asked for and discreet when merely overhearing.
 - **Clipboard history** (`c`) — an in-memory ring of the last 100 things you copied. `c `
   browses it newest-first, `c foo` fuzzy-matches the text. Enter pastes the clip straight
   back into the window you came from (Ctrl+V, not keystrokes — typing a multi-line clip

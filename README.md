@@ -47,6 +47,9 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   only, never on disk**; passwords copied from Funke or any other password manager are
   excluded outright, and unmarked secrets (API keys, tokens, private keys) are filtered
   out by shape — see [SECURITY.md](SECURITY.md).
+- **Snippets** (`s`) — text you paste often, kept in Settings → Snippets and typed into the
+  window you came from. Found by name or abbreviation; placeholders resolve as you paste
+  (`{DATE}`, `{CLIPBOARD}`, `{CURSOR}`, …).
 - **Web search** (`g`) — configurable engine, wearing your default browser's icon.
 - **Calculator** — `2+2*3` inline; Enter copies the result.
 - **System commands** — lock, sleep, shut down, restart, empty recycle bin; destructive ones ask to confirm.
@@ -173,6 +176,7 @@ crates/
 ├── funke-utils/     # utility providers: calculator, web search (`g`, engine from settings), system commands
 ├── funke-windows/   # window switcher (`w`): switch to or kill open top-level windows
 ├── funke-clipboard/ # clipboard history (`c`): in-memory ring, secret-aware, never persisted
+├── funke-snippets/  # saved snippets (`s`): placeholders resolved at paste time
 ├── funke-vault/     # Bitwarden/Vaultwarden (`v`): bw serve client, autotype, prefix-only privacy
 ├── funke-plugin/    # plugin protocol (JSON-RPC/stdio): author SDK + launcher-side host
 └── funke-app/       # Tauri shell: tray, hotkey, overlay + settings windows, IPC commands, built-in providers

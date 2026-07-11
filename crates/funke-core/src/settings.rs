@@ -47,6 +47,24 @@ pub struct Settings {
     /// (empty query), matched by window title, process, and — in browsers — the address
     /// bar's URL. Off means vault entries only ever appear behind the `v` keyword.
     pub vault_context_suggest: bool,
+    /// Saved snippets (`s` prefix), in the order the settings pane shows them.
+    pub snippets: Vec<Snippet>,
+}
+
+/// One saved snippet: text you paste often, found by name or abbreviation.
+///
+/// The content may carry placeholders (`{DATE}`, `{CLIPBOARD}`, `{CURSOR}`, …) that are
+/// resolved when it is pasted — see the `funke-snippets` crate. This lives in core only
+/// because [`Settings`] is where it is persisted; core does not interpret it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Snippet {
+    /// Stable across edits and restarts, so frecency can learn a snippet you reach for.
+    pub id: String,
+    pub name: String,
+    /// A short trigger to find it by ("sig", "addr"). Optional; may be empty.
+    #[serde(default)]
+    pub abbreviation: String,
+    pub content: String,
 }
 
 impl Default for Settings {
@@ -66,6 +84,7 @@ impl Default for Settings {
             vault_autotype_sequence: String::new(),
             vault_lock_on_screen_lock: true,
             vault_context_suggest: true,
+            snippets: Vec::new(),
         }
     }
 }

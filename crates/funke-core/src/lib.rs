@@ -14,7 +14,7 @@ pub use frecency::FrecencyStore;
 pub use fuzzy::FuzzyMatcher;
 pub use glyph::glyph_data_url;
 pub use recents::RecentsStore;
-pub use settings::Settings;
+pub use settings::{Settings, Snippet};
 
 use serde::{Deserialize, Serialize};
 
@@ -22,11 +22,31 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Query {
     pub text: String,
+    /// The user reached this provider through its keyword (`s report`), rather than the
+    /// query being fanned out to everyone.
+    ///
+    /// It lets a provider be more forthcoming when it was *asked for* than when it merely
+    /// overheard the query — snippets search their bodies only when scoped, so a global
+    /// search can't surface your address because you typed a street name. Providers that
+    /// answer the same either way ignore it.
+    #[serde(default)]
+    pub scoped: bool,
 }
 
 impl Query {
     pub fn new(text: impl Into<String>) -> Self {
-        Self { text: text.into() }
+        Self {
+            text: text.into(),
+            scoped: false,
+        }
+    }
+
+    /// The same query, arriving through a provider's keyword.
+    pub fn scoped(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            scoped: true,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -56,6 +76,12 @@ pub enum Action {
     PasteText { text: String },
     /// Drop one entry from the clipboard history (ids are per-process, see funke-clipboard).
     ClipboardForget { id: u64 },
+    /// Expand a snippet's placeholders and paste it into the window the overlay was
+    /// summoned from. Expansion happens at action time, not query time — `{CLIPBOARD}`
+    /// and `{DATE}` mean "now", and `{CURSOR}` needs the keystrokes the paste sends.
+    SnippetPaste { id: String },
+    /// Expand a snippet and put it on the clipboard instead of typing it.
+    SnippetCopy { id: String },
     /// Bring an existing top-level window to the foreground (window switcher).
     FocusWindow { hwnd: isize },
     /// Force-terminate a process (the window switcher's destructive action).
@@ -211,7 +237,7 @@ impl Registry {
                 meta.prefix.is_some_and(|prefix| prefix.eq_ignore_ascii_case(keyword)) && enabled(&meta)
             });
             if let Some(provider) = scoped {
-                return Self::rank(provider.query(&Query::new(rest)));
+                return Self::rank(provider.query(&Query::scoped(rest)));
             }
         }
         Self::rank(
@@ -274,7 +300,7 @@ mod tests {
                 id: format!("{}:1", self.id),
                 provider: self.id.to_string(),
                 title: query.text.clone(),
-                subtitle: None,
+                subtitle: Some(if query.scoped { "scoped" } else { "global" }.into()),
                 icon: None,
                 score: self.score,
                 actions: vec![NamedAction::new("Run", Action::AppControl { command: "noop".into() })],
@@ -374,6 +400,26 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].provider, "clipboard");
         assert_eq!(results[0].title, "", "the provider is asked for everything it has");
+    }
+
+    /// A provider must be able to tell "you asked me" from "I overheard the query" —
+    /// snippets search their own bodies only in the first case.
+    #[test]
+    fn providers_learn_whether_they_were_reached_by_keyword() {
+        let mut registry = Registry::new();
+        registry.register(Box::new(FixedProvider {
+            id: "snippets",
+            prefix: Some("s"),
+            score: 10,
+            ..Default::default()
+        }));
+
+        // FixedProvider reports the flag back through the subtitle.
+        let scoped = registry.search(&Query::new("s address"));
+        assert_eq!(scoped[0].subtitle.as_deref(), Some("scoped"));
+
+        let global = registry.search(&Query::new("address"));
+        assert_eq!(global[0].subtitle.as_deref(), Some("global"));
     }
 
     #[test]

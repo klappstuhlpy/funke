@@ -8,6 +8,7 @@ members = [
     "crates/funke-utils",
     "crates/funke-windows",
     "crates/funke-clipboard",
+    "crates/funke-snippets",
     "crates/funke-vault",
     "crates/funke-plugin",
     "crates/funke-app",

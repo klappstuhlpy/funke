@@ -32,7 +32,7 @@ use funke_core::Settings;
 use zeroize::Zeroize;
 
 pub use provider::{ClipboardProvider, PROVIDER_ID};
-pub use win::{write_secret, write_text};
+pub use win::{read_text, write_secret, write_text};
 
 /// How many clips are kept. Past this the oldest is evicted (and zeroized).
 pub const MAX_CLIPS: usize = 100;
@@ -93,9 +93,24 @@ impl ClipboardHistory {
         if !self.settings.read().unwrap().provider_enabled(PROVIDER_ID) {
             return;
         }
-        // `None` here is the exclusion markers doing their job (or non-text content).
-        let Some(text) = win::read_text() else { return };
-        self.record(text, unix_now());
+        match win::read() {
+            win::Read::Text(text) => {
+                self.record(text, unix_now());
+            }
+            // Deliberately nothing to keep: somebody's secret, or an image.
+            win::Read::Excluded | win::Read::NotText => {}
+            // We lost the race for the clipboard lock. Every other clipboard manager woke
+            // on this same notification and grabbed it too, so this is ordinary, not
+            // exceptional — and dropping the clip would leave a hole in the history for
+            // no reason. The content is still there; come back for it.
+            win::Read::Busy => {
+                if let win::Read::Text(text) = win::read() {
+                    self.record(text, unix_now());
+                } else {
+                    eprintln!("clipboard: content was locked by another app — clip not recorded");
+                }
+            }
+        }
     }
 
     /// Push a clip, applying the length, blank, secret and duplicate rules. Split out of

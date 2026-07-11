@@ -30,6 +30,9 @@ const IDLE_MINUTES = [
 
 let settings = null;
 let recording = false;
+// The id of the snippet the editor is editing, "" while creating a new one, null when the
+// editor is closed. Snippets are the one setting with enough structure to need a form.
+let editingSnippet = null;
 
 /* ── persistence: instant apply, revert on rejection ── */
 
@@ -105,6 +108,7 @@ function renderAll() {
   if (engine.options.length) engine.value = settings.web_engine;
 
   renderRoots();
+  renderSnippets();
 
   if (!recording) recorder.textContent = settings.hotkey;
 }
@@ -188,6 +192,7 @@ function buildStaticControls() {
     }
   });
   document.getElementById("browse-plugins").addEventListener("click", browseCatalog);
+  buildSnippetControls();
 }
 
 // The catalog is fetched over the network on demand, never at startup: opening Settings
@@ -370,6 +375,111 @@ function renderRoots() {
       save({ index_roots: settings.index_roots.filter((existing) => existing !== root) });
     });
     row.appendChild(remove);
+    box.appendChild(row);
+  });
+}
+
+/* ── snippets ── */
+
+const snippetEditor = document.getElementById("snippet-editor");
+const snippetName = document.getElementById("snippet-name");
+const snippetAbbr = document.getElementById("snippet-abbr");
+const snippetContent = document.getElementById("snippet-content");
+
+function buildSnippetControls() {
+  document.getElementById("add-snippet").addEventListener("click", () => openSnippetEditor(null));
+  document.getElementById("snippet-cancel").addEventListener("click", closeSnippetEditor);
+  snippetEditor.addEventListener("submit", (e) => {
+    e.preventDefault();
+    commitSnippet();
+  });
+}
+
+// `snippet` is the one being edited, or null to create. Editing keeps the id, so frecency
+// and the snippet's place in the list survive a rename.
+function openSnippetEditor(snippet) {
+  editingSnippet = snippet ? snippet.id : "";
+  snippetName.value = snippet ? snippet.name : "";
+  snippetAbbr.value = snippet ? snippet.abbreviation : "";
+  snippetContent.value = snippet ? snippet.content : "";
+  document.getElementById("snippet-save").textContent = snippet ? "Save changes" : "Create snippet";
+  snippetEditor.hidden = false;
+  snippetName.focus();
+}
+
+function closeSnippetEditor() {
+  editingSnippet = null;
+  snippetEditor.hidden = true;
+}
+
+function commitSnippet() {
+  const name = snippetName.value.trim();
+  const content = snippetContent.value;
+  if (!name || !content.trim()) {
+    showError("A snippet needs a name and some content.");
+    return;
+  }
+  const edited = {
+    // crypto.randomUUID keeps ids stable and unique without a counter to persist.
+    id: editingSnippet || crypto.randomUUID(),
+    name,
+    abbreviation: snippetAbbr.value.trim(),
+    content,
+  };
+  const snippets = editingSnippet
+    ? settings.snippets.map((snippet) => (snippet.id === editingSnippet ? edited : snippet))
+    : [...settings.snippets, edited];
+  closeSnippetEditor();
+  save({ snippets });
+}
+
+function renderSnippets() {
+  const box = document.getElementById("snippet-list");
+  const empty = document.getElementById("snippets-empty");
+  box.innerHTML = "";
+  box.hidden = settings.snippets.length === 0;
+  empty.hidden = settings.snippets.length > 0;
+
+  settings.snippets.forEach((snippet) => {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const what = document.createElement("div");
+    what.className = "what";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = snippet.name;
+    if (snippet.abbreviation) {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = snippet.abbreviation;
+      label.appendChild(tag);
+    }
+    const desc = document.createElement("div");
+    desc.className = "desc";
+    // One line: the body may be a paragraph, and the row is not the place to read it.
+    desc.textContent = snippet.content.replace(/\s+/g, " ").trim().slice(0, 120);
+    what.append(label, desc);
+    row.appendChild(what);
+
+    const edit = document.createElement("button");
+    edit.className = "button";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => openSnippetEditor(snippet));
+
+    const remove = document.createElement("button");
+    remove.className = "remove";
+    remove.title = "Delete snippet";
+    remove.textContent = "✕";
+    remove.addEventListener("click", () => {
+      if (editingSnippet === snippet.id) closeSnippetEditor();
+      save({ snippets: settings.snippets.filter((existing) => existing.id !== snippet.id) });
+    });
+
+    const group = document.createElement("div");
+    group.className = "button-group";
+    group.append(edit, remove);
+    row.appendChild(group);
     box.appendChild(row);
   });
 }

@@ -39,6 +39,10 @@
             <svg viewBox="0 0 24 24"><path d="M5 6.5l5 5.5-5 5.5" /><path d="M12.5 17.5H19" /></svg>
             Commands
           </button>
+          <button class="nav" data-pane="snippets">
+            <svg viewBox="0 0 24 24"><path d="M6 3.5h7l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z" /><path d="M13 3.5v5h5" /></svg>
+            Snippets
+          </button>
           <button class="nav" data-pane="plugins">
             <svg viewBox="0 0 24 24"><path d="M9.5 4.5v3h5v-3a1.5 1.5 0 0 1 3 0v3H20a.8.8 0 0 1 .8.8v3.5a5.3 5.3 0 0 1-4.3 5.2v2.5a1.5 1.5 0 0 1-3 0" transform="rotate(45 12 12)" /></svg>
             Plugins
@@ -212,6 +216,58 @@
                 <button class="button" id="add-root">Add folder</button>
               </div>
               <div id="roots"></div>
+            </div>
+          </div>
+
+          <div class="pane" id="pane-snippets">
+            <h1>Snippets</h1>
+            <p class="lead">
+              Text you paste often — a signature, an address, a block of boilerplate. Find one
+              with <kbd>s</kbd>, and Enter types it into the window you came from.
+            </p>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Placeholders</div>
+                  <div class="desc">
+                    Resolved when the snippet is pasted, not when it is saved:
+                    <code>{DATE}</code>, <code>{TIME}</code>, <code>{DATETIME}</code>
+                    (or your own format, <code>{DATE:%d.%m.%Y}</code>),
+                    <code>{CLIPBOARD}</code> for what you last copied, and
+                    <code>{CURSOR}</code> for where the caret should land. Anything else in
+                    braces is typed exactly as written.
+                  </div>
+                </div>
+                <button class="button" id="add-snippet">New snippet</button>
+              </div>
+            </div>
+
+            <form class="card" id="snippet-editor" hidden>
+              <div class="field">
+                <label for="snippet-name">Name</label>
+                <input id="snippet-name" type="text" placeholder="Email signature" maxlength="80" required />
+              </div>
+              <div class="field">
+                <label for="snippet-abbr">Abbreviation <span class="hint">optional</span></label>
+                <input id="snippet-abbr" type="text" placeholder="sig" maxlength="24" />
+              </div>
+              <div class="field">
+                <label for="snippet-content">Content</label>
+                <textarea id="snippet-content" rows="6" placeholder="Viele Grüße&#10;Benedikt" required></textarea>
+              </div>
+              <div class="button-group">
+                <button class="button primary" type="submit" id="snippet-save">Save</button>
+                <button class="button" type="button" id="snippet-cancel">Cancel</button>
+              </div>
+            </form>
+
+            <div class="card" id="snippet-list" hidden></div>
+            <div class="placeholder" id="snippets-empty">
+              <div class="mark">◇</div>
+              <p>
+                No snippets yet. Create one above, then reach it with <kbd>s</kbd> — or by the
+                name you gave it, straight from the search.
+              </p>
             </div>
           </div>
 

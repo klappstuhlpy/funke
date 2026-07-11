@@ -185,6 +185,26 @@ fn run_action(
             let _ = app.emit("clipboard-changed", ());
             return Ok(());
         }
+        Action::SnippetCopy { id } => {
+            let expansion = expand_snippet(&state, &id)?;
+            funke_clipboard::write_text(&expansion.text).map_err(|e| format!("failed to copy: {e}"))?;
+        }
+        Action::SnippetPaste { id } => {
+            let expansion = expand_snippet(&state, &id)?;
+            // Ctrl+V, not keystrokes: snippets are routinely multi-line, and a typed
+            // newline is an Enter — it would send the half-pasted message (autotype::paste).
+            funke_clipboard::write_text(&expansion.text).map_err(|e| format!("failed to copy: {e}"))?;
+            let target = state.prev_focus.lock().unwrap().take();
+            hide(&app, false);
+            if let Some(hwnd) = target {
+                focus::focus_window(hwnd);
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                autotype::paste();
+                // {CURSOR}: walk the caret back into the hole the snippet left for it.
+                autotype::caret_left(expansion.cursor_back);
+            }
+            return Ok(());
+        }
         Action::PromptVaultUnlock => {
             // The overlay stays visible and switches into the masked password prompt.
             let _ = app.emit("vault-unlock", ());
@@ -337,6 +357,17 @@ fn run_action(
         }
     }
     Ok(())
+}
+
+/// Resolve a snippet's placeholders, now — `{DATE}` means today and `{CLIPBOARD}` means
+/// whatever is on the clipboard as the action runs, so this can't happen at query time.
+fn expand_snippet(state: &AppState, id: &str) -> Result<funke_snippets::Expansion, String> {
+    let settings = state.settings.read().unwrap();
+    let snippet = funke_snippets::find(&settings, id).ok_or("that snippet no longer exists")?;
+    let context = funke_snippets::Context {
+        clipboard: funke_clipboard::read_text(),
+    };
+    Ok(funke_snippets::expand(&snippet.content, &context))
 }
 
 /// How long a copied secret may sit on the clipboard before it is wiped.
@@ -851,10 +882,11 @@ fn build_registry(
     registry.register(Box::new(funke_files::FilesProvider::spawn(Arc::clone(&settings))));
     registry.register(Box::new(funke_utils::CalcProvider));
     registry.register(Box::new(funke_utils::SystemProvider));
-    registry.register(Box::new(funke_utils::WebSearchProvider::spawn(settings)));
+    registry.register(Box::new(funke_utils::WebSearchProvider::spawn(Arc::clone(&settings))));
     registry.register(Box::new(funke_windows::WindowsProvider::new()));
     registry.register(Box::new(funke_vault::VaultProvider::new(vault)));
     registry.register(Box::new(funke_clipboard::ClipboardProvider::new(clipboard)));
+    registry.register(Box::new(funke_snippets::SnippetsProvider::new(Arc::clone(&settings))));
     for handle in plugins.handles() {
         registry.register(Box::new(funke_plugin::host::PluginProvider::new(handle)));
     }

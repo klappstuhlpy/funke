@@ -128,6 +128,18 @@ fn press(vk: u16) {
     send(&[key(vk, 0, 0), key(vk, 0, KEYEVENTF_KEYUP)]);
 }
 
+/// Walk the caret back `count` characters — how a snippet's `{CURSOR}` is honoured after
+/// the text has landed. A no-op for the usual case of no marker (`count` 0).
+pub fn caret_left(count: usize) {
+    const VK_LEFT: u16 = 0x25;
+    let mut inputs = Vec::with_capacity(count * 2);
+    for _ in 0..count {
+        inputs.push(key(VK_LEFT, 0, 0));
+        inputs.push(key(VK_LEFT, 0, KEYEVENTF_KEYUP));
+    }
+    send(&inputs);
+}
+
 /// Send Ctrl+V to the focused window — how a clipboard clip gets pasted.
 ///
 /// Deliberately *not* [`type_text`]: a clip is arbitrary text, and typing it means

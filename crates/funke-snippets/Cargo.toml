@@ -1,0 +1,10 @@
+[package]
+name = "funke-snippets"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+description = "Saved snippets (`s` prefix): text you paste often, with placeholders resolved at paste time"
+
+[dependencies]
+funke-core = { path = "../funke-core" }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

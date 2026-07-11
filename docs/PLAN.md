@@ -271,6 +271,28 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   Reaching the browse view needed a core change: a bare keyword and a space (`c `) now
   scopes to a provider with an *empty* query. Providers with nothing to browse answer it
   with nothing, exactly as before.
+- **M8 — snippets** ✅ (`s`, landed 2026-07). Text you paste often, stored in `Settings`
+  (no store of its own: they are preferences, they persist and travel with the rest) and
+  pasted through the seam vault autotype opened — Ctrl+V rather than keystrokes, for the
+  same reason as the clipboard.
+
+  Placeholders resolve **at paste time**, never at query time: `{DATE}` means the day you
+  use it and `{CLIPBOARD}` means what you copied, and resolving either while the user is
+  still typing the search would bake in the wrong thing. The token vocabulary mirrors vault
+  autotype sequences deliberately, unknown-tokens-typed-literally included — a snippet is
+  the user's text and the expander must never eat part of it on a guess.
+
+  Snippets appear in **global** results (by name and abbreviation — you named it, so finding
+  it by that name is the point) but their **bodies** are searched only behind the `s`
+  prefix, so a global query cannot surface a home address because it happened to contain a
+  street name. That distinction needed a new core seam, `Query::scoped`: a provider can now
+  tell "you asked for me" from "I overheard the query".
+
+  **Not built: system-wide abbreviation expansion** (type `;sig` in any app and have it
+  expand). It needs a low-level keyboard hook (`WH_KEYBOARD_LL`) reading every keystroke in
+  every application — a keylogger's exact shape, in an app that already holds vault
+  secrets. Whether that trade is worth making is a decision for the maintainer, not a
+  detail of the snippets feature; snippets are launcher-triggered until then.
 - **M6 — USN/MFT service, content search, ecosystem.**
 
 ## 6. Going public

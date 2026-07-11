@@ -40,10 +40,12 @@ const EXCLUDE_FORMATS: [PCWSTR; 3] = [
     w!("CanUploadToCloudClipboard"),
 ];
 
-/// Opening the clipboard can lose the race against whoever else is reading it; a handful
-/// of quick retries is what every clipboard tool ends up doing.
-const OPEN_RETRIES: u32 = 8;
-const OPEN_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(10);
+/// The clipboard is a single global lock, and *every* app that touches it holds it for a
+/// moment — including other clipboard managers, which wake on the same notification we do
+/// and read it at the same instant. Losing that race must not cost us the clip, so we wait
+/// through the contention rather than a token handful of tries.
+const OPEN_RETRIES: u32 = 25;
+const OPEN_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(20);
 
 /// The clipboard is a global lock: hold it for as short as possible, always release it.
 struct ClipboardLock;
@@ -68,14 +70,49 @@ impl Drop for ClipboardLock {
     }
 }
 
+/// What was on the clipboard — and, when there was no text for us, *why*.
+///
+/// The distinction matters to the recorder: "somebody's secret" and "not text" mean there
+/// is deliberately nothing to keep, but [`Read::Busy`] means we simply lost the race for
+/// the lock, and treating that as "nothing" would silently punch holes in the history.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Read {
+    Text(String),
+    /// Marked as excluded from clipboard monitors — a password manager's copy.
+    Excluded,
+    /// An image, a file list, an empty clipboard: nothing this crate records.
+    NotText,
+    /// Another process held the clipboard open for longer than we were willing to wait.
+    Busy,
+}
+
+/// Read the clipboard, saying why when there is nothing to take.
+pub fn read() -> Read {
+    let Some(_lock) = ClipboardLock::acquire() else {
+        return Read::Busy;
+    };
+    if is_excluded() {
+        return Read::Excluded;
+    }
+    match read_unicode_text() {
+        Some(text) => Read::Text(text),
+        None => Read::NotText,
+    }
+}
+
 /// The Unicode text on the clipboard, or `None` when there is none — or when its owner
 /// marked it as excluded from clipboard monitors, which is precisely what a password
-/// manager does with a password.
+/// manager does with a password. (`{CLIPBOARD}` in a snippet wants exactly this: text or
+/// nothing, with no interest in the reason.)
 pub fn read_text() -> Option<String> {
-    let _lock = ClipboardLock::acquire()?;
-    if is_excluded() {
-        return None;
+    match read() {
+        Read::Text(text) => Some(text),
+        _ => None,
     }
+}
+
+/// Caller must hold the clipboard lock.
+fn read_unicode_text() -> Option<String> {
     let handle = unsafe { GetClipboardData(CF_UNICODETEXT.0 as u32) }.ok()?;
     let global = HGLOBAL(handle.0);
     let ptr = unsafe { GlobalLock(global) } as *const u16;
@@ -225,6 +262,20 @@ unsafe extern "system" fn wndproc(window: HWND, msg: u32, wparam: WPARAM, lparam
 mod tests {
     use super::*;
 
+    /// Read, tolerating the fact that the clipboard is a *shared global*: every other
+    /// clipboard monitor on the machine — a running Funke included — wakes on the same
+    /// notification our write just raised and grabs the lock at the same instant. A single
+    /// look can lose that race, which is why [`ClipboardHistory::capture`] retries too.
+    fn read_settled() -> Read {
+        for _ in 0..10 {
+            match read() {
+                Read::Busy | Read::NotText => std::thread::sleep(std::time::Duration::from_millis(30)),
+                settled => return settled,
+            }
+        }
+        read()
+    }
+
     /// The whole point of the module, exercised against the real Win32 clipboard: an
     /// ordinary copy comes back, and a *secret* copy is invisible to anything that reads
     /// the clipboard the way a monitor does — which is exactly how the vault's passwords
@@ -234,29 +285,40 @@ mod tests {
     /// #[test]s would race each other in the parallel harness.
     #[test]
     fn secrets_are_written_but_hidden_from_monitors_while_ordinary_text_round_trips() {
-        // A headless/locked session has no clipboard to open — don't fail the suite over it.
-        if ClipboardLock::acquire().is_none() {
+        // A headless or locked session has no clipboard at all — don't fail the suite over
+        // it. Probing with a write, not a bare open: holding the lock only to release it
+        // again is what invites the contention this test then has to fight.
+        if write_text("funke round trip").is_err() {
             eprintln!("no clipboard available in this session — skipping");
             return;
         }
-
-        write_text("funke round trip").expect("ordinary text is written");
-        assert_eq!(read_text().as_deref(), Some("funke round trip"));
+        assert_eq!(read_settled(), Read::Text("funke round trip".into()));
 
         // Unicode must survive the UTF-16 trip intact.
         write_text("Grüße 🎉").expect("unicode is written");
-        assert_eq!(read_text().as_deref(), Some("Grüße 🎉"));
+        assert_eq!(read_settled(), Read::Text("Grüße 🎉".into()));
 
         write_secret("hunter2").expect("the secret is written");
         assert_eq!(
-            read_text(),
-            None,
+            read_settled(),
+            Read::Excluded,
             "a secret carries the exclusion markers, so a clipboard monitor must not see it"
         );
+        assert_eq!(read_text(), None, "…and it is not offered as text either");
 
-        // It really is on the clipboard for the user to paste — it is only *monitors*
-        // that are shut out. Reading past our own guard proves the text is there.
-        let _lock = ClipboardLock::acquire().expect("clipboard");
-        assert!(is_excluded(), "the markers are what read_text() refused on");
+        // It really is on the clipboard for the user to paste — it is only *monitors* that
+        // are shut out. Reading past our own guard proves the text is still there.
+        let lock = ClipboardLock::acquire().expect("clipboard");
+        assert_eq!(read_unicode_text().as_deref(), Some("hunter2"));
+        drop(lock);
     }
+
+    // [`Read::Busy`] has no unit test on purpose: it arises only from *cross-process*
+    // contention, and there is no way to provoke that from inside one. (Holding the lock
+    // on another thread proves nothing — `OpenClipboard(NULL)` from a second thread of the
+    // process that already owns it succeeds.) It is not hypothetical: the test above
+    // failed exactly this way the first time it ran while a Funke instance was up, whose
+    // listener wakes on the same notification and grabs the clipboard at the same instant.
+    // That is what the retry budget and the `Busy` arm in `ClipboardHistory::capture` are
+    // for — a lost race must cost a moment's wait, never the clip.
 }

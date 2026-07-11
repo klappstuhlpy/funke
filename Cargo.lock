@@ -1205,6 +1205,7 @@ dependencies = [
  "funke-files",
  "funke-plugin",
  "funke-shell",
+ "funke-snippets",
  "funke-utils",
  "funke-vault",
  "funke-windows",
@@ -1288,6 +1289,14 @@ dependencies = [
  "base64 0.22.1",
  "png 0.17.16",
  "windows",
+]
+
+[[package]]
+name = "funke-snippets"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "funke-core",
 ]
 
 [[package]]

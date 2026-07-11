@@ -438,6 +438,78 @@ option {
   text-align: left;
 }
 
+/* The snippet editor: the one setting with enough structure to need a form rather than a
+   row of controls. Stacked fields, because the content is a paragraph and not a value. */
+.button.primary {
+  background: var(--accent-soft);
+  border-color: var(--accent-stroke);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--pad);
+  padding-bottom: 0;
+}
+
+.field label {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.field .hint {
+  color: var(--text-faint);
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+/* The body is a template — a code face, so {CURSOR} and indentation read as what they are. */
+.field textarea {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--accent-stroke);
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--text-faint);
+}
+
+#snippet-editor .button-group {
+  padding: var(--pad);
+}
+
+/* The abbreviation, riding along with the snippet's name. */
+.tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-stroke);
+  color: var(--text-dim);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 400;
+}
+
 .remove {
   width: 26px;
   height: 26px;
