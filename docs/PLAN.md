@@ -124,9 +124,9 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   Icons come from a lazy per-extension cache (per-file for exe/lnk/ico). Known cost:
   the string-per-entry index keeps a six-figure file count around ~200 MB RSS — the
   motivating driver for Phase B's compact (parent-pointer) index.
-- **M3 — Utility providers + settings** ◐: **landed** — calculator (`meval`; result tops
-  the list, Enter copies via arboard; note: meval pulls the ancient `nom 1.2.4`, swap for
-  a maintained expression crate before 1.0), web search (`g` prefix; engine configurable,
+- **M3 — Utility providers + settings** ◐: **landed** — calculator (`fasteval`, a
+  dependency-free f64 evaluator — swapped from `meval`, which dragged in the unmaintained
+  `nom 1.2.4`; result tops the list, Enter copies via arboard), web search (`g` prefix; engine configurable,
   row wears the default browser's icon), system commands (lock/sleep/shutdown/restart/
   empty-bin as `RunCommand`, console-window-free, inline SVG glyph icons; destructive
   entries say "immediately" in the subtitle — a confirm step comes with the multi-action
@@ -149,9 +149,16 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   action force-kills the process. **File-index roots** are configurable too (Commands →
   File index folders, native picker via `tauri-plugin-dialog`; empty = home; the index
   thread re-reads roots every 2 s tick, prunes nested roots, and re-indexes + re-watches
-  on change). **Pending** — auto-updater only (blocked on update-endpoint + signing
-  decisions: needs a public release channel, e.g. GitHub Releases, and a
-  `tauri-plugin-updater` signing keypair).
+  on change). **Auto-updater** landed and **configured** (`tauri-plugin-updater`): a
+  "Check for updates" button (Settings → General) calls the `check_update` command, which
+  downloads + stages a newer GitHub release. The signing keypair is set up — the **public**
+  key is in `tauri.conf.json` → `plugins.updater.pubkey`, and the **private** key +
+  password are repo secrets (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
+  The private key + password are backed up **outside the repo** at `~/funke-updater/`
+  (`.key`, `.key.pub`, `password.txt`) — GitHub secrets are write-only, so that folder is the
+  only recoverable copy; back it up (a password manager) and never commit it. Updates go live
+  for installed clients from the **first signed release onward** (the release workflow emits the
+  signed updater artifact + `latest.json` now that the key secret is present).
 - **M4 — Bitwarden plugin** ◐: **landed** — `funke-vault` crate: `bw serve` spawned
   windowless on a random loopback port (CLI presence probed first; killed on app exit
   via `RunEvent::Exit`), REST client for status/unlock/lock/sync/list/item. Provider
@@ -168,11 +175,13 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   **Website favicons** from the server's icon service (in-memory cache, toggleable);
   entries carry their organization label; usernames only match queries containing `@`;
   the previously-focused window's title boosts matching entries (a Steam login window
-  floats the Steam credential). Idle auto-lock after 10 min; Rust-side
-  password/credential buffers zeroized; posture + accepted limitations documented in
-  `SECURITY.md` (incl. passkeys out of scope — see §4). **Pending** — browser URL
-  matching via UI Automation, per-entry autotype sequences, lock-on-lock-screen,
-  vault settings (idle timeout, autotype enter toggle).
+  floats the Steam credential). **Auto-lock** is configurable: idle timeout
+  (`vault_idle_lock_minutes`, `0` = never) plus opt-in **lock-on-screen-lock**
+  (`vault_lock_on_screen_lock`; the watchdog polls the input-desktop name — `lockscreen.rs`
+  raw FFI — every 30 s and locks when Windows is locked). **Autotype's trailing Enter** is
+  toggleable (`vault_autotype_enter`). Rust-side password/credential buffers zeroized;
+  posture + accepted limitations documented in `SECURITY.md` (incl. passkeys out of scope —
+  see §4). **Pending** — browser URL matching via UI Automation, per-entry autotype sequences.
 - **M5 — Public plugin API + 1.0** ◐: **landed** — protocol v1 (JSON-RPC 2.0,
   line-delimited over stdio: `initialize` handshake with version check, `query`,
   `invoke`, `shutdown`), `crates/funke-plugin` (proto + Rust SDK + host: per-plugin
@@ -184,12 +193,23 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   authoring guide `docs/PLUGINS.md`, template plugin `funke-plugins/template` (`tp`
   prefix), plus `CONTRIBUTING.md`/`CODE_OF_CONDUCT.md`/`SECURITY.md`. The repo went
   **public** (github.com/klappstuhlpy/funke, MIT), and the **release pipeline**
-  landed (`release.yml`: a `v*` tag publishes a GitHub release with the portable
-  launcher zip and one `funke-plugin-<id>-<tag>.zip` per `funke-plugins/*` member).
-  **Pending** — in-settings suggested-plugins catalog (needs hosted index + trust
-  story), hot re-discovery without restart, Python plugin template, MSI/NSIS
-  installer, **winget manifest**, **code signing** (unsigned binaries get
-  SmartScreen-blocked — budget for a cert or Azure Trusted Signing).
+  landed (`release.yml`: a `v*` tag publishes a GitHub release with the **NSIS
+  installer/uninstaller** and the portable launcher zip, plus one
+  `funke-plugin-<id>-<tag>.zip` per `funke-plugins/*` member that **changed since the
+  previous tag** — unchanged plugins like `template` no longer re-release). Version is a
+  single source of truth: `tauri.conf.json` omits it, so it is inferred from
+  `crates/funke-app/Cargo.toml` and shown live in the settings window. **Code signing** is
+  wired but dormant — the release workflow's Azure Trusted Signing step is a no-op until the
+  `AZURE_*` repo secrets are set; until then binaries ship unsigned (SmartScreen warns).
+  **Hot re-discovery** landed: **Settings → Plugins → Refresh** (`reload_plugins`) picks up
+  newly installed plugins live via `PluginManager::reload` + a runtime `RwLock<Registry>`
+  register (additive — removals still need a restart). A **Python plugin template**
+  (`funke-plugins/template-python`, `tpy` prefix) shows the protocol in dependency-free
+  Python behind a `run.cmd` launcher; the release workflow packages script plugins (entry
+  not built by cargo) by shipping their folder as-is. **Pending** — in-settings
+  suggested-plugins catalog (needs hosted index + trust story), **winget manifest**,
+  **an actual signing cert/Azure Trusted Signing account** (budget for it), and moving to
+  Tauri's `bundle.windows.signCommand` so the installer's inner exe is signed too.
 - **M6 — USN/MFT service, content search, ecosystem.**
 
 ## 6. Going public
