@@ -9,6 +9,12 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+### Added
+- **Screenshots in the README** — a hero shot of the overlay mid-search, a three-up gallery
+  (overview, vault search, actions menu) and the four settings pages behind a collapsed
+  `<details>`, so the page shows the app without turning into a scroll. Images live in
+  `assets/` under descriptive names.
+
 ## [0.3.1] - 2026-07-11
 
 ### Fixed

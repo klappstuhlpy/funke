@@ -18,6 +18,10 @@
   ![Status](https://img.shields.io/badge/Status-pre--release-8a8478?style=flat-square)
   [![License](https://img.shields.io/badge/License-MIT-d97757?style=flat-square)](LICENSE)
 
+  <br>
+
+  <img src="assets/search.png" alt="Funke overlay searching for &quot;firefo&quot;, showing Applications, Windows and Files sections" width="720">
+
 </div>
 
 ## Features
@@ -55,6 +59,52 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   all applied live.
 
 **Status:** M0–M5 complete — the full roadmap lives in [docs/PLAN.md](docs/PLAN.md).
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="33%" align="center">
+      <img src="assets/overview.png" alt="The empty overlay: first-run tips, greeting, date and uptime">
+      <sub><b>Overview</b><br>The empty overlay — tips, greeting, uptime</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="assets/vault-search.png" alt="Vault search: two Discord logins with usernames and hosts">
+      <sub><b>Vault</b> (<code>v</code>)<br>Prefix-only search over Bitwarden/Vaultwarden</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="assets/vault-actions.png" alt="Actions menu for a vault entry: autotype, copy password, username, TOTP">
+      <sub><b>Actions</b> (<kbd>Tab</kbd>)<br>Autotype, copy password / username / TOTP</sub>
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><b>Settings</b> — hotkey, providers, plugins, startup (click to expand)</summary>
+<br>
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="assets/settings-general.png" alt="Settings: General — launch at startup, check for updates">
+      <sub><b>General</b> — launch at startup, updates</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="assets/settings-hotkey.png" alt="Settings: Hotkey — rebind the summon shortcut">
+      <sub><b>Hotkey</b> — rebind the summon shortcut</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="assets/settings-commands.png" alt="Settings: Commands — provider toggles, web engine, vault options">
+      <sub><b>Commands</b> — provider toggles, web engine, vault options</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="assets/settings-plugins.png" alt="Settings: Plugins — installed plugins and the curated catalog">
+      <sub><b>Plugins</b> — installed plugins and the curated catalog</sub>
+    </td>
+  </tr>
+</table>
+</details>
 
 ## Install
 
