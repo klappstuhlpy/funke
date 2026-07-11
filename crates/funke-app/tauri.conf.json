@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Funke",
-  "version": "0.1.0",
   "identifier": "me.klappstuhl.funke",
   "build": {
     "frontendDist": "./ui"
@@ -32,5 +31,11 @@
     "active": true,
     "targets": ["nsis"],
     "icon": ["icons/icon.png", "icons/icon.ico"]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/klappstuhlpy/funke/releases/latest/download/latest.json"],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMxOTQwQjg3NkQ0NTAwQUMKUldTc0FFVnRod3VVTVdmczVUYm4rVmdBWk9ZRVRJZHB4S21wcXFjblBRK3FUakFtRlBIMEpOV3MK"
+    }
   }
 }

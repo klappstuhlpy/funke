@@ -1,11 +1,21 @@
 name: Release
 
 # Tag a version (v0.1.0) and this publishes a GitHub release with:
-#   - funke-<tag>-windows-x86_64.zip            the portable launcher binary
-#   - funke-plugin-<id>-<tag>.zip               one per funke-plugins/* member,
-#     containing "<id>/plugin.json + <entry>.exe" so it unzips straight into
-#     %APPDATA%\funke\plugins.
-# Binaries are unsigned until the code-signing story lands (PLAN.md M5).
+#   - funke-<tag>-windows-x86_64-setup.exe       the NSIS installer (+ uninstaller,
+#     registered in Add/Remove Programs)
+#   - funke-<tag>-windows-x86_64.zip             the portable launcher binary
+#   - funke-plugin-<id>-<tag>.zip                one per funke-plugins/* member that
+#     CHANGED since the previous tag, containing "<id>/plugin.json + <entry>.exe" so it
+#     unzips straight into %APPDATA%\funke\plugins.
+#
+# Version is inferred from crates/funke-app/Cargo.toml (tauri.conf.json omits it), so a
+# release is only as new as that bump — keep the tag and the Cargo version in step.
+#
+# Code signing is wired but DORMANT: the "Sign" step is a no-op unless the AZURE_* Trusted
+# Signing secrets are set on the repo. Until then binaries ship unsigned (SmartScreen warns).
+# Note: the signed pass runs after bundling, so the portable exe and the installer itself are
+# signed, but the exe copied *inside* the installer is not — for fully-signed installs, move
+# to Tauri's `bundle.windows.signCommand` so signing happens during bundling.
 
 on:
   push:
@@ -17,46 +27,118 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      TAG: ${{ github.ref_name }}
+      # Populated from repo secrets when present; empty (and signing skipped) otherwise.
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      # Tauri updater keypair (see docs/PLAN.md M3). Empty = no updater artifacts, and the
+      # in-app "Check for updates" stays dormant.
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags, so we can diff plugins against the previous tag
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
 
       - name: Test
         run: cargo test --workspace
 
+      # Builds the launcher AND every plugin exe (tauri build only compiles the app crate).
       - name: Build (release)
         run: cargo build --release --workspace
 
-      - name: Package launcher
+      # Wraps the launcher into an NSIS installer/uninstaller (target/release/bundle/nsis).
+      # With an updater keypair present, also emits the signed updater artifact (.sig).
+      - name: Bundle installer
+        shell: pwsh
+        run: |
+          $updaterArgs = @()
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+            $updaterArgs = @('--config', '{"bundle":{"createUpdaterArtifacts":true}}')
+          }
+          cargo tauri build @updaterArgs
+
+      - name: Sign (optional — needs Azure Trusted Signing secrets)
+        if: ${{ env.AZURE_TENANT_ID != '' }}
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\target\release
+          files-folder-filter: exe
+          files-folder-recurse: true
+
+      - name: Package launcher (installer + portable)
         shell: pwsh
         run: |
           New-Item -ItemType Directory dist | Out-Null
+          $setup = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          Copy-Item $setup.FullName "dist/funke-$env:TAG-windows-x86_64-setup.exe"
           Compress-Archive -Path target/release/funke.exe `
             -DestinationPath "dist/funke-$env:TAG-windows-x86_64.zip"
-        env:
-          TAG: ${{ github.ref_name }}
 
-      - name: Package plugins
+      # Updater manifest — only when a keypair produced the signed .sig above.
+      - name: Generate updater manifest (latest.json)
+        if: ${{ env.TAURI_SIGNING_PRIVATE_KEY != '' }}
         shell: pwsh
         run: |
+          $sigFile = Get-ChildItem target/release/bundle/nsis/*-setup.exe.sig | Select-Object -First 1
+          $manifest = @{
+            version   = $env:TAG.TrimStart('v')
+            pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            notes     = "See the release notes at https://github.com/klappstuhlpy/funke/releases/tag/$env:TAG"
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = (Get-Content $sigFile.FullName -Raw)
+                url       = "https://github.com/klappstuhlpy/funke/releases/download/$env:TAG/funke-$env:TAG-windows-x86_64-setup.exe"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content dist/latest.json -Encoding utf8
+
+      - name: Package plugins (only those changed since the previous tag)
+        shell: pwsh
+        run: |
+          $prev = git describe --tags --abbrev=0 "$env:TAG^" 2>$null
+          if ($LASTEXITCODE -ne 0) { $prev = $null }
+          if ($prev) { Write-Host "Previous tag: $prev" } else { Write-Host "No previous tag — packaging all plugins." }
           Get-ChildItem funke-plugins -Directory | ForEach-Object {
             $manifestPath = Join-Path $_.FullName 'plugin.json'
             if (-not (Test-Path $manifestPath)) { return }
+            if ($prev) {
+              git diff --quiet $prev $env:TAG -- ("funke-plugins/{0}" -f $_.Name)
+              if ($LASTEXITCODE -eq 0) { Write-Host "Skipping $($_.Name) — unchanged since $prev."; return }
+            }
             $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
             $stage = Join-Path stage $manifest.id
             New-Item -ItemType Directory $stage -Force | Out-Null
-            Copy-Item $manifestPath $stage
-            Copy-Item (Join-Path target/release $manifest.entry) $stage
+            $builtEntry = Join-Path 'target/release' $manifest.entry
+            if (Test-Path $builtEntry) {
+              # Compiled plugin (Rust): ship just the manifest + built exe.
+              Copy-Item $manifestPath $stage
+              Copy-Item $builtEntry $stage
+            } elseif (Test-Path (Join-Path $_.FullName $manifest.entry)) {
+              # Script/interpreted plugin (e.g. Python): ship the folder's files as-is.
+              Copy-Item (Join-Path $_.FullName '*') $stage -Recurse
+            } else {
+              Write-Host "Skipping $($_.Name) — no built or in-folder entry '$($manifest.entry)'."; return
+            }
             Compress-Archive -Path $stage `
               -DestinationPath ("dist/funke-plugin-{0}-{1}.zip" -f $manifest.id, $env:TAG)
           }
-        env:
-          TAG: ${{ github.ref_name }}
 
       - name: Publish release
         shell: pwsh
-        run: gh release create $env:TAG (Get-ChildItem dist/*.zip).FullName --title "Funke $env:TAG" --generate-notes
+        run: gh release create $env:TAG (Get-ChildItem dist/*.zip, dist/*.exe, dist/*.json -ErrorAction SilentlyContinue).FullName --title "Funke $env:TAG" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
