@@ -19,12 +19,16 @@
 //! - Website icons (opt-in-out): favicons come from the configured server's icon
 //!   service, cached in memory only. See SECURITY.md for both tradeoffs.
 
+mod context;
 mod hello;
 mod lockscreen;
 mod provider;
+mod sequence;
 mod serve;
 
-pub use provider::VaultProvider;
+pub use context::FocusContext;
+pub use provider::{suggestions, VaultProvider};
+pub use sequence::Step;
 
 use std::collections::{HashMap, HashSet};
 use std::process::Child;
@@ -60,6 +64,9 @@ pub struct VaultEntry {
     pub has_totp: bool,
     /// Organization name when the item lives in a shared vault; `None` = personal.
     pub organization: Option<String>,
+    /// This entry's own autotype sequence, from its `autotype` custom field — a template
+    /// (`{USERNAME}{TAB}{PASSWORD}{ENTER}`), never a secret. See [`sequence`].
+    pub autotype: Option<String>,
 }
 
 pub struct Credentials {
@@ -237,6 +244,11 @@ impl Vault {
         self.settings.read().unwrap().vault_hello && hello::has_session()
     }
 
+    /// Whether the overlay's empty state may offer the credential for the focused app.
+    pub fn context_suggest_enabled(&self) -> bool {
+        self.settings.read().unwrap().vault_context_suggest
+    }
+
     /// Drop the persisted Hello session (the settings toggle was switched off).
     pub fn forget_hello_session(&self) {
         hello::forget_session();
@@ -270,6 +282,53 @@ impl Vault {
         let port = self.port().ok_or("The vault backend isn't running")?;
         self.touch();
         serve::item_credentials(port, id)
+    }
+
+    /// The autotype sequence for an item, most specific template first: the entry's own
+    /// `autotype` custom field, else the user's default from settings, else the built-in
+    /// username ⇥ password (with the trailing Enter the `vault_autotype_enter` setting
+    /// asks for). Steps name the fields they need — the caller resolves the secrets.
+    pub fn autotype_steps(&self, id: &str) -> Vec<Step> {
+        let per_entry = self
+            .entries
+            .read()
+            .unwrap()
+            .iter()
+            .find(|entry| entry.id == id)
+            .and_then(|entry| entry.autotype.clone());
+
+        let (default_sequence, press_enter) = {
+            let settings = self.settings.read().unwrap();
+            (
+                settings.vault_autotype_sequence.trim().to_string(),
+                settings.vault_autotype_enter,
+            )
+        };
+
+        match per_entry.or_else(|| (!default_sequence.is_empty()).then_some(default_sequence)) {
+            // An explicit template is typed exactly as written — the Enter toggle governs
+            // the built-in sequence only, so a user-authored one can't be second-guessed.
+            Some(template) => sequence::parse(&template),
+            None => {
+                let mut steps = sequence::parse(sequence::DEFAULT);
+                if press_enter {
+                    steps.push(Step::Enter);
+                }
+                steps
+            }
+        }
+    }
+
+    /// Context boost per entry id: how strongly each entry belongs to the window that was
+    /// focused when the overlay was summoned (see [`context`]). Empty while locked —
+    /// there is no cache to match against.
+    pub fn context_scores(&self, focus: &FocusContext) -> HashMap<String, i64> {
+        self.entries
+            .read()
+            .unwrap()
+            .iter()
+            .filter_map(|entry| context::score(entry, focus).map(|score| (entry.id.clone(), score)))
+            .collect()
     }
 
     /// Current TOTP code for an item, computed by the CLI at action time.
@@ -424,5 +483,80 @@ impl Vault {
                 vault.lock();
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vault_with(settings: Settings, entry: VaultEntry) -> Arc<Vault> {
+        let vault = Arc::new(Vault::new(Arc::new(RwLock::new(settings))));
+        vault.force_entries(vec![entry]);
+        vault
+    }
+
+    fn login(autotype: Option<&str>) -> VaultEntry {
+        VaultEntry {
+            id: "uuid-1".into(),
+            name: "GitHub".into(),
+            username: Some("ben".into()),
+            host: Some("github.com".into()),
+            has_totp: true,
+            organization: None,
+            autotype: autotype.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn the_built_in_sequence_honours_the_trailing_enter_toggle() {
+        let vault = vault_with(Settings::default(), login(None));
+        assert_eq!(
+            vault.autotype_steps("uuid-1"),
+            vec![Step::Username, Step::Tab, Step::Password, Step::Enter]
+        );
+
+        let no_enter = Settings {
+            vault_autotype_enter: false,
+            ..Default::default()
+        };
+        let vault = vault_with(no_enter, login(None));
+        assert_eq!(
+            vault.autotype_steps("uuid-1"),
+            vec![Step::Username, Step::Tab, Step::Password]
+        );
+    }
+
+    #[test]
+    fn an_entrys_own_sequence_beats_the_default_which_beats_the_built_in_one() {
+        let settings = Settings {
+            vault_autotype_sequence: "{PASSWORD}{ENTER}".into(),
+            // Explicit templates are typed as written — this toggle must not touch them.
+            vault_autotype_enter: false,
+            ..Default::default()
+        };
+        let vault = vault_with(settings.clone(), login(None));
+        assert_eq!(vault.autotype_steps("uuid-1"), vec![Step::Password, Step::Enter]);
+
+        let vault = vault_with(settings, login(Some("{USERNAME}{TAB}{PASSWORD}{TAB}{TOTP}{ENTER}")));
+        assert_eq!(
+            vault.autotype_steps("uuid-1"),
+            vec![
+                Step::Username,
+                Step::Tab,
+                Step::Password,
+                Step::Tab,
+                Step::Totp,
+                Step::Enter
+            ]
+        );
+    }
+
+    #[test]
+    fn an_unknown_id_still_yields_the_default_sequence() {
+        // The item vanished between the query and the keypress: type the usual thing
+        // rather than nothing (the credentials fetch is what will fail, loudly).
+        let vault = vault_with(Settings::default(), login(None));
+        assert_eq!(vault.autotype_steps("gone").first(), Some(&Step::Username));
     }
 }

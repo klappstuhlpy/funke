@@ -1,0 +1,28 @@
+# Default-locale manifest — rendered per release by .github/workflows/release.yml.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: klappstuhlpy.Funke
+PackageVersion: {{VERSION}}
+PackageLocale: en-US
+Publisher: klappstuhlpy
+PublisherUrl: https://github.com/klappstuhlpy
+PublisherSupportUrl: https://github.com/klappstuhlpy/funke/issues
+PackageName: Funke
+PackageUrl: https://github.com/klappstuhlpy/funke
+License: MIT
+LicenseUrl: https://github.com/klappstuhlpy/funke/blob/main/LICENSE
+Copyright: Copyright (c) 2026 klappstuhlpy
+ShortDescription: A fast, extensible Spotlight-style launcher for Windows.
+Description: >-
+  Summon a search bar with a global hotkey, then launch apps, find files, switch windows,
+  run actions, and search your Bitwarden/Vaultwarden vault with autotype — all from the
+  keyboard. Extensible with out-of-process plugins in any language.
+Moniker: funke
+Tags:
+  - launcher
+  - productivity
+  - search
+  - spotlight
+  - keyboard
+ReleaseNotesUrl: https://github.com/klappstuhlpy/funke/releases/tag/v{{VERSION}}
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

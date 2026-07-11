@@ -1,0 +1,22 @@
+# Installer manifest — rendered per release by .github/workflows/release.yml.
+# Placeholders: {{VERSION}} (tag without `v`), {{URL}}, {{SHA256}}, {{DATE}}.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: klappstuhlpy.Funke
+PackageVersion: {{VERSION}}
+InstallerType: nullsoft
+# The NSIS bundle installs per-user (no UAC), which is also what a resident tray app wants.
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+UpgradeBehavior: install
+ReleaseDate: {{DATE}}
+# Tauri's uninstall key is named after the product, and that is what winget matches on.
+ProductCode: Funke
+Installers:
+  - Architecture: x64
+    InstallerUrl: {{URL}}
+    InstallerSha256: {{SHA256}}
+ManifestType: installer
+ManifestVersion: 1.6.0

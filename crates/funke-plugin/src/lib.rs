@@ -3,13 +3,15 @@
 //! separate executables in any language; no dylibs, no stable-ABI problems, crash
 //! isolation for free).
 //!
-//! Three modules:
+//! Four modules:
 //! - [`proto`] — the wire types both sides share.
 //! - [`sdk`] — what a Rust plugin author uses: implement [`sdk::Plugin`], call
 //!   [`sdk::serve`] in `main`, done.
 //! - [`host`] — what the launcher uses: discover manifests, spawn plugin processes
 //!   lazily, adapt each one into a `funke_core::SearchProvider`.
+//! - [`catalog`] — the curated index of installable plugins: fetch, hash-verify, unpack.
 
+pub mod catalog;
 pub mod host;
 pub mod proto;
 pub mod sdk;

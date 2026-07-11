@@ -5,7 +5,7 @@ mod focus;
 mod native;
 mod providers;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -41,6 +41,11 @@ struct AppState {
     /// HWND of whatever had focus before the overlay was summoned, so we can hand
     /// focus back on dismiss (and, from M4 on, autotype into it).
     prev_focus: Mutex<Option<isize>>,
+    /// What that window *is* — title, process, and (in browsers) the URL in the address
+    /// bar. Filled by a background thread on every summon, because reading the URL via
+    /// UI Automation costs tens of milliseconds and nothing may sit between the hotkey
+    /// and the overlay. Drives the vault's context suggestions and its search boost.
+    focus_context: Mutex<funke_vault::FocusContext>,
     /// A Windows Hello prompt is up: its focus steal must not dismiss the overlay.
     hello_in_flight: std::sync::atomic::AtomicBool,
 }
@@ -70,14 +75,14 @@ fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
         item.score += store.boost(&item.id, now);
     }
 
-    // Context boost: vault entries matching the window focused before the overlay
-    // (e.g. a Steam login prompt floats the Steam credential to the top).
-    let prev_title = (*state.prev_focus.lock().unwrap()).and_then(focus::window_title);
-    if let Some(title) = prev_title {
-        let title = title.to_lowercase();
+    // Context boost: vault entries belonging to the window that was focused before the
+    // overlay (a Steam login window floats the Steam credential, a GitHub tab the GitHub
+    // one). Same scorer as the overview's suggestions — see funke_vault::context.
+    if items.iter().any(|item| item.provider == "vault") {
+        let scores = state.vault.context_scores(&state.focus_context.lock().unwrap());
         for item in &mut items {
-            if item.provider == "vault" && item.title.len() >= 3 && title.contains(&item.title.to_lowercase()) {
-                item.score += VAULT_CONTEXT_BOOST;
+            if let Some(entry_id) = item.id.strip_prefix("vault:") {
+                item.score += scores.get(entry_id).copied().unwrap_or(0);
             }
         }
     }
@@ -100,9 +105,6 @@ fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
 }
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-/// Enough to outrank any fuzzy score, so the context-matched credential leads the list.
-const VAULT_CONTEXT_BOOST: i64 = 500;
 
 /// Run one of the item's actions by index (Enter = 0, Shift+Enter = 1, actions menu =
 /// any). The UI never interprets actions — it sends the whole item and an index back.
@@ -228,7 +230,14 @@ fn run_action(
             state.plugins.invoke(&plugin, &item, action_index)?;
         }
         Action::VaultAutotype { id } => {
+            // The sequence says which fields it wants; only those are fetched.
+            let steps = state.vault.autotype_steps(&id);
             let creds = state.vault.credentials(&id)?;
+            let totp = if steps.contains(&funke_vault::Step::Totp) {
+                Some(state.vault.totp(&id)?)
+            } else {
+                None
+            };
             let target = state.prev_focus.lock().unwrap().take();
             hide(&app, false);
             if let Some(hwnd) = target {
@@ -236,17 +245,11 @@ fn run_action(
             }
             // Give the focus change a beat to land before keystrokes flow.
             std::thread::sleep(std::time::Duration::from_millis(150));
-            if let Some(username) = creds.username.as_deref() {
-                autotype::type_text(username);
-                autotype::press(autotype::VK_TAB);
+            autotype::run(&steps, &creds, totp.as_deref());
+            // Credentials zeroize on drop (funke-vault); the TOTP code is ours to wipe.
+            if let Some(mut code) = totp {
+                zeroize::Zeroize::zeroize(&mut code);
             }
-            if let Some(password) = creds.password.as_deref() {
-                autotype::type_text(password);
-                if state.settings.read().unwrap().vault_autotype_enter {
-                    autotype::press(autotype::VK_RETURN);
-                }
-            }
-            // creds zeroize on drop (funke-vault Credentials).
         }
         Action::FocusWindow { hwnd } => {
             // Hide first: the overlay must be gone before foreground moves, and the
@@ -338,16 +341,33 @@ async fn vault_unlock(state: tauri::State<'_, AppState>, password: String) -> Re
     result
 }
 
-/// Data for the empty-overlay overview: recently opened items plus a small info line.
+/// Data for the empty-overlay overview: what the focused app suggests, recently opened
+/// items, and a small info line.
 #[derive(serde::Serialize)]
 struct Overview {
+    /// Vault entries for the app that was focused when the overlay was summoned — or the
+    /// unlock row, when the vault is locked and can't answer. Empty most of the time.
+    suggestions: Vec<ResultItem>,
+    /// What those suggestions are *for* ("Discord", "github.com"), for the section label.
+    suggestion_label: Option<String>,
     recents: Vec<ResultItem>,
     uptime_secs: u64,
 }
 
+/// How many credentials the overview offers at most — a shortlist, not a search.
+const MAX_SUGGESTIONS: usize = 3;
+
 #[tauri::command]
 fn overview(state: tauri::State<'_, AppState>) -> Overview {
+    let context = state.focus_context.lock().unwrap().clone();
+    let suggestions = if state.settings.read().unwrap().provider_enabled("vault") {
+        funke_vault::suggestions(&state.vault, &context, MAX_SUGGESTIONS)
+    } else {
+        Vec::new()
+    };
     Overview {
+        suggestion_label: (!suggestions.is_empty()).then(|| context.label()).flatten(),
+        suggestions,
         recents: state.recents.lock().unwrap().top(5),
         uptime_secs: native::uptime_secs(),
     }
@@ -445,6 +465,10 @@ struct InstalledPlugin {
 
 #[tauri::command]
 fn list_plugins(state: tauri::State<'_, AppState>) -> Vec<InstalledPlugin> {
+    installed_plugins(&state)
+}
+
+fn installed_plugins(state: &AppState) -> Vec<InstalledPlugin> {
     let mut plugins: Vec<InstalledPlugin> = state
         .plugins
         .handles()
@@ -476,6 +500,11 @@ fn open_plugins_folder(state: tauri::State<'_, AppState>) -> Result<(), String> 
 /// `PluginManager::reload`); returns the refreshed installed list for the UI.
 #[tauri::command]
 fn reload_plugins(state: tauri::State<'_, AppState>) -> Vec<InstalledPlugin> {
+    load_new_plugins(&state);
+    installed_plugins(&state)
+}
+
+fn load_new_plugins(state: &AppState) {
     let added = state.plugins.reload(&state.plugins_dir);
     if !added.is_empty() {
         let mut registry = state.registry.write().unwrap();
@@ -483,7 +512,84 @@ fn reload_plugins(state: tauri::State<'_, AppState>) -> Vec<InstalledPlugin> {
             registry.register(Box::new(funke_plugin::host::PluginProvider::new(handle)));
         }
     }
-    list_plugins(state)
+}
+
+/// A catalog entry as the Plugins pane shows it: the curated listing plus whether it is
+/// already on disk.
+#[derive(serde::Serialize)]
+struct CatalogPlugin {
+    #[serde(flatten)]
+    entry: funke_plugin::catalog::CatalogEntry,
+    installed: bool,
+}
+
+/// Fetch the curated index. Async — and the fetch itself goes to a blocking thread, because
+/// a sync command would run on the main (STA) thread and freeze the settings window for the
+/// length of a network round trip.
+#[tauri::command]
+async fn browse_plugins(app: AppHandle) -> Result<Vec<CatalogPlugin>, String> {
+    let entries =
+        tauri::async_runtime::spawn_blocking(|| funke_plugin::catalog::fetch(funke_plugin::catalog::CATALOG_URL))
+            .await
+            .map_err(|e| e.to_string())??;
+    let state = app.state::<AppState>();
+    let installed: std::collections::HashSet<String> = state
+        .plugins
+        .handles()
+        .iter()
+        .map(|handle| handle.manifest.id.clone())
+        .collect();
+    Ok(entries
+        .into_iter()
+        .map(|entry| CatalogPlugin {
+            installed: installed.contains(&entry.id),
+            entry,
+        })
+        .collect())
+}
+
+/// Install a catalog entry: fetch the index again (so the pinned hash is the one currently
+/// under review, not one a stale UI is holding), download, verify, unpack, then register the
+/// plugin live. The frontend never gets to name a URL or a hash — only an id in the catalog.
+#[tauri::command]
+async fn install_plugin(app: AppHandle, id: String) -> Result<Vec<InstalledPlugin>, String> {
+    let dir = app.state::<AppState>().plugins_dir.clone();
+    let installed = tauri::async_runtime::spawn_blocking(move || {
+        let entry = funke_plugin::catalog::fetch(funke_plugin::catalog::CATALOG_URL)?
+            .into_iter()
+            .find(|entry| entry.id == id)
+            .ok_or_else(|| format!("`{id}` is not in the plugin catalog"))?;
+        funke_plugin::catalog::install(&entry, &dir)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    installed?;
+    let state = app.state::<AppState>();
+    load_new_plugins(&state);
+    Ok(installed_plugins(&state))
+}
+
+/// Uninstall: stop the child process, drop its provider, then delete the folder — in that
+/// order, because Windows will not delete a running executable.
+#[tauri::command]
+async fn remove_plugin(app: AppHandle, id: String) -> Result<Vec<InstalledPlugin>, String> {
+    let (plugins, dir) = {
+        let state = app.state::<AppState>();
+        (Arc::clone(&state.plugins), state.plugins_dir.clone())
+    };
+    let bare = id.strip_prefix("plugin:").unwrap_or(&id).to_string();
+    {
+        let state = app.state::<AppState>();
+        state.registry.write().unwrap().unregister(&format!("plugin:{bare}"));
+    }
+    let removed = tauri::async_runtime::spawn_blocking(move || {
+        plugins.remove(&bare);
+        funke_plugin::catalog::remove(&bare, &dir)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    removed?;
+    Ok(installed_plugins(&app.state::<AppState>()))
 }
 
 #[derive(serde::Serialize)]
@@ -626,13 +732,47 @@ fn position_overlay(win: &tauri::WebviewWindow) {
 
 fn show(app: &AppHandle) {
     let state = app.state::<AppState>();
-    *state.prev_focus.lock().unwrap() = focus::foreground_window();
+    let previous = focus::foreground_window();
+    *state.prev_focus.lock().unwrap() = previous;
+    // Stale context must never outlive its window: clear now, refill in the background.
+    *state.focus_context.lock().unwrap() = funke_vault::FocusContext::default();
     if let Some(win) = app.get_webview_window(MAIN_WINDOW) {
         position_overlay(&win);
         let _ = win.show();
         let _ = win.set_focus();
         let _ = win.emit("overlay-shown", ());
     }
+    if let Some(hwnd) = previous {
+        capture_context(app, hwnd);
+    }
+}
+
+/// Work out what the window we came from *is* — its title, its process, and, in a
+/// browser, the URL in the address bar (UI Automation, which can take tens of
+/// milliseconds and would otherwise be felt between the hotkey and the overlay).
+///
+/// Off-thread by design: the overlay is already up and rendering its overview when this
+/// starts, so the result arrives via `focus-context` and the overview refreshes in place.
+fn capture_context(app: &AppHandle, hwnd: isize) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let process = focus::process_name(hwnd);
+        let browser = process.as_deref().is_some_and(funke_shell::is_browser_process);
+        let context = funke_vault::FocusContext {
+            title: focus::window_title(hwnd),
+            url: browser.then(|| funke_shell::browser_url(hwnd)).flatten(),
+            process,
+            browser,
+        };
+        let state = app.state::<AppState>();
+        // A summon that came and went while we were reading the tree must not be
+        // retro-fitted with a context from the window before it.
+        if *state.prev_focus.lock().unwrap() != Some(hwnd) {
+            return;
+        }
+        *state.focus_context.lock().unwrap() = context;
+        let _ = app.emit("focus-context", ());
+    });
 }
 
 fn hide(app: &AppHandle, restore_focus: bool) {
@@ -690,11 +830,34 @@ fn data_path(file: &str) -> PathBuf {
         .join(file)
 }
 
+/// The installer's "Start Funke when I sign in" checkbox leaves a marker file here rather
+/// than writing the Run key itself (`installer/hooks.nsh`): the key's exact shape — value
+/// name, quoting, the StartupApproved companion entry — belongs to auto-launch, and routing
+/// the request through `settings.autostart` is what keeps the Settings toggle and the
+/// registry from ever disagreeing. Consumed once; `setup` then enables it like any other
+/// persisted choice. Only ever turns autostart *on*, so a reinstall can't undo a user's no.
+fn consume_autostart_request(settings: &RwLock<Settings>, settings_path: &Path) {
+    let marker = data_path(".autostart-request");
+    if !marker.exists() {
+        return;
+    }
+    std::fs::remove_file(&marker).ok();
+    let mut settings = settings.write().unwrap();
+    if settings.autostart {
+        return;
+    }
+    settings.autostart = true;
+    if let Err(e) = settings.save(settings_path) {
+        eprintln!("failed to persist the installer's autostart request: {e}");
+    }
+}
+
 fn main() {
     let settings_path = data_path("settings.json");
     let frecency_path = data_path("frecency.json");
     let recents_path = data_path("recents.json");
     let settings = Arc::new(RwLock::new(Settings::load(&settings_path)));
+    consume_autostart_request(&settings, &settings_path);
     let vault = Arc::new(funke_vault::Vault::new(Arc::clone(&settings)));
     let plugins_dir = data_path("plugins");
     let plugins = Arc::new(funke_plugin::host::PluginManager::discover(&plugins_dir));
@@ -719,6 +882,7 @@ fn main() {
             recents: Mutex::new(RecentsStore::load(&recents_path)),
             recents_path,
             prev_focus: Mutex::new(None),
+            focus_context: Mutex::new(funke_vault::FocusContext::default()),
             hello_in_flight: std::sync::atomic::AtomicBool::new(false),
         })
         .invoke_handler(tauri::generate_handler![
@@ -739,6 +903,9 @@ fn main() {
             list_plugins,
             open_plugins_folder,
             reload_plugins,
+            browse_plugins,
+            install_plugin,
+            remove_plugin,
             check_update
         ])
         .setup(|app| {

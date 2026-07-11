@@ -34,10 +34,19 @@ pub struct Settings {
     pub vault_icons: bool,
     /// Minutes of vault inactivity before it auto-locks; `0` disables idle auto-lock.
     pub vault_idle_lock_minutes: u64,
-    /// Whether autotype presses Enter after the password to submit the form.
+    /// Whether autotype presses Enter after the password to submit the form. Applies to
+    /// the built-in sequence only — an explicit template (here or on the entry) is typed
+    /// exactly as written.
     pub vault_autotype_enter: bool,
+    /// Default autotype template, e.g. `{USERNAME}{TAB}{PASSWORD}{ENTER}`. Empty = the
+    /// built-in sequence. An entry's own `autotype` custom field overrides this.
+    pub vault_autotype_sequence: String,
     /// Lock the vault automatically when the Windows session locks (screen lock).
     pub vault_lock_on_screen_lock: bool,
+    /// Offer the credential for the app that was focused when the overlay was summoned
+    /// (empty query), matched by window title, process, and — in browsers — the address
+    /// bar's URL. Off means vault entries only ever appear behind the `v` keyword.
+    pub vault_context_suggest: bool,
 }
 
 impl Default for Settings {
@@ -54,7 +63,9 @@ impl Default for Settings {
             vault_icons: true,
             vault_idle_lock_minutes: 10,
             vault_autotype_enter: true,
+            vault_autotype_sequence: String::new(),
             vault_lock_on_screen_lock: true,
+            vault_context_suggest: true,
         }
     }
 }

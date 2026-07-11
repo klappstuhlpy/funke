@@ -1,6 +1,6 @@
 [package]
 name = "funke-app"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license.workspace = true
 description = "Funke launcher — Tauri shell, tray, hotkey, and IPC around funke-core"
@@ -15,6 +15,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 funke-core = { path = "../funke-core" }
 funke-apps = { path = "../funke-apps" }
+funke-shell = { path = "../funke-shell" }
 funke-files = { path = "../funke-files" }
 funke-utils = { path = "../funke-utils" }
 funke-windows = { path = "../funke-windows" }

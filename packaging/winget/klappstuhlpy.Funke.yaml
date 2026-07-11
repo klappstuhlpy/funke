@@ -1,0 +1,8 @@
+# Version manifest — rendered per release by .github/workflows/release.yml.
+# {{VERSION}} is the tag without its leading `v`.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
+PackageIdentifier: klappstuhlpy.Funke
+PackageVersion: {{VERSION}}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0

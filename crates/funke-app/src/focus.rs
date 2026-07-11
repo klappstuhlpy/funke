@@ -17,9 +17,15 @@ extern "system" {
 #[link(name = "kernel32")]
 extern "system" {
     fn GetCurrentThreadId() -> u32;
+    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> isize;
+    fn QueryFullProcessImageNameW(process: isize, flags: u32, buf: *mut u16, size: *mut u32) -> i32;
+    fn CloseHandle(handle: isize) -> i32;
 }
 
 const SW_RESTORE: i32 = 9;
+/// The least privilege that still names a process — works across integrity levels where
+/// `PROCESS_QUERY_INFORMATION` would be refused.
+const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
 
 /// The window that had focus before the overlay was summoned, if any.
 pub fn foreground_window() -> Option<isize> {
@@ -33,6 +39,37 @@ pub fn window_title(hwnd: isize) -> Option<String> {
     let mut buf = [0u16; 512];
     let len = unsafe { GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32) };
     (len > 0).then(|| String::from_utf16_lossy(&buf[..len as usize]))
+}
+
+/// The executable behind a window, as a lowercase stem (`…\Discord.exe` → `discord`).
+/// This is what tells the vault that the app you came from *is* Discord, so its
+/// credential can be offered. `None` when the process is gone or refuses to be opened
+/// (elevated processes do, and get no context — by design, not a bug).
+pub fn process_name(hwnd: isize) -> Option<String> {
+    unsafe {
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid == 0 {
+            return None;
+        }
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if process == 0 {
+            return None;
+        }
+        let mut buf = [0u16; 512];
+        let mut len = buf.len() as u32;
+        let ok = QueryFullProcessImageNameW(process, 0, buf.as_mut_ptr(), &mut len) != 0;
+        CloseHandle(process);
+        if !ok || len == 0 {
+            return None;
+        }
+        let path = String::from_utf16_lossy(&buf[..len as usize]);
+        let stem = std::path::Path::new(&path)
+            .file_stem()?
+            .to_string_lossy()
+            .to_lowercase();
+        (!stem.is_empty()).then_some(stem)
+    }
 }
 
 /// Bring a window to the foreground, restoring it first if it's minimized (the window

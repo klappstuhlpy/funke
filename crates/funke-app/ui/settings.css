@@ -247,6 +247,13 @@ h1 {
   margin-top: var(--gap);
 }
 
+/* A hidden element still breaks `+` adjacency, so a card following the (usually invisible)
+   empty-state placeholder would otherwise sit flush against the card before it. */
+.card + .placeholder,
+.placeholder + .card {
+  margin-top: var(--gap);
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -373,6 +380,29 @@ select:focus {
 
 option {
   background: var(--bg);
+}
+
+/* Free-text setting (the autotype sequence): a select's chrome, a code face — what's
+   typed into it is a template, not prose. */
+.text-input {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  outline: none;
+}
+
+.text-input:focus {
+  border-color: var(--accent-stroke);
+}
+
+.text-input::placeholder {
+  color: var(--text-faint);
 }
 
 .button {

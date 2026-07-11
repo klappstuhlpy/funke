@@ -3,6 +3,8 @@
 
 mod browser;
 mod icon;
+mod uia;
 
 pub use browser::{default_browser_exe, default_browser_icon};
 pub use icon::icon_data_url;
+pub use uia::{browser_url, is_browser_process};

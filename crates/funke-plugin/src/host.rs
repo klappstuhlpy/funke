@@ -16,8 +16,9 @@
 //! Each plugin gets one worker thread that owns its stdio and serializes requests.
 //! Queries wait [`QUERY_TIMEOUT`] then give up (invariant 6: a slow plugin may lose
 //! its own results, never block the launcher); a dead/crashed plugin yields empty
-//! results until restart. Discovery runs at startup; [`PluginManager::reload`] adds
-//! newly installed plugins live (additive — removals still need a restart).
+//! results until restart. Discovery runs at startup; [`PluginManager::reload`] adds newly
+//! installed plugins live and [`PluginManager::remove`] tears one down, so installing and
+//! uninstalling from the catalog both take effect without relaunching.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -260,9 +261,8 @@ impl PluginManager {
 
     /// Re-scan the directory and create handles for folders not already loaded,
     /// returning the newly added handles so the caller can register providers for them.
-    /// **Additive only** — a plugin deleted from disk keeps running until the next
-    /// launch (unregistering a live provider + tearing down its worker mid-flight isn't
-    /// worth the complexity for the rare case).
+    /// **Additive only** — dropping a plugin is [`remove`](Self::remove)'s job, because it
+    /// has to stop the child process before the folder can go.
     pub fn reload(&self, dir: &Path) -> Vec<Arc<PluginHandle>> {
         let mut added = Vec::new();
         let mut plugins = self.plugins.write().unwrap();
@@ -275,6 +275,17 @@ impl PluginManager {
             added.push(handle);
         }
         added
+    }
+
+    /// Forget a plugin and stop its child process, so its folder can be deleted (Windows
+    /// keeps a running exe locked). The caller must also drop its provider from the
+    /// `Registry` — this only tears down the process side. Returns whether it was loaded.
+    pub fn remove(&self, id: &str) -> bool {
+        let Some(handle) = self.plugins.write().unwrap().remove(id) else {
+            return false;
+        };
+        shutdown_handle(&handle);
+        true
     }
 
     pub fn handles(&self) -> Vec<Arc<PluginHandle>> {
@@ -294,12 +305,18 @@ impl PluginManager {
     /// The worker kills the child if the polite shutdown doesn't take.
     pub fn shutdown(&self) {
         for handle in self.plugins.read().unwrap().values() {
-            if let Some(Some(sender)) = handle.worker.get() {
-                let (reply_tx, reply_rx) = mpsc::sync_channel(1);
-                let _ = sender.send((Request::new(u64::MAX, "shutdown", serde_json::Value::Null), reply_tx));
-                let _ = reply_rx.recv_timeout(Duration::from_millis(200));
-            }
+            shutdown_handle(handle);
         }
+    }
+}
+
+/// Politely ask a plugin's child to exit and give it a moment. A plugin that never ran has
+/// no process; one that ignores the request is killed by its worker when the channel drops.
+fn shutdown_handle(handle: &PluginHandle) {
+    if let Some(Some(sender)) = handle.worker.get() {
+        let (reply_tx, reply_rx) = mpsc::sync_channel(1);
+        let _ = sender.send((Request::new(u64::MAX, "shutdown", serde_json::Value::Null), reply_tx));
+        let _ = reply_rx.recv_timeout(Duration::from_millis(200));
     }
 }
 

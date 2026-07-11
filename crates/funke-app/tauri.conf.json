@@ -30,7 +30,23 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "icon": ["icons/icon.png", "icons/icon.ico"]
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "publisher": "klappstuhlpy",
+    "homepage": "https://github.com/klappstuhlpy/funke",
+    "copyright": "Copyright (c) 2026 klappstuhlpy",
+    "category": "Utility",
+    "shortDescription": "A fast, extensible Spotlight-style launcher for Windows.",
+    "longDescription": "Summon a search bar with a global hotkey, then launch apps, find files, switch windows, run actions, and search your Bitwarden/Vaultwarden vault with autotype - all from the keyboard.",
+    "licenseFile": "../../LICENSE",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installerHooks": "installer/hooks.nsh"
+      }
+    }
   },
   "plugins": {
     "updater": {

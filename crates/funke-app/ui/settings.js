@@ -82,6 +82,10 @@ function renderAll() {
     .getElementById("vault-autotype-enter")
     .setAttribute("aria-checked", String(settings.vault_autotype_enter));
   document.getElementById("vault-lock-screen").setAttribute("aria-checked", String(settings.vault_lock_on_screen_lock));
+  document.getElementById("vault-context").setAttribute("aria-checked", String(settings.vault_context_suggest));
+
+  const sequence = document.getElementById("vault-sequence");
+  if (document.activeElement !== sequence) sequence.value = settings.vault_autotype_sequence;
 
   const idle = document.getElementById("vault-idle");
   if (idle.options.length) idle.value = String(settings.vault_idle_lock_minutes);
@@ -151,6 +155,12 @@ function buildStaticControls() {
   document
     .getElementById("vault-lock-screen")
     .addEventListener("click", () => save({ vault_lock_on_screen_lock: !settings.vault_lock_on_screen_lock }));
+  document
+    .getElementById("vault-context")
+    .addEventListener("click", () => save({ vault_context_suggest: !settings.vault_context_suggest }));
+  // Saved when the field is done being typed in, not on every keystroke.
+  const sequence = document.getElementById("vault-sequence");
+  sequence.addEventListener("change", () => save({ vault_autotype_sequence: sequence.value.trim() }));
 
   const idleSelect = document.getElementById("vault-idle");
   IDLE_MINUTES.forEach(([minutes, label]) => {
@@ -177,6 +187,87 @@ function buildStaticControls() {
       showError(String(err));
     }
   });
+  document.getElementById("browse-plugins").addEventListener("click", browseCatalog);
+}
+
+// The catalog is fetched over the network on demand, never at startup: opening Settings
+// must not depend on GitHub being reachable.
+async function browseCatalog() {
+  const button = document.getElementById("browse-plugins");
+  await withBusy(button, "Loading…", async () => {
+    const available = await invoke("browse_plugins");
+    buildCatalogRows(available);
+  });
+}
+
+// Run an async action with the button showing progress, surfacing failures in the error bar.
+async function withBusy(button, busyLabel, action) {
+  const label = button.textContent;
+  button.textContent = busyLabel;
+  button.disabled = true;
+  try {
+    await action();
+    hideError();
+  } catch (err) {
+    showError(String(err));
+  } finally {
+    button.textContent = label;
+    button.disabled = false;
+  }
+}
+
+function buildCatalogRows(available) {
+  const card = document.getElementById("catalog-list");
+  card.innerHTML = "";
+  card.hidden = false;
+  if (!available.length) {
+    card.appendChild(pluginRow("Nothing here yet", "The catalog is empty — write the first one!"));
+    return;
+  }
+  available.forEach((plugin) => {
+    const byline = [plugin.version && `v${plugin.version}`, plugin.author && `by ${plugin.author}`]
+      .filter(Boolean)
+      .join(" · ");
+    const row = pluginRow(
+      plugin.prefix ? `${plugin.name} · ${plugin.prefix} <query>` : plugin.name,
+      [plugin.description, byline].filter(Boolean).join(" — "),
+    );
+
+    const button = document.createElement("button");
+    button.className = "button";
+    if (plugin.installed) {
+      button.textContent = "Installed";
+      button.disabled = true;
+    } else {
+      button.textContent = "Install";
+      button.addEventListener("click", () =>
+        withBusy(button, "Installing…", async () => {
+          buildPluginRows(await invoke("install_plugin", { id: plugin.id }));
+          renderAll();
+          await browseCatalog(); // re-fetch so this row flips to "Installed"
+        }),
+      );
+    }
+    row.appendChild(button);
+    card.appendChild(row);
+  });
+}
+
+function pluginRow(labelText, descText) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const what = document.createElement("div");
+  what.className = "what";
+  const label = document.createElement("div");
+  label.className = "label";
+  label.textContent = labelText;
+  what.appendChild(label);
+  const desc = document.createElement("div");
+  desc.className = "desc";
+  desc.textContent = descText;
+  what.appendChild(desc);
+  row.appendChild(what);
+  return row;
 }
 
 function buildPluginRows(plugins) {
@@ -186,20 +277,10 @@ function buildPluginRows(plugins) {
   card.hidden = plugins.length === 0;
   empty.hidden = plugins.length > 0;
   plugins.forEach((plugin) => {
-    const row = document.createElement("div");
-    row.className = "row";
-
-    const what = document.createElement("div");
-    what.className = "what";
-    const label = document.createElement("div");
-    label.className = "label";
-    label.textContent = plugin.prefix ? `${plugin.name} · ${plugin.prefix} <query>` : plugin.name;
-    what.appendChild(label);
-    const desc = document.createElement("div");
-    desc.className = "desc";
-    desc.textContent = [plugin.version && `v${plugin.version}`, plugin.description].filter(Boolean).join(" — ");
-    what.appendChild(desc);
-    row.appendChild(what);
+    const row = pluginRow(
+      plugin.prefix ? `${plugin.name} · ${plugin.prefix} <query>` : plugin.name,
+      [plugin.version && `v${plugin.version}`, plugin.description].filter(Boolean).join(" — "),
+    );
 
     const toggle = document.createElement("button");
     toggle.className = "toggle";
@@ -211,8 +292,46 @@ function buildPluginRows(plugins) {
       save({ disabled_providers: disabled });
     });
     row.appendChild(toggle);
+    row.appendChild(uninstallButton(plugin));
     card.appendChild(row);
   });
+}
+
+// Deleting a plugin's folder is not undoable, so the ✕ arms first and acts on the second
+// click — the same "armed, then confirm" idiom the overlay uses for destructive actions.
+function uninstallButton(plugin) {
+  const button = document.createElement("button");
+  button.className = "remove";
+  button.title = `Uninstall ${plugin.name}`;
+  button.textContent = "✕";
+  let armed = null;
+  button.addEventListener("click", async () => {
+    if (!armed) {
+      button.textContent = "Remove?";
+      button.style.width = "auto";
+      armed = setTimeout(() => {
+        armed = null;
+        button.textContent = "✕";
+        button.style.width = "";
+      }, 3000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    button.disabled = true;
+    button.textContent = "Removing…";
+    try {
+      buildPluginRows(await invoke("remove_plugin", { id: plugin.id })); // rebuilds this row away
+      renderAll();
+      hideError();
+    } catch (err) {
+      showError(String(err));
+      button.disabled = false;
+      button.textContent = "✕";
+      button.style.width = "";
+    }
+  });
+  return button;
 }
 
 function renderRoots() {

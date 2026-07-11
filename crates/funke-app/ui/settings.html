@@ -148,13 +148,43 @@
               </div>
               <div class="row">
                 <div class="what">
+                  <div class="label">Vault: suggest for the focused app</div>
+                  <div class="desc">
+                    When you summon Funke over Discord (or a GitHub tab), offer that credential in
+                    the empty overlay — matched by process, window title, and the browser's address
+                    bar. Off means vault entries only ever appear behind <code>v</code>.
+                  </div>
+                </div>
+                <button class="toggle" id="vault-context" role="switch" aria-checked="true"></button>
+              </div>
+              <div class="row">
+                <div class="what">
                   <div class="label">Vault: autotype presses Enter</div>
                   <div class="desc">
                     After typing the password, submit the form automatically. Turn off to type the
-                    credentials and stop, leaving Enter to you.
+                    credentials and stop, leaving Enter to you. Applies to the built-in sequence
+                    only — a custom one below is typed exactly as written.
                   </div>
                 </div>
                 <button class="toggle" id="vault-autotype-enter" role="switch" aria-checked="true"></button>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label">Vault: autotype sequence</div>
+                  <div class="desc">
+                    What autotype types, if not the usual username ⇥ password. Tokens:
+                    <code>{USERNAME}</code> <code>{PASSWORD}</code> <code>{TOTP}</code>
+                    <code>{TAB}</code> <code>{ENTER}</code> <code>{DELAY=500}</code>. A single entry
+                    can override this with an <code>autotype</code> custom field in Bitwarden.
+                  </div>
+                </div>
+                <input
+                  class="text-input"
+                  id="vault-sequence"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="{USERNAME}{TAB}{PASSWORD}"
+                />
               </div>
               <div class="row">
                 <div class="what">
@@ -210,13 +240,30 @@
             <div class="placeholder" id="plugins-empty">
               <div class="mark">◇</div>
               <p>
-                No plugins installed yet. The repository ships templates
+                No plugins installed yet. Browse the catalog below, or write your own with
+                <code>docs/PLUGINS.md</code> — the repository ships templates
                 (<code>funke-plugins/template</code> in Rust, <code>funke-plugins/template-python</code>
-                in Python) — build/copy one next to its <code>plugin.json</code> into the folder
-                above, hit Refresh, then try <kbd>tp hello</kbd>. A browsable catalog of suggested
-                plugins arrives with the public releases (M5).
+                in Python): build one next to its <code>plugin.json</code> into the folder above,
+                hit Refresh, then try <kbd>tp hello</kbd>.
               </p>
             </div>
+
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label">Suggested plugins</div>
+                  <div class="desc">
+                    A curated catalog from the Funke repository. Every entry is pinned to a
+                    checksum, so what installs is what was reviewed — but a plugin is a program
+                    that runs with your rights, not a sandbox. Install only what you trust.
+                  </div>
+                </div>
+                <div class="button-group">
+                  <button class="button" id="browse-plugins">Browse</button>
+                </div>
+              </div>
+            </div>
+            <div class="card" id="catalog-list" hidden></div>
           </div>
         </section>
       </div>

@@ -11,11 +11,14 @@ name: Release
 # Version is inferred from crates/funke-app/Cargo.toml (tauri.conf.json omits it), so a
 # release is only as new as that bump — keep the tag and the Cargo version in step.
 #
-# Code signing is wired but DORMANT: the "Sign" step is a no-op unless the AZURE_* Trusted
-# Signing secrets are set on the repo. Until then binaries ship unsigned (SmartScreen warns).
-# Note: the signed pass runs after bundling, so the portable exe and the installer itself are
-# signed, but the exe copied *inside* the installer is not — for fully-signed installs, move
-# to Tauri's `bundle.windows.signCommand` so signing happens during bundling.
+# It also renders the winget manifests for the tag (dist/winget/*.yaml, attached to the
+# release) — submitting them to microsoft/winget-pkgs stays a deliberate manual PR.
+#
+# Code signing is wired but DORMANT: signing happens *during* bundling, through Tauri's
+# `bundle.windows.signCommand`, which is injected below only when the AZURE_* Trusted Signing
+# secrets are set. Bundling signs the main binary in place before it is packaged, so one
+# switch covers the portable exe, the copy inside the installer, and the installer itself.
+# Until the secrets exist, binaries ship unsigned (SmartScreen warns).
 
 on:
   push:
@@ -30,7 +33,14 @@ jobs:
     env:
       TAG: ${{ github.ref_name }}
       # Populated from repo secrets when present; empty (and signing skipped) otherwise.
+      # trusted-signing-cli picks the credentials up from the environment; the endpoint,
+      # account and profile are passed to it by the signCommand below.
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+      AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+      AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
       # Tauri updater keypair (see docs/PLAN.md M3). Empty = no updater artifacts, and the
       # in-app "Check for updates" stays dormant.
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -53,30 +63,30 @@ jobs:
       - name: Build (release)
         run: cargo build --release --workspace
 
+      # trusted-signing-cli is what `signCommand` shells out to; it reads the Azure
+      # credentials from the environment. Only needed on a signing run.
+      - name: Install signing tool (optional — needs Azure Trusted Signing secrets)
+        if: ${{ env.AZURE_TENANT_ID != '' }}
+        run: cargo install trusted-signing-cli --locked
+
       # Wraps the launcher into an NSIS installer/uninstaller (target/release/bundle/nsis).
-      # With an updater keypair present, also emits the signed updater artifact (.sig).
+      # With an updater keypair present, also emits the signed updater artifact (.sig); with
+      # Azure secrets present, every produced exe is signed as it is bundled.
       - name: Bundle installer
         shell: pwsh
         run: |
-          $updaterArgs = @()
-          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
-            $updaterArgs = @('--config', '{"bundle":{"createUpdaterArtifacts":true}}')
+          $bundle = @{}
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) { $bundle.createUpdaterArtifacts = $true }
+          if ($env:AZURE_TENANT_ID) {
+            # %1 is the file Tauri wants signed; the tool takes the rest from AZURE_* env vars.
+            $bundle.windows = @{ signCommand = "trusted-signing-cli -e $env:AZURE_SIGNING_ENDPOINT -a $env:AZURE_SIGNING_ACCOUNT -c $env:AZURE_SIGNING_PROFILE %1" }
           }
-          cargo tauri build @updaterArgs
+          $bundleArgs = @()
+          if ($bundle.Count -gt 0) {
+            $bundleArgs = @('--config', (@{ bundle = $bundle } | ConvertTo-Json -Depth 6 -Compress))
+          }
+          cargo tauri build @bundleArgs
 
-      - name: Sign (optional — needs Azure Trusted Signing secrets)
-        if: ${{ env.AZURE_TENANT_ID != '' }}
-        uses: azure/trusted-signing-action@v0
-        with:
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
-          files-folder: ${{ github.workspace }}\target\release
-          files-folder-filter: exe
-          files-folder-recurse: true
 
       - name: Package launcher (installer + portable)
         shell: pwsh
@@ -86,6 +96,27 @@ jobs:
           Copy-Item $setup.FullName "dist/funke-$env:TAG-windows-x86_64-setup.exe"
           Compress-Archive -Path target/release/funke.exe `
             -DestinationPath "dist/funke-$env:TAG-windows-x86_64.zip"
+
+      # winget manifests for this tag, ready to paste into a microsoft/winget-pkgs PR.
+      # Generated, not submitted: publishing to the public index should be a deliberate act,
+      # and the first submission also has to pass a human review there.
+      - name: Render winget manifests
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          $setup = "dist/funke-$env:TAG-windows-x86_64-setup.exe"
+          $values = @{
+            '{{VERSION}}' = $version
+            '{{URL}}'     = "https://github.com/klappstuhlpy/funke/releases/download/$env:TAG/funke-$env:TAG-windows-x86_64-setup.exe"
+            '{{SHA256}}'  = (Get-FileHash $setup -Algorithm SHA256).Hash
+            '{{DATE}}'    = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+          }
+          New-Item -ItemType Directory dist/winget -Force | Out-Null
+          Get-ChildItem packaging/winget/*.yaml | ForEach-Object {
+            $text = Get-Content $_.FullName -Raw
+            foreach ($key in $values.Keys) { $text = $text.Replace($key, $values[$key]) }
+            Set-Content (Join-Path 'dist/winget' $_.Name) $text -Encoding utf8
+          }
 
       # Updater manifest — only when a keypair produced the signed .sig above.
       - name: Generate updater manifest (latest.json)
@@ -144,6 +175,6 @@ jobs:
 
       - name: Publish release
         shell: pwsh
-        run: gh release create $env:TAG (Get-ChildItem dist/*.zip, dist/*.exe, dist/*.json -ErrorAction SilentlyContinue).FullName --title "Funke $env:TAG" --generate-notes
+        run: gh release create $env:TAG (Get-ChildItem dist/*.zip, dist/*.exe, dist/*.json, dist/winget/*.yaml -ErrorAction SilentlyContinue).FullName --title "Funke $env:TAG" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

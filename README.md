@@ -33,23 +33,38 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   (or via **Windows Hello** after the first unlock, opt-in), autotype into the previous
   window, copy password/username/**TOTP** with 30 s clipboard auto-clear, website icons,
   idle auto-lock. Prefix-only for privacy — see [SECURITY.md](SECURITY.md).
+- **Credentials for the app you're in** — summon Funke over Discord (or a GitHub tab) and the
+  empty overlay offers *that* credential, matched by process, window title, and the browser's
+  address bar; Enter types it straight back into the window you came from. Locked vault? It
+  offers the unlock first. Autotype follows a per-entry sequence when you give the item an
+  `autotype` field (`{USERNAME}{TAB}{PASSWORD}{TOTP}{ENTER}`, `{DELAY=500}`, …).
 - **Web search** (`g`) — configurable engine, wearing your default browser's icon.
 - **Calculator** — `2+2*3` inline; Enter copies the result.
 - **System commands** — lock, sleep, shut down, restart, empty recycle bin; destructive ones ask to confirm.
-- **Plugins** — separate executables in any language speaking JSON-RPC over stdio: drop a
-  folder into `%APPDATA%\funke\plugins`, toggle in Settings → Plugins. Write your own with
+- **Plugins** — separate executables in any language speaking JSON-RPC over stdio. Install
+  from the **catalog** in Settings → Plugins (every entry is pinned to a checksum), or drop a
+  folder into `%APPDATA%\funke\plugins`. Write your own with
   [docs/PLUGINS.md](docs/PLUGINS.md), starting from `funke-plugins/template`.
 - **Actions menu** — Enter runs the default action, **Tab lists every action** of a result
   (open / reveal in Explorer / copy path, …), each with its own shortcut (⇧↵, Ctrl+3, …)
   that also works straight from the result list.
-- **Overview** — the empty overlay shows recent picks (removable with a click), a
-  greeting/date/uptime line, and first-run tips.
+- **Overview** — the empty overlay shows the credential for the app you came from, recent
+  picks (removable with a click), a greeting/date/uptime line, and first-run tips.
 - **Settings window** (tray → Settings, or search "settings") — summon hotkey, accent color,
   overlay width, web engine, provider toggles, file-index folders, plugins, launch-at-startup —
   all applied live.
 
-**Status:** M3 (minus auto-update) + core M4 + the M5 plugin foundation — the full
-roadmap lives in [docs/PLAN.md](docs/PLAN.md).
+**Status:** M0–M5 complete — the full roadmap lives in [docs/PLAN.md](docs/PLAN.md).
+
+## Install
+
+Grab the installer (`funke-<version>-windows-x86_64-setup.exe`) or the portable zip from
+[Releases](https://github.com/klappstuhlpy/funke/releases). The installer is per-user (no
+UAC prompt) and can enable "start when I sign in" for you; Funke updates itself from there
+(Settings → General → Check for updates).
+
+Builds are not code-signed yet, so SmartScreen will warn on first run — "More info" →
+"Run anyway", or use the portable zip.
 
 ## Development
 

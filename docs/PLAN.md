@@ -124,7 +124,7 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   Icons come from a lazy per-extension cache (per-file for exe/lnk/ico). Known cost:
   the string-per-entry index keeps a six-figure file count around ~200 MB RSS — the
   motivating driver for Phase B's compact (parent-pointer) index.
-- **M3 — Utility providers + settings** ◐: **landed** — calculator (`fasteval`, a
+- **M3 — Utility providers + settings** ✅: calculator (`fasteval`, a
   dependency-free f64 evaluator — swapped from `meval`, which dragged in the unmaintained
   `nom 1.2.4`; result tops the list, Enter copies via arboard), web search (`g` prefix; engine configurable,
   row wears the default browser's icon), system commands (lock/sleep/shutdown/restart/
@@ -159,7 +159,7 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   only recoverable copy; back it up (a password manager) and never commit it. Updates go live
   for installed clients from the **first signed release onward** (the release workflow emits the
   signed updater artifact + `latest.json` now that the key secret is present).
-- **M4 — Bitwarden plugin** ◐: **landed** — `funke-vault` crate: `bw serve` spawned
+- **M4 — Bitwarden plugin** ✅: `funke-vault` crate: `bw serve` spawned
   windowless on a random loopback port (CLI presence probed first; killed on app exit
   via `RunEvent::Exit`), REST client for status/unlock/lock/sync/list/item. Provider
   (`v` prefix, `prefix_only` — entries never appear in global searches or recents)
@@ -173,16 +173,40 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   unlock** (opt-in): DPAPI-persisted `bw` session key redeemed behind a Hello consent
   prompt, `bw serve` respawned pre-unlocked; kill-based lock keeps the key valid.
   **Website favicons** from the server's icon service (in-memory cache, toggleable);
-  entries carry their organization label; usernames only match queries containing `@`;
-  the previously-focused window's title boosts matching entries (a Steam login window
-  floats the Steam credential). **Auto-lock** is configurable: idle timeout
-  (`vault_idle_lock_minutes`, `0` = never) plus opt-in **lock-on-screen-lock**
-  (`vault_lock_on_screen_lock`; the watchdog polls the input-desktop name — `lockscreen.rs`
-  raw FFI — every 30 s and locks when Windows is locked). **Autotype's trailing Enter** is
-  toggleable (`vault_autotype_enter`). Rust-side password/credential buffers zeroized;
-  posture + accepted limitations documented in `SECURITY.md` (incl. passkeys out of scope —
-  see §4). **Pending** — browser URL matching via UI Automation, per-entry autotype sequences.
-- **M5 — Public plugin API + 1.0** ◐: **landed** — protocol v1 (JSON-RPC 2.0,
+  entries carry their organization label; usernames only match queries containing `@`.
+  **Auto-lock** is configurable: idle timeout (`vault_idle_lock_minutes`, `0` = never)
+  plus opt-in **lock-on-screen-lock** (`vault_lock_on_screen_lock`; the watchdog polls the
+  input-desktop name — `lockscreen.rs` raw FFI — every 30 s and locks when Windows is
+  locked). Rust-side password/credential buffers zeroized; posture + accepted limitations
+  documented in `SECURITY.md` (incl. passkeys out of scope — see §4).
+
+  **Focus context** (`context.rs`) closes the milestone. On every summon a background
+  thread reads what the previously-focused window *is* — title, process image name
+  (`focus.rs` raw FFI), and, for known browsers, the **URL from the address bar via UI
+  Automation** (`funke-shell/uia.rs`: the window's Document element's ValuePattern, the
+  address-bar Edit as fallback) — then emits `focus-context` so the overlay refreshes in
+  place. It is off the hotkey path on purpose: the UIA tree walk costs tens of
+  milliseconds and nothing may sit between the keypress and the window. Matching is
+  deliberately conservative (registrable-domain equality, the process *being* the site,
+  the title naming the entry — never a fuzzy near-miss), and it drives two things: the
+  score boost on `v` searches, and — the point of it — **context suggestions in the empty
+  overlay** (`vault_context_suggest`, on by default): summon Funke over Discord and the
+  Discord credential is right there under a "For Discord" heading, ready to autotype into
+  it; over a GitHub tab it's the GitHub one. A **locked** vault has no cache to match
+  against, so it offers "Unlock vault to autofill Discord" instead — unlock and the
+  credential appears in place. This is the one sanctioned exception to `prefix_only`
+  (documented in SECURITY.md): only ever the credential for the window already in front
+  of you, never persisted, and switchable off.
+
+  **Per-entry autotype sequences** (`sequence.rs`) replace the hardcoded username ⇥
+  password: a KeePass-style template (`{USERNAME}` `{PASSWORD}` `{TOTP}` `{TAB}` `{ENTER}`
+  `{DELAY=500}`, unknown tokens typed literally) parsed into `Step`s that *name* the
+  fields — no secret ever lives inside a parsed sequence; the app resolves them at
+  `SendInput` time from freshly fetched, zeroized credentials. Precedence: the entry's
+  own `autotype` custom field in Bitwarden → `vault_autotype_sequence` in settings → the
+  built-in sequence (whose trailing Enter stays governed by `vault_autotype_enter`; an
+  explicit template is typed exactly as written).
+- **M5 — Public plugin API + 1.0** ✅: protocol v1 (JSON-RPC 2.0,
   line-delimited over stdio: `initialize` handshake with version check, `query`,
   `invoke`, `shutdown`), `crates/funke-plugin` (proto + Rust SDK + host: per-plugin
   worker thread owning the child's stdio, lazy spawn on first query, 300 ms query
@@ -198,18 +222,34 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   `funke-plugin-<id>-<tag>.zip` per `funke-plugins/*` member that **changed since the
   previous tag** — unchanged plugins like `template` no longer re-release). Version is a
   single source of truth: `tauri.conf.json` omits it, so it is inferred from
-  `crates/funke-app/Cargo.toml` and shown live in the settings window. **Code signing** is
-  wired but dormant — the release workflow's Azure Trusted Signing step is a no-op until the
-  `AZURE_*` repo secrets are set; until then binaries ship unsigned (SmartScreen warns).
-  **Hot re-discovery** landed: **Settings → Plugins → Refresh** (`reload_plugins`) picks up
-  newly installed plugins live via `PluginManager::reload` + a runtime `RwLock<Registry>`
-  register (additive — removals still need a restart). A **Python plugin template**
-  (`funke-plugins/template-python`, `tpy` prefix) shows the protocol in dependency-free
-  Python behind a `run.cmd` launcher; the release workflow packages script plugins (entry
-  not built by cargo) by shipping their folder as-is. **Pending** — in-settings
-  suggested-plugins catalog (needs hosted index + trust story), **winget manifest**,
-  **an actual signing cert/Azure Trusted Signing account** (budget for it), and moving to
-  Tauri's `bundle.windows.signCommand` so the installer's inner exe is signed too.
+  `crates/funke-app/Cargo.toml` and shown live in the settings window. A **Python plugin
+  template** (`funke-plugins/template-python`, `tpy` prefix) shows the protocol in
+  dependency-free Python behind a `run.cmd` launcher; the release workflow packages script
+  plugins (entry not built by cargo) by shipping their folder as-is.
+
+  **Plugin lifecycle, live** (`funke-plugin/catalog.rs`): **Settings → Plugins → Refresh**
+  (`reload_plugins`) picks up a dropped-in plugin via `PluginManager::reload` + a runtime
+  `RwLock<Registry>`; **Browse** fetches the curated catalog and **Install** downloads it;
+  **✕** uninstalls it (`PluginManager::remove` stops the child, `Registry::unregister` drops
+  its provider, then the folder goes) — all three without a relaunch.
+
+  **The catalog's trust story** is the reason it took until now. The index is `plugins.json`
+  on the default branch — no server to run, its git history *is* the audit log, and an entry
+  gets in only by a reviewed pull request. Each entry **pins the archive's SHA-256**, so a
+  release asset cannot be swapped out from under a reviewed entry; the launcher refuses a
+  mismatch before writing a byte. Archive paths are validated (no `..`, nothing outside the
+  plugin's own folder), and the unpacked manifest must declare the id the catalog claimed.
+  None of that sandboxes a plugin — it is a process with the user's full rights, which the
+  pane says out loud. Sandboxing was rejected in §2 and that hasn't changed.
+
+  **Distribution:** **winget manifests** (`packaging/winget/`) are rendered per tag by the
+  release workflow with the installer's real hash and attached to the release; submitting
+  them to microsoft/winget-pkgs stays a deliberate manual PR. **Code signing** is wired but
+  dormant: it now happens *during* bundling via `bundle.windows.signCommand` (injected by the
+  workflow only when the `AZURE_*` secrets exist), so one switch covers the portable exe, the
+  copy inside the installer, and the installer itself — the old post-hoc step could not sign
+  the inner exe. **Pending — an actual certificate** (Azure Trusted Signing account; budget
+  for it). Until then binaries ship unsigned and SmartScreen warns.
 - **M6 — USN/MFT service, content search, ecosystem.**
 
 ## 6. Going public

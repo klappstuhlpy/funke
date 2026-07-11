@@ -1,4 +1,6 @@
 /target
 crates/funke-app/gen/
+# Staged into the embedded frontend by build.rs; icons/icon.png is the one in git.
+crates/funke-app/ui/icon.png
 /.idea
 /.claude

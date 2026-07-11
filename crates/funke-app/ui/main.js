@@ -18,6 +18,11 @@ const SEARCH_PLACEHOLDER = "Search…";
 
 let items = [];
 let sections = []; // results mode: [{ label, items }] — `items` stays the flat list for navigation
+// overview mode: the same shape, plus whether its rows can be removed from recents
+// (credential suggestions can't — they aren't stored anywhere). Headings appear only
+// once there's a suggestion to explain; a lone "Recent" over the only group is noise.
+let groups = [];
+let overviewLabels = false;
 let selected = 0;
 let mode = "overview"; // "overview" (empty input) | "results"
 
@@ -78,7 +83,7 @@ function iconFor(item) {
   return div;
 }
 
-function itemRow(item, index) {
+function itemRow(item, index, { removable = false } = {}) {
   const li = document.createElement("li");
   li.className = "item" + (index === selected ? " selected" : "");
   li.appendChild(iconFor(item));
@@ -102,7 +107,7 @@ function itemRow(item, index) {
   hint.textContent = "↵";
   li.appendChild(hint);
 
-  if (mode === "overview" && !actionsFor && index >= 0) {
+  if (removable && !actionsFor && index >= 0) {
     // Recents are removable: the ✕ deletes the entry without running it.
     const remove = document.createElement("button");
     remove.className = "remove";
@@ -197,22 +202,23 @@ function render() {
     return;
   }
 
-  if (mode === "results") {
-    // Sectioned: label + rows per group; `index` keeps navigation flat across groups.
-    let index = 0;
-    sections.forEach((section) => {
+  // Sectioned in both modes: label + rows per group; `index` keeps navigation flat
+  // across groups.
+  const rendered = mode === "results" ? sections : groups;
+  const labelled = mode === "results" || overviewLabels;
+  let index = 0;
+  rendered.forEach((section) => {
+    if (labelled) {
       const label = document.createElement("li");
       label.className = "group";
       label.textContent = section.label;
       list.appendChild(label);
-      section.items.forEach((item) => {
-        list.appendChild(itemRow(item, index));
-        index += 1;
-      });
+    }
+    section.items.forEach((item) => {
+      list.appendChild(itemRow(item, index, { removable: section.removable }));
+      index += 1;
     });
-  } else {
-    items.forEach((item, i) => list.appendChild(itemRow(item, i)));
-  }
+  });
 
   const current = list.querySelectorAll(".item")[selected];
   if (current) current.scrollIntoView({ block: "nearest" });
@@ -286,12 +292,28 @@ async function submitVaultPassword() {
   }
 }
 
-async function loadOverview() {
+// The empty state: credentials for the app you came from (the vault's context
+// suggestions — or its unlock row, when it's locked and can't know yet), then recents.
+// `keepSelection` is for in-place refreshes (the context or a favicon arriving late).
+async function loadOverview({ keepSelection = false } = {}) {
   const data = await invoke("overview");
+  const previous = selected;
   mode = "overview";
   sections = [];
-  items = data.recents;
-  selected = 0;
+  groups = [];
+  overviewLabels = data.suggestions.length > 0;
+  if (overviewLabels) {
+    groups.push({
+      label: data.suggestion_label ? `For ${data.suggestion_label}` : "Suggested",
+      items: data.suggestions,
+      removable: false,
+    });
+  }
+  if (data.recents.length) {
+    groups.push({ label: "Recent", items: data.recents, removable: true });
+  }
+  items = groups.flatMap((group) => group.items);
+  selected = keepSelection ? Math.min(previous, Math.max(0, items.length - 1)) : 0;
   closeActions();
   const date = new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
   count.textContent = `${greeting()} · ${date} · ${formatUptime(data.uptime_secs)}`;
@@ -306,6 +328,7 @@ async function search() {
     return;
   }
   mode = "results";
+  groups = [];
   sections = await invoke("search", { text });
   items = sections.flatMap((section) => section.items);
   selected = 0;
@@ -313,13 +336,18 @@ async function search() {
   render();
 }
 
-// Re-run the current query in place, keeping the highlighted row — used when vault
-// favicons arrive in the background. No-op unless we're showing live results.
+// Re-run whatever is on screen in place, keeping the highlighted row — used when vault
+// favicons (or the focus context) arrive in the background. Never disturbs an open
+// actions menu or the password prompt.
 async function refreshResults() {
-  if (mode !== "results" || actionsFor || vaultPrompt) return;
+  if (actionsFor || vaultPrompt) return;
   const text = input.value;
-  if (!text.trim()) return;
+  if (!text.trim()) {
+    loadOverview({ keepSelection: true });
+    return;
+  }
   const prev = selected;
+  mode = "results";
   sections = await invoke("search", { text });
   items = sections.flatMap((section) => section.items);
   selected = Math.min(prev, Math.max(0, items.length - 1));
@@ -454,6 +482,11 @@ listen("vault-unlocked", () => {
 // Background favicon fetches populated the cache: re-render the current results so
 // the icons appear in place, without disturbing the selection.
 listen("vault-icons-updated", () => refreshResults());
+
+// Reading the foreground window (and, in a browser, its URL) happens off-thread, so it
+// can land a few milliseconds after the overlay is already up: pull the credential
+// suggestions for it in without touching what the user is doing.
+listen("focus-context", () => refreshResults());
 
 // Hello unlock failed (cancelled, expired session, Hello not set up, …): fall back to
 // the masked password prompt with the reason shown — Esc returns to the query.

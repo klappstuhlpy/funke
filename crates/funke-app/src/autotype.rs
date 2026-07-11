@@ -4,6 +4,11 @@
 //!
 //! Characters go in as `KEYEVENTF_UNICODE` scan codes (one down+up per UTF-16 unit,
 //! surrogate pairs included), so layout and IME state can't mangle passwords.
+//!
+//! [`run`] executes the entry's autotype sequence (`funke_vault::sequence`): the steps
+//! name the fields, the secrets are supplied here and never leave this call.
+
+use funke_vault::{Credentials, Step};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -44,8 +49,8 @@ const INPUT_KEYBOARD: u32 = 1;
 const KEYEVENTF_KEYUP: u32 = 0x0002;
 const KEYEVENTF_UNICODE: u32 = 0x0004;
 
-pub const VK_TAB: u16 = 0x09;
-pub const VK_RETURN: u16 = 0x0D;
+const VK_TAB: u16 = 0x09;
+const VK_RETURN: u16 = 0x0D;
 
 #[link(name = "user32")]
 extern "system" {
@@ -79,8 +84,37 @@ fn send(inputs: &[Input]) {
     }
 }
 
+/// Type an entry's sequence into whatever window has focus (the window the overlay was
+/// summoned from, refocused by the caller). Field steps the item can't fill — no
+/// username, no TOTP — are skipped rather than typed as empty text.
+pub fn run(steps: &[Step], credentials: &Credentials, totp: Option<&str>) {
+    for step in steps {
+        match step {
+            Step::Text(text) => type_text(text),
+            Step::Username => {
+                if let Some(username) = credentials.username.as_deref() {
+                    type_text(username);
+                }
+            }
+            Step::Password => {
+                if let Some(password) = credentials.password.as_deref() {
+                    type_text(password);
+                }
+            }
+            Step::Totp => {
+                if let Some(totp) = totp {
+                    type_text(totp);
+                }
+            }
+            Step::Tab => press(VK_TAB),
+            Step::Enter => press(VK_RETURN),
+            Step::Delay(ms) => std::thread::sleep(std::time::Duration::from_millis(*ms)),
+        }
+    }
+}
+
 /// Type literal text into whatever window has focus.
-pub fn type_text(text: &str) {
+fn type_text(text: &str) {
     let mut inputs = Vec::with_capacity(text.len() * 2);
     for unit in text.encode_utf16() {
         inputs.push(key(0, unit, KEYEVENTF_UNICODE));
@@ -90,6 +124,6 @@ pub fn type_text(text: &str) {
 }
 
 /// Press and release a virtual key (Tab between fields, Enter to submit).
-pub fn press(vk: u16) {
+fn press(vk: u16) {
     send(&[key(vk, 0, 0), key(vk, 0, KEYEVENTF_KEYUP)]);
 }

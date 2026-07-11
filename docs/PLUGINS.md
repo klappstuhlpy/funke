@@ -149,7 +149,8 @@ lingering processes.
 - **Spawned lazily**: your process starts on the first query that reaches you (type
   your prefix once), not at launcher startup.
 - **Discovery** is at startup, plus **Settings → Plugins → Refresh** for newly added
-  plugins (additive — removing one still needs a restart).
+  plugins. Installing and uninstalling from the catalog take effect live too — your
+  process is stopped before your folder is deleted.
 - Users can disable you in **Settings → Plugins** (you won't be queried or spawned).
 
 ## Distribution
@@ -158,7 +159,37 @@ Build your exe, zip it with `plugin.json` inside a folder named after your plugi
 and users unzip it into the plugins folder. First-party plugins in `funke-plugins/`
 ship exactly that way automatically: the release workflow
 (`.github/workflows/release.yml`) packages each one as `funke-plugin-<id>-<tag>.zip`
-on every tagged GitHub release. Planned next: a suggested-plugins catalog inside
-Settings → Plugins that downloads them for you. Until a code-signing story exists,
-treat any plugin like any other executable you'd run — it runs with your user's
-permissions.
+on every tagged GitHub release.
+
+### Getting into the catalog
+
+**Settings → Plugins → Browse** lists a curated catalog and installs from it in one
+click. The catalog is [`plugins.json`](../plugins.json) in this repository — to be
+listed, open a pull request adding an entry:
+
+```json
+{
+  "id": "weather",
+  "name": "Weather",
+  "description": "Current conditions and the forecast for any city",
+  "author": "you",
+  "homepage": "https://github.com/you/funke-weather",
+  "version": "1.0.0",
+  "prefix": "wx",
+  "url": "https://github.com/you/funke-weather/releases/download/v1.0.0/funke-plugin-weather-v1.0.0.zip",
+  "sha256": "b1946ac92492d2347c6235b4d2611184…"
+}
+```
+
+- Host the zip wherever you like (a GitHub release is easiest) — the URL must be
+  `https`, and the archive must contain `<id>/plugin.json` plus your entry point.
+- `sha256` is the hash of that zip: `Get-FileHash .\your-plugin.zip -Algorithm SHA256`.
+  **It is pinned.** Funke refuses any download that doesn't match, so re-releasing your
+  plugin means a new PR with the new hash — that's deliberate: it means the bytes a user
+  installs are the bytes that were reviewed.
+- Your plugin's `id` in `plugin.json` must equal the `id` in the catalog entry.
+- Merging an entry is a review of *your source*. Keep it readable, and expect questions.
+
+None of this sandboxes anything: a plugin is a normal program running with the user's
+full rights. The catalog makes a plugin *identifiable*, not safe — which is exactly what
+the Plugins pane tells users before they install one.

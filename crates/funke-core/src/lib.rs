@@ -171,6 +171,15 @@ impl Registry {
         self.providers.push(provider);
     }
 
+    /// Drop a provider by id. The counterpart to registering a plugin live: an uninstalled
+    /// plugin must stop answering queries immediately, not at the next launch. Returns
+    /// whether anything was removed.
+    pub fn unregister(&mut self, id: &str) -> bool {
+        let before = self.providers.len();
+        self.providers.retain(|provider| provider.metadata().id != id);
+        self.providers.len() != before
+    }
+
     /// Fan the query out to every provider and merge, best score first.
     ///
     /// A leading provider keyword scopes the query: `f report` searches only the
@@ -264,6 +273,25 @@ mod tests {
                 actions: vec![NamedAction::new("Run", Action::AppControl { command: "noop".into() })],
             }]
         }
+    }
+
+    #[test]
+    fn unregister_drops_a_provider_from_the_fan_out() {
+        let mut registry = Registry::new();
+        registry.register(Box::new(FixedProvider {
+            id: "plugin:doomed",
+            prefix: None,
+            score: 10,
+            ..Default::default()
+        }));
+        assert_eq!(registry.search(&Query::new("hi")).len(), 1);
+
+        assert!(registry.unregister("plugin:doomed"), "the provider was registered");
+        assert!(
+            registry.search(&Query::new("hi")).is_empty(),
+            "an uninstalled plugin stops answering at once, not at the next launch"
+        );
+        assert!(!registry.unregister("plugin:doomed"), "removing it twice is a no-op");
     }
 
     #[test]

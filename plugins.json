@@ -1,0 +1,40 @@
+{
+  "$comment": [
+    "The suggested-plugins catalog. Funke fetches this file from the default branch and shows it in",
+    "Settings -> Plugins -> Browse. Adding an entry is a pull request, and merging one is a review:",
+    "an installable plugin runs as a normal program with the user's full rights, so please read the",
+    "source you are vouching for.",
+    "",
+    "Every entry pins `url` AND `sha256` (of the .zip). The launcher refuses any download whose hash",
+    "does not match, so a release asset cannot be swapped out after review — bumping a plugin's",
+    "version therefore means a new PR with a new hash. The archive must contain the plugin's folder",
+    "(`<id>/plugin.json` + its entry point), and the manifest's `id` must equal the `id` here.",
+    "",
+    "  sha256:  Get-FileHash .\\funke-plugin-<id>-<tag>.zip -Algorithm SHA256"
+  ],
+  "schema": 1,
+  "plugins": [
+    {
+      "id": "template",
+      "name": "Template",
+      "description": "Transforms your query text (UPPERCASE, lowercase, reversed) — the plugin authoring starting point, in Rust",
+      "author": "klappstuhlpy",
+      "homepage": "https://github.com/klappstuhlpy/funke/tree/main/funke-plugins/template",
+      "version": "0.1.0",
+      "prefix": "tp",
+      "url": "https://github.com/klappstuhlpy/funke/releases/download/v0.1.1/funke-plugin-template-v0.1.1.zip",
+      "sha256": "8bedae7b9bd2280a4ab70418a62dfe25aa9d6e460f7221f22035dea6e63e7fff"
+    },
+    {
+      "id": "template-python",
+      "name": "Template (Python)",
+      "description": "The same demo in ~70 lines of dependency-free Python — the starting point for Python plugins (needs Python on PATH)",
+      "author": "klappstuhlpy",
+      "homepage": "https://github.com/klappstuhlpy/funke/tree/main/funke-plugins/template-python",
+      "version": "0.1.0",
+      "prefix": "tpy",
+      "url": "https://github.com/klappstuhlpy/funke/releases/download/v0.2.0/funke-plugin-template-python-v0.2.0.zip",
+      "sha256": "2e1e340cf2eb1f76f808bfe92059f68213a0f713aa81796917c0da0098f2faee"
+    }
+  ]
+}

@@ -226,6 +226,15 @@ struct Item {
     #[serde(rename = "organizationId")]
     organization_id: Option<String>,
     login: Option<Login>,
+    /// Bitwarden custom fields. Only `autotype` is read (the per-entry sequence); the
+    /// rest — which may hold secrets — is dropped here and never cached.
+    fields: Option<Vec<Field>>,
+}
+
+#[derive(Deserialize)]
+struct Field {
+    name: Option<String>,
+    value: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -295,11 +304,29 @@ fn to_entry(item: Item, orgs: &HashMap<String, String>) -> VaultEntry {
             .map(str::to_string),
         has_totp: login.and_then(|l| l.totp.as_deref()).is_some_and(|t| !t.is_empty()),
         organization: item.organization_id.and_then(|id| orgs.get(&id).cloned()),
+        autotype: item.fields.as_ref().and_then(|fields| autotype_field(fields)),
     }
 }
 
+/// The item's `autotype` custom field — a KeePass-style sequence overriding the default
+/// for this login (see [`crate::sequence`]). Case-insensitive; a `funke-` prefix works
+/// too, for vaults that already use `autotype` for something else.
+fn autotype_field(fields: &[Field]) -> Option<String> {
+    fields
+        .iter()
+        .find(|field| {
+            field.name.as_deref().is_some_and(|name| {
+                let name = name.trim();
+                name.eq_ignore_ascii_case("autotype") || name.eq_ignore_ascii_case("funke-autotype")
+            })
+        })
+        .and_then(|field| field.value.clone())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 /// `https://github.com/login` → `github.com`, tolerant of scheme-less URIs.
-fn host_of(uri: &str) -> Option<&str> {
+pub(crate) fn host_of(uri: &str) -> Option<&str> {
     let rest = uri.split_once("://").map_or(uri, |(_, rest)| rest);
     let host = rest.split(['/', '?', '#']).next()?;
     let host = host.rsplit('@').next()?; // strip userinfo
@@ -389,6 +416,8 @@ mod tests {
     fn list_response_parses_and_drops_secrets_and_non_logins() {
         let json = r#"{"success":true,"data":{"object":"list","data":[
             {"object":"item","id":"aaa","type":1,"name":"GitHub","organizationId":"org-1",
+             "fields":[{"name":"Autotype","value":"{USERNAME}{ENTER}{DELAY=800}{PASSWORD}{ENTER}"},
+                       {"name":"recovery","value":"super secret"}],
              "login":{"username":"ben","password":"hunter2","totp":"JBSWY3DP","uris":[{"uri":"https://github.com"}]}},
             {"object":"item","id":"ccc","type":1,"name":"Router",
              "login":{"username":"admin","password":"hunter2"}},
@@ -410,8 +439,18 @@ mod tests {
         assert_eq!(entries[0].host.as_deref(), Some("github.com"));
         assert!(entries[0].has_totp, "totp seed collapses to a flag");
         assert_eq!(entries[0].organization.as_deref(), Some("Acme"));
+        assert_eq!(
+            entries[0].autotype.as_deref(),
+            Some("{USERNAME}{ENTER}{DELAY=800}{PASSWORD}{ENTER}"),
+            "the autotype custom field is the per-entry sequence"
+        );
         assert!(!entries[1].has_totp);
         assert_eq!(entries[1].organization, None, "personal items carry no vault label");
+        assert_eq!(entries[1].autotype, None);
+
+        // Only `autotype` is kept — other custom fields (which may hold secrets) are dropped.
+        let cached = format!("{:?}", entries);
+        assert!(!cached.contains("super secret"));
     }
 
     #[test]

@@ -1,10 +1,12 @@
 //! The `SearchProvider` face of the vault: status rows while getting ready, fuzzy
-//! search over the (non-secret) entry cache once unlocked.
+//! search over the (non-secret) entry cache once unlocked, plus the context suggestions
+//! the overlay's empty state shows for the app you came from ([`suggestions`]).
 
 use std::sync::Arc;
 
 use funke_core::{glyph_data_url, Action, FuzzyMatcher, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider};
 
+use crate::context::{self, FocusContext};
 use crate::{Vault, VaultStatus};
 
 /// A key.
@@ -70,7 +72,7 @@ impl SearchProvider for VaultProvider {
                     url: CLI_HELP_URL.into(),
                 },
             )],
-            VaultStatus::Locked => vec![unlock_row(self.vault.hello_ready())],
+            VaultStatus::Locked => vec![unlock_row(self.vault.hello_ready(), None)],
             VaultStatus::Unlocked => {
                 self.vault.touch();
                 let Some(matcher) = FuzzyMatcher::new(&query.text) else {
@@ -110,9 +112,58 @@ impl SearchProvider for VaultProvider {
     }
 }
 
+/// Credentials for the app the user came from, for the overlay's empty state — the
+/// launcher asks for these on every summon (see [`crate::context`]).
+///
+/// Unlocked: the entries the focused window suggests, best match first. Locked: a single
+/// "unlock to autofill …" row, because a locked vault has no cache to match against — we
+/// genuinely cannot know whether a Discord credential exists until it is open. Anything
+/// else (no CLI, not logged in, still starting, the setting off, a shell window in front)
+/// yields nothing: the overview must not nag.
+pub fn suggestions(vault: &Arc<Vault>, focus: &FocusContext, limit: usize) -> Vec<ResultItem> {
+    if !vault.context_suggest_enabled() || !focus.is_plausible() {
+        return Vec::new();
+    }
+    match vault.status() {
+        VaultStatus::Unlocked => {
+            let scores = vault.context_scores(focus);
+            let mut scored: Vec<(i64, crate::VaultEntry)> = vault
+                .entries()
+                .into_iter()
+                .filter_map(|entry| {
+                    scores
+                        .get(&entry.id)
+                        .filter(|score| **score >= context::MIN_SUGGEST_SCORE)
+                        .map(|score| (*score, entry))
+                })
+                .collect();
+            scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.name.cmp(&b.1.name)));
+            scored.truncate(limit);
+
+            let wanted_hosts = scored
+                .iter()
+                .filter(|(_, entry)| entry.host.as_deref().is_some_and(|host| vault.icon_for(host).is_none()))
+                .filter_map(|(_, entry)| entry.host.clone())
+                .collect();
+            vault.request_icons(wanted_hosts);
+
+            scored
+                .into_iter()
+                .map(|(score, entry)| {
+                    let icon = entry.host.as_deref().and_then(|host| vault.icon_for(host));
+                    entry_row(entry, score, icon)
+                })
+                .collect()
+        }
+        VaultStatus::Locked => vec![unlock_row(vault.hello_ready(), focus.label().as_deref())],
+        _ => Vec::new(),
+    }
+}
+
 /// The locked-vault row: Enter uses Windows Hello when a session is ready, the master
-/// password otherwise (then still reachable via Shift+Enter).
-fn unlock_row(hello: bool) -> ResultItem {
+/// password otherwise (then still reachable via Shift+Enter). `context` names the app the
+/// credential would be for, when the row is offered as a suggestion rather than searched.
+fn unlock_row(hello: bool, context: Option<&str>) -> ResultItem {
     let mut actions = Vec::new();
     if hello {
         actions.push(NamedAction::new("Unlock with Windows Hello", Action::VaultHelloUnlock));
@@ -121,15 +172,19 @@ fn unlock_row(hello: bool) -> ResultItem {
         "Unlock with master password",
         Action::PromptVaultUnlock,
     ));
+    let how = if hello {
+        "Enter uses Windows Hello, ⇧Enter the master password"
+    } else {
+        "prompts for your master password"
+    };
     ResultItem {
         id: "vault:unlock".into(),
         provider: "vault".into(),
-        title: "Unlock vault".into(),
-        subtitle: Some(if hello {
-            "Bitwarden — Enter uses Windows Hello, ⇧Enter the master password".into()
-        } else {
-            "Bitwarden — prompts for your master password".into()
-        }),
+        title: match context {
+            Some(context) => format!("Unlock vault to autofill {context}"),
+            None => "Unlock vault".into(),
+        },
+        subtitle: Some(format!("Bitwarden — {how}")),
         icon: Some(glyph_data_url(LOCK_GLYPH)),
         score: STATUS_SCORE,
         actions,
@@ -214,6 +269,7 @@ mod tests {
             host: host.map(str::to_string),
             has_totp: false,
             organization: None,
+            autotype: None,
         }
     }
 
@@ -258,6 +314,84 @@ mod tests {
         assert_eq!(rows[0].id, "vault:unlock");
         // vault_hello defaults to off, so the password prompt is the (only) action.
         assert!(matches!(rows[0].primary_action(), Some(Action::PromptVaultUnlock)));
+    }
+
+    /// The overview asks on every summon: focused Discord → the Discord credential,
+    /// ready to autotype straight back into it.
+    #[test]
+    fn the_focused_app_suggests_its_credential() {
+        let vault = offline_vault();
+        vault.force_status(VaultStatus::Unlocked);
+        vault.force_entries(vec![
+            entry("uuid-1", "Discord", Some("ben@example.com"), Some("discord.com")),
+            entry("uuid-2", "GitHub", Some("ben"), Some("github.com")),
+        ]);
+        let focus = FocusContext {
+            title: Some("#general | Funke - Discord".into()),
+            process: Some("discord".into()),
+            url: None,
+            browser: false,
+        };
+
+        let rows = suggestions(&vault, &focus, 3);
+        assert_eq!(rows.len(), 1, "only the entry the window is about");
+        assert_eq!(rows[0].title, "Discord");
+        assert!(matches!(
+            rows[0].primary_action(),
+            Some(Action::VaultAutotype { id }) if id == "uuid-1"
+        ));
+    }
+
+    #[test]
+    fn a_locked_vault_offers_to_unlock_for_the_app_in_front() {
+        let vault = offline_vault();
+        vault.force_status(VaultStatus::Locked);
+        let focus = FocusContext {
+            title: Some("Discord".into()),
+            process: Some("discord".into()),
+            url: None,
+            browser: false,
+        };
+
+        // Locked means no entry cache, so we can't know *whether* a Discord credential
+        // exists — offering the unlock is the most the overview can honestly do.
+        let rows = suggestions(&vault, &focus, 3);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].title, "Unlock vault to autofill Discord");
+        assert!(matches!(rows[0].primary_action(), Some(Action::PromptVaultUnlock)));
+
+        // The desktop or the Start menu in front is not a credential context — no nag.
+        let shell = FocusContext {
+            title: Some("Program Manager".into()),
+            process: Some("explorer".into()),
+            ..Default::default()
+        };
+        assert!(suggestions(&vault, &shell, 3).is_empty());
+    }
+
+    #[test]
+    fn suggestions_stay_silent_while_the_backend_is_unusable_or_switched_off() {
+        let vault = offline_vault();
+        let focus = FocusContext {
+            title: Some("Discord".into()),
+            process: Some("discord".into()),
+            ..Default::default()
+        };
+        // No CLI / still starting / not logged in: the overview shows nothing at all.
+        for status in [VaultStatus::Idle, VaultStatus::Starting, VaultStatus::NoCli] {
+            vault.force_status(status);
+            assert!(suggestions(&vault, &focus, 3).is_empty(), "{status:?} must not nag");
+        }
+
+        // …and the setting switches the whole idea off.
+        let settings = funke_core::Settings {
+            vault_icons: false,
+            vault_context_suggest: false,
+            ..Default::default()
+        };
+        let vault = Arc::new(Vault::new(Arc::new(std::sync::RwLock::new(settings))));
+        vault.force_status(VaultStatus::Locked);
+        assert!(suggestions(&vault, &focus, 3).is_empty());
     }
 
     #[test]
