@@ -117,7 +117,10 @@ function itemRow(item, index, { removable = false } = {}) {
       '<path d="M6 6l12 12M18 6L6 18"/></svg>';
     remove.addEventListener("click", (e) => {
       e.stopPropagation();
-      invoke("remove_recent", { id: item.id }).then(loadOverview);
+      // Call it with no argument: a `()` command resolves to *null*, and passing that
+      // straight in as the options object would throw on destructuring (`= {}` only
+      // defaults away `undefined`), leaving the row on screen until the next open.
+      invoke("remove_recent", { id: item.id }).then(() => loadOverview());
     });
     li.appendChild(remove);
   }

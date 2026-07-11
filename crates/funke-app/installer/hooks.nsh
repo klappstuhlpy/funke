@@ -14,6 +14,12 @@
 !include LogicLib.nsh
 !include nsDialogs.nsh
 
+; These are spelled out rather than reusing the template's ${MANUPRODUCTKEY}/${UNINSTKEY}:
+; the template defines those *after* it includes this file, and NSIS silently treats an
+; unknown ${...} as literal text, so referencing them here would compile to nonsense.
+!define FUNKE_MANUPRODUCTKEY "Software\klappstuhlpy\Funke"
+!define FUNKE_UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Funke"
+
 !define FUNKE_APPDIR "$APPDATA\funke"
 !define FUNKE_AUTOSTART_MARKER "$APPDATA\funke\.autostart-request"
 !define FUNKE_RUNKEY "Software\Microsoft\Windows\CurrentVersion\Run"
@@ -21,6 +27,38 @@
 
 Var FunkeAutostartCheckbox
 Var FunkeAutostartState
+
+; The publisher doubles as the installation's registry identity: the template records the
+; install directory under Software\<publisher>\<product>, and its reinstall page reads it back
+; to tell the *old* uninstaller where it lives ("uninstall.exe _?=<dir>"). Releases before
+; 0.3.0 were built with a different publisher, so that lookup came back empty for them, the
+; uninstaller was handed a `_?=` with nothing after it, and choosing "Uninstall" on the
+; reinstall page failed with "unable to uninstall".
+;
+; Rebuild the entry from the Add/Remove Programs key, which is named after the *product* and
+; therefore survives a publisher change. Hung off MUI's GUI-init hook (MUI owns .onGUIInit
+; itself), so it runs before any page and the reinstall page sees a repaired key. Harmless
+; when there is nothing to repair, and it fixes the same class of breakage if the publisher
+; ever changes again.
+!define MUI_CUSTOMFUNCTION_GUIINIT FunkeRepairInstallKey
+Function FunkeRepairInstallKey
+  ReadRegStr $0 HKCU "${FUNKE_MANUPRODUCTKEY}" ""
+  ${If} $0 == ""
+    ReadRegStr $1 HKCU "${FUNKE_UNINSTKEY}" "InstallLocation"
+    ${If} $1 != ""
+      ; InstallLocation is stored quoted; the key we are rebuilding is not.
+      StrCpy $2 $1 1
+      ${If} $2 == '"'
+        StrLen $3 $1
+        IntOp $3 $3 - 2
+        StrCpy $1 $1 $3 1
+      ${EndIf}
+      ${If} ${FileExists} "$1\funke.exe"
+        WriteRegStr HKCU "${FUNKE_MANUPRODUCTKEY}" "" "$1"
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
 
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FunkeWelcomeShow
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE FunkeWelcomeLeave

@@ -9,6 +9,23 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-11
+
+### Fixed
+- **"Unable to uninstall" when the installer's reinstall page offered to remove an older
+  version.** NSIS uses the `publisher` as the installation's registry identity — the install
+  directory is recorded under `Software\<publisher>\<product>`, and the reinstall page reads
+  it back to tell the *old* uninstaller where it lives (`uninstall.exe _?=<dir>`). 0.3.0
+  introduced a `publisher`, which orphaned the key every earlier release had written, so the
+  lookup came back empty and the uninstaller was handed a `_?=` with nothing after it. The
+  installer now rebuilds that key from the Add/Remove Programs entry (which is named after
+  the product, so it survives a publisher change) before any page is shown.
+- **The ✕ on a recent didn't remove the row until the overlay was reopened.** `remove_recent`
+  returns `()`, which Tauri resolves as `null`, and it was being passed straight into
+  `loadOverview` as its options object — `= {}` only defaults away `undefined`, so
+  destructuring `null` threw and the re-render never ran. The entry was deleted correctly all
+  along; only the repaint was lost.
+
 ## [0.3.0] - 2026-07-11
 
 ### Added
@@ -158,7 +175,8 @@ plugin foundation.
 - Repo went public with `LICENSE` (MIT), `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and
   `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/klappstuhlpy/funke/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/klappstuhlpy/funke/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/klappstuhlpy/funke/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/klappstuhlpy/funke/compare/v0.1.0...v0.1.1
