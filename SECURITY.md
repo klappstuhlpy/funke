@@ -21,9 +21,11 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
 - **Prefix-only search.** Vault entries only appear for `v <query>` searches — account
   names never surface while typing an ordinary search, and vault items are excluded
   from the recents list on the empty overlay.
-- **Auto-lock.** The vault locks itself after 10 minutes without vault use (cache
-  wiped; `POST /lock`, or with Windows Hello enabled the `bw serve` process is killed
-  instead — see below), and `bw serve` is locked and killed when Funke exits.
+- **Auto-lock.** The vault locks itself after a configurable idle period (Settings →
+  default 10 minutes; can be disabled) without vault use, and — opt-in, on by default —
+  the moment you lock Windows (cache wiped; `POST /lock`, or with Windows Hello enabled
+  the `bw serve` process is killed instead — see below). `bw serve` is also locked and
+  killed when Funke exits.
 - **Clipboard auto-clear.** Copied secrets (passwords, usernames, TOTP codes) are
   wiped from the clipboard after 30 seconds unless you've since copied something else.
 - **Windows Hello unlock is opt-in** (Settings → Commands). When enabled, a successful

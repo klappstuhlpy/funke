@@ -32,6 +32,12 @@ pub struct Settings {
     /// Show website favicons on vault entries (fetched from the Bitwarden/Vaultwarden
     /// icon service, which learns the entry's domain — see SECURITY.md).
     pub vault_icons: bool,
+    /// Minutes of vault inactivity before it auto-locks; `0` disables idle auto-lock.
+    pub vault_idle_lock_minutes: u64,
+    /// Whether autotype presses Enter after the password to submit the form.
+    pub vault_autotype_enter: bool,
+    /// Lock the vault automatically when the Windows session locks (screen lock).
+    pub vault_lock_on_screen_lock: bool,
 }
 
 impl Default for Settings {
@@ -46,6 +52,9 @@ impl Default for Settings {
             autostart: false,
             vault_hello: false,
             vault_icons: true,
+            vault_idle_lock_minutes: 10,
+            vault_autotype_enter: true,
+            vault_lock_on_screen_lock: true,
         }
     }
 }

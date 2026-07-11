@@ -9,9 +9,10 @@
 //!
 //! Privacy/security posture:
 //! - `prefix_only`: entries appear for `v <query>` searches, never global ones.
-//! - Auto-lock after [`IDLE_LOCK`] without vault use (`POST /lock` + cache wipe; with
-//!   a persisted Hello session the server is killed instead — a `bw lock` would
-//!   invalidate the stored session key).
+//! - Auto-lock after `Settings::vault_idle_lock_minutes` without vault use, and (opt-in)
+//!   the moment the Windows session locks (`POST /lock` + cache wipe; with a persisted
+//!   Hello session the server is killed instead — a `bw lock` would invalidate the
+//!   stored session key).
 //! - `bw serve` binds 127.0.0.1 and dies with the launcher ([`Vault::shutdown`]).
 //! - Windows Hello unlock (opt-in, [`hello`]): a DPAPI-protected session key lets
 //!   repeat unlocks skip the master password behind a Hello consent prompt.
@@ -19,6 +20,7 @@
 //!   service, cached in memory only. See SECURITY.md for both tradeoffs.
 
 mod hello;
+mod lockscreen;
 mod provider;
 mod serve;
 
@@ -32,9 +34,6 @@ use std::time::{Duration, Instant};
 
 use funke_core::Settings;
 use zeroize::Zeroize;
-
-/// Lock the vault after this much time without a vault query or action.
-const IDLE_LOCK: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VaultStatus {
@@ -400,7 +399,9 @@ impl Vault {
         }
     }
 
-    /// Idle auto-lock: one background thread for the vault's lifetime.
+    /// Idle + screen-lock auto-lock: one background thread for the vault's lifetime.
+    /// Both triggers read live settings each tick, so changing them takes effect without
+    /// a restart.
     fn spawn_watchdog(self: &Arc<Self>) {
         if self.watchdog_running.swap(true, Ordering::SeqCst) {
             return;
@@ -408,8 +409,18 @@ impl Vault {
         let vault = Arc::clone(self);
         std::thread::spawn(move || loop {
             std::thread::sleep(Duration::from_secs(30));
-            let idle = vault.last_used.lock().unwrap().elapsed();
-            if vault.status() == VaultStatus::Unlocked && idle >= IDLE_LOCK {
+            if vault.status() != VaultStatus::Unlocked {
+                continue;
+            }
+            let (idle_minutes, lock_on_screen) = {
+                let settings = vault.settings.read().unwrap();
+                (settings.vault_idle_lock_minutes, settings.vault_lock_on_screen_lock)
+            };
+            if lock_on_screen && lockscreen::workstation_locked() {
+                vault.lock();
+                continue;
+            }
+            if idle_minutes > 0 && vault.last_used.lock().unwrap().elapsed() >= Duration::from_secs(idle_minutes * 60) {
                 vault.lock();
             }
         });
