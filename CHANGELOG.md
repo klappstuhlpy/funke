@@ -29,6 +29,21 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   invisible to all of them — Funke's own new history included.
 
 ### Fixed
+- **"Open settings" from the overlay hung the launcher's windows.** Picking it built the
+  settings window from the command handler — which runs on the main thread, and the main
+  thread *is* the event loop. `WebviewWindowBuilder::build()` creates the window there and
+  then waits for the webview, so it was waiting on the loop it had just blocked: the HWND
+  appeared, the call never returned, and the window stayed invisible forever. Worse, the
+  wedged creation took every later window operation with it, so the tray's Settings item
+  stopped responding too and only a restart brought it back — the reason it looked like the
+  tray worked "until you touched the overlay". The window is now built off the main thread
+  (the seam Windows Hello unlock already uses), leaving the loop free to finish the job.
+  Present since the first commit; the tray's item only ever worked because nothing had hung
+  the loop yet.
+- **A crash while the settings pane booted left a window that never appeared.** It is
+  created hidden and reveals itself once the UI has painted, so anything thrown on the way
+  there stranded it invisible — the same "nothing happens" symptom with a different cause.
+  It now reveals itself either way and says what went wrong in the error bar.
 - **The clipboard recorder could silently drop a clip.** Reading returned a bare
   `Option<String>`, which conflated "somebody's excluded secret", "not text", and **"another
   process had the clipboard open"** — so losing the race for a lock that *every* clipboard

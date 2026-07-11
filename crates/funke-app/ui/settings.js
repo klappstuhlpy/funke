@@ -622,25 +622,33 @@ document.addEventListener("keydown", (e) => {
 /* ── boot ── */
 
 async function init() {
-  const [loaded, engines, providers, plugins] = await Promise.all([
-    invoke("get_settings"),
-    invoke("list_engines"),
-    invoke("list_providers"),
-    invoke("list_plugins"),
-  ]);
-  settings = loaded;
-  // Version is inferred from funke-app's Cargo.toml at build time (single source of truth).
-  window.__TAURI__.app
-    .getVersion()
-    .then((v) => (document.getElementById("version").textContent = `Funke ${v}`))
-    .catch(() => {});
-  buildStaticControls();
-  buildEngineOptions(engines);
-  buildProviderRows(providers);
-  buildPluginRows(plugins);
-  renderAll();
-  // Painted and styled — the window may show itself now (created hidden).
-  requestAnimationFrame(() => invoke("settings_ready"));
+  try {
+    const [loaded, engines, providers, plugins] = await Promise.all([
+      invoke("get_settings"),
+      invoke("list_engines"),
+      invoke("list_providers"),
+      invoke("list_plugins"),
+    ]);
+    settings = loaded;
+    // Version is inferred from funke-app's Cargo.toml at build time (single source of truth).
+    window.__TAURI__.app
+      .getVersion()
+      .then((v) => (document.getElementById("version").textContent = `Funke ${v}`))
+      .catch(() => {});
+    buildStaticControls();
+    buildEngineOptions(engines);
+    buildProviderRows(providers);
+    buildPluginRows(plugins);
+    renderAll();
+  } catch (err) {
+    // A half-built pane the user can see and close beats a window that silently never
+    // appears: the window is created hidden and only this call reveals it, so anything
+    // thrown on the way here would strand it invisible forever.
+    showError(`Settings didn't load fully: ${err}`);
+  } finally {
+    // Painted and styled — the window may show itself now (created hidden).
+    requestAnimationFrame(() => invoke("settings_ready"));
+  }
 }
 
 init();

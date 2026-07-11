@@ -721,9 +721,23 @@ fn close_settings(app: AppHandle) {
     }
 }
 
-/// Create (or refocus) the settings window. Unlike the overlay it is a normal window:
-/// built on demand, destroyed on close — invariant 2 covers only the overlay.
+/// Create (or refocus) the settings window — **never on the main thread**.
+///
+/// `WebviewWindowBuilder::build()` creates the window on the event loop and blocks until
+/// the webview is ready. Sync commands run on the main thread, which *is* the event loop:
+/// building there deadlocks — the HWND appears, the call never returns, and the wedged
+/// creation takes every later window operation down with it (which is why the tray's
+/// Settings item stopped responding too, once the overlay's had hung). Off the main thread
+/// the loop stays free to finish the job, so both callers hop onto a thread of their own.
+/// Same seam, same reason as `VaultHelloUnlock`.
 fn open_settings_window(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || build_settings_window(&app));
+}
+
+/// Unlike the overlay the settings window is a normal one: built on demand, destroyed on
+/// close — invariant 2 covers only the overlay. Never call this on the main thread; see above.
+fn build_settings_window(app: &AppHandle) {
     if let Some(win) = app.get_webview_window(SETTINGS_WINDOW) {
         let _ = win.unminimize();
         let _ = win.show();
