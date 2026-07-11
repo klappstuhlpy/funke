@@ -20,8 +20,32 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   confirm a host that already matched but never produce a match, a browser whose URL can't
   be read suggests nothing, and it no longer offers to unlock "for Chrome". Native apps are
   unchanged — their title comes from the app itself, not from a page.
+- **Copied vault secrets were recorded by Windows' own clipboard history.** The 30 s
+  auto-clear only ever wiped the *clipboard*; anything that recorded the password within
+  that window — Win+V, the cloud clipboard, any third-party clipboard manager — kept its
+  copy afterwards. Secrets are now written with the clipboard-exclusion markers
+  (`ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory=0`,
+  `CanUploadToCloudClipboard=0`), which every clipboard monitor honours, so they are
+  invisible to all of them — Funke's own new history included.
 
 ### Added
+- **Clipboard history** (`c`) — an in-memory ring of the last 100 things you copied. `c `
+  browses it newest-first, `c foo` fuzzy-matches the text. Enter pastes the clip straight
+  back into the window you came from (Ctrl+V, not keystrokes — typing a multi-line clip
+  would fire its newlines as Enter and send the half-pasted message), Shift+Enter copies it,
+  Ctrl+3 forgets it, and a confirmed row at the bottom clears the lot.
+
+  **Nothing is ever written to disk** — a file of everything you ever copied is the worst
+  artifact this app could leave behind, so the history lives in the process and dies with
+  it. Three filters stand in front of it: the clipboard-exclusion markers (exact — Funke's
+  own vault copies and other password managers' copies never arrive at all), a shape
+  heuristic for the unmarked accident (API keys, PATs, JWTs, PEM blocks), and the cap.
+  Clips are `prefix_only` like the vault, and they enter neither `recents.json` (which
+  would put their text on disk) nor frecency (whose ids outlive the clips they name).
+- **A bare prefix and a space is a provider's browse view.** `c ` hands the clipboard an
+  empty query, which is how it lists everything. Previously a keyword needed text after it
+  to scope at all; providers with nothing to browse answer an empty query the way they
+  always did, with nothing.
 - **Screenshots in the README** — a hero shot of the overlay mid-search, a three-up gallery
   (overview, vault search, actions menu) and the four settings pages behind a collapsed
   `<details>`, so the page shows the app without turning into a scroll. Images live in

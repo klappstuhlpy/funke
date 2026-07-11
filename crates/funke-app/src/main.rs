@@ -31,6 +31,8 @@ struct AppState {
     settings_path: PathBuf,
     /// The Bitwarden backend (`bw serve` child + entry cache), shared with its provider.
     vault: Arc<funke_vault::Vault>,
+    /// In-memory clipboard history, shared with its provider. Never persisted.
+    clipboard: Arc<funke_clipboard::ClipboardHistory>,
     /// Installed out-of-process plugins, shared with their providers for action routing.
     plugins: Arc<funke_plugin::host::PluginManager>,
     plugins_dir: PathBuf,
@@ -138,6 +140,11 @@ fn run_action(
             open_settings_window(&app);
             return Ok(());
         }
+        Action::AppControl { command } if command == "clipboard-clear" => {
+            state.clipboard.clear();
+            let _ = app.emit("clipboard-changed", ());
+            return Ok(());
+        }
         Action::AppControl { command } => return Err(format!("unknown control command: {command}")),
         Action::LaunchApp { target } => {
             launch(&target).map_err(|e| format!("failed to launch {target}: {e}"))?;
@@ -156,9 +163,27 @@ fn run_action(
                 .map_err(|e| format!("failed to reveal {path}: {e}"))?;
         }
         Action::CopyText { text } => {
-            arboard::Clipboard::new()
-                .and_then(|mut clipboard| clipboard.set_text(text))
-                .map_err(|e| format!("failed to copy: {e}"))?;
+            funke_clipboard::write_text(&text).map_err(|e| format!("failed to copy: {e}"))?;
+        }
+        Action::PasteText { text } => {
+            // Ctrl+V, not keystrokes: a clip may be multi-line, and typing a newline into
+            // a chat window sends the half-pasted message (see autotype::paste).
+            funke_clipboard::write_text(&text).map_err(|e| format!("failed to copy: {e}"))?;
+            let target = state.prev_focus.lock().unwrap().take();
+            hide(&app, false);
+            if let Some(hwnd) = target {
+                focus::focus_window(hwnd);
+                // Let the focus change land before the keystroke does.
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                autotype::paste();
+            }
+            return Ok(());
+        }
+        Action::ClipboardForget { id } => {
+            state.clipboard.forget(id);
+            // The list the user is looking at must lose the row now, not on next summon.
+            let _ = app.emit("clipboard-changed", ());
+            return Ok(());
         }
         Action::PromptVaultUnlock => {
             // The overlay stays visible and switches into the masked password prompt.
@@ -274,19 +299,27 @@ fn run_action(
     }
     hide(&app, restore_focus);
 
-    let mut store = state.frecency.lock().unwrap();
-    store.record(&item.id, unix_now());
-    if let Err(e) = store.save(&state.frecency_path) {
-        eprintln!("failed to persist frecency store: {e}");
+    // Both stores below are files. The clipboard's whole promise is that it is memory
+    // only, so a clip may enter neither: recents would write its *text* to disk, and
+    // frecency would key a lasting boost to an id ("clipboard:12") that the next launch
+    // hands to an entirely unrelated clip.
+    let persistable = item.provider != funke_clipboard::PROVIDER_ID;
+
+    if persistable {
+        let mut store = state.frecency.lock().unwrap();
+        store.record(&item.id, unix_now());
+        if let Err(e) = store.save(&state.frecency_path) {
+            eprintln!("failed to persist frecency store: {e}");
+        }
     }
-    drop(store);
 
     // Launcher controls, copied calc results, window handles (stale after the window
     // closes), and plugin rows (item ids may be ephemeral) aren't meaningful
     // "recents". The vault is excluded wholesale — account names are private, and its
     // status rows ("Bitwarden CLI not found", …) wear ordinary OpenUrl actions that
     // an action-based filter would let through.
-    if item.provider != "vault"
+    if persistable
+        && item.provider != "vault"
         && !matches!(
             item.primary_action(),
             Some(
@@ -311,11 +344,14 @@ const CLIPBOARD_CLEAR_AFTER: std::time::Duration = std::time::Duration::from_sec
 
 /// Copy a secret and clear it from the clipboard after [`CLIPBOARD_CLEAR_AFTER`],
 /// unless the user has copied something else in the meantime.
+///
+/// The write carries the clipboard-exclusion markers, so the secret is invisible to
+/// clipboard monitors — Funke's own history, the Windows Win+V history, and the cloud
+/// clipboard alike. Auto-clear alone never covered those: whatever recorded the password
+/// in its own store within the 30 s window kept it there afterwards.
 fn copy_with_autoclear(value: String) -> Result<(), String> {
     use zeroize::Zeroize;
-    arboard::Clipboard::new()
-        .and_then(|mut clipboard| clipboard.set_text(&value))
-        .map_err(|e| format!("failed to copy: {e}"))?;
+    funke_clipboard::write_secret(&value).map_err(|e| format!("failed to copy: {e}"))?;
     std::thread::spawn(move || {
         std::thread::sleep(CLIPBOARD_CLEAR_AFTER);
         if let Ok(mut clipboard) = arboard::Clipboard::new() {
@@ -806,6 +842,7 @@ fn toggle(app: &AppHandle) {
 fn build_registry(
     settings: Arc<RwLock<Settings>>,
     vault: Arc<funke_vault::Vault>,
+    clipboard: Arc<funke_clipboard::ClipboardHistory>,
     plugins: &funke_plugin::host::PluginManager,
 ) -> Registry {
     let mut registry = Registry::new();
@@ -817,6 +854,7 @@ fn build_registry(
     registry.register(Box::new(funke_utils::WebSearchProvider::spawn(settings)));
     registry.register(Box::new(funke_windows::WindowsProvider::new()));
     registry.register(Box::new(funke_vault::VaultProvider::new(vault)));
+    registry.register(Box::new(funke_clipboard::ClipboardProvider::new(clipboard)));
     for handle in plugins.handles() {
         registry.register(Box::new(funke_plugin::host::PluginProvider::new(handle)));
     }
@@ -859,6 +897,10 @@ fn main() {
     let settings = Arc::new(RwLock::new(Settings::load(&settings_path)));
     consume_autostart_request(&settings, &settings_path);
     let vault = Arc::new(funke_vault::Vault::new(Arc::clone(&settings)));
+    // Recording starts now, not on the first `c` query: a history that only remembers
+    // what you copied *after* you thought to open it would be useless.
+    let clipboard = funke_clipboard::ClipboardHistory::new(Arc::clone(&settings));
+    clipboard.watch();
     let plugins_dir = data_path("plugins");
     let plugins = Arc::new(funke_plugin::host::PluginManager::discover(&plugins_dir));
     tauri::Builder::default()
@@ -871,10 +913,16 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
-            registry: RwLock::new(build_registry(Arc::clone(&settings), Arc::clone(&vault), &plugins)),
+            registry: RwLock::new(build_registry(
+                Arc::clone(&settings),
+                Arc::clone(&vault),
+                Arc::clone(&clipboard),
+                &plugins,
+            )),
             settings,
             settings_path,
             vault,
+            clipboard,
             plugins,
             plugins_dir,
             frecency: Mutex::new(FrecencyStore::load(&frecency_path)),

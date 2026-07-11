@@ -250,6 +250,27 @@ idle/lock-screen; no telemetry; `SECURITY.md` with a disclosure contact.
   copy inside the installer, and the installer itself — the old post-hoc step could not sign
   the inner exe. **Pending — an actual certificate** (Azure Trusted Signing account; budget
   for it). Until then binaries ship unsigned and SmartScreen warns.
+- **M7 — clipboard history** (`c`, landed 2026-07). **Decision: in memory, never on disk.**
+  A persisted history is what every other launcher ships, and it is the wrong default here:
+  the clipboard catches passwords, tokens and 2FA codes by nature, so persisting it would
+  create the single worst artifact this app could leave at rest — worse than the vault's,
+  which at least stays encrypted. The history therefore lives in a capped in-process ring
+  and dies with the process; "empty after a restart" is the accepted cost.
+
+  Credentials are kept out in three layers, in descending order of trust: the **clipboard
+  exclusion markers** (exact — set by Funke's own vault copies and by every other password
+  manager, honoured on read), a **shape heuristic** for the unmarked accident (API keys,
+  PATs, JWTs, PEM blocks), and the cap. Setting those markers on vault copies fixed a
+  pre-existing hole in its own right: a password copied from Funke used to be recorded by
+  Win+V and the cloud clipboard, which the 30 s auto-clear never touched.
+
+  Enter pastes via **Ctrl+V, not synthesized keystrokes** — a clip is arbitrary text, and
+  typing one containing newlines fires them as Enter, submitting a half-pasted message.
+  This is the one place autotype's approach is deliberately *not* reused.
+
+  Reaching the browse view needed a core change: a bare keyword and a space (`c `) now
+  scopes to a provider with an *empty* query. Providers with nothing to browse answer it
+  with nothing, exactly as before.
 - **M6 — USN/MFT service, content search, ecosystem.**
 
 ## 6. Going public

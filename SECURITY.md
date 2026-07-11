@@ -37,8 +37,22 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   the moment you lock Windows (cache wiped; `POST /lock`, or with Windows Hello enabled
   the `bw serve` process is killed instead — see below). `bw serve` is also locked and
   killed when Funke exits.
-- **Clipboard auto-clear.** Copied secrets (passwords, usernames, TOTP codes) are
-  wiped from the clipboard after 30 seconds unless you've since copied something else.
+- **Clipboard auto-clear, and exclusion from every clipboard monitor.** Copied secrets
+  (passwords, usernames, TOTP codes) are wiped from the clipboard after 30 seconds unless
+  you've since copied something else — and they are written with the standard exclusion
+  markers (`ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory=0`,
+  `CanUploadToCloudClipboard=0`), so nothing records them in the first place: not the
+  Windows Win+V history, not the cloud clipboard, not a third-party clipboard manager, and
+  not Funke's own clipboard history. Auto-clear alone never covered this — whatever copied
+  the password into its own store inside the 30 s window kept it there.
+- **Clipboard history is memory-only** (`c`, Settings → Commands). What you copy is kept
+  in a capped in-process ring and is **never written to disk** — no file survives the
+  process, so there is no artifact to steal at rest, and restarting Funke empties it.
+  Three filters keep credentials out of it: the exclusion markers above (exact — Funke's
+  own vault copies and other password managers' copies never reach it), a shape heuristic
+  for the accident nobody marked (API keys, PATs, JWTs, PEM blocks), and the cap. It is
+  `prefix_only`, so clips never surface in an ordinary search, and clips are recorded into
+  neither the recents file nor frecency.
 - **Windows Hello unlock is opt-in** (Settings → Commands). When enabled, a successful
   master-password unlock also mints a `bw` session key and stores it DPAPI-encrypted
   (bound to your Windows account) under `%APPDATA%\funke`; later unlocks show a Windows
@@ -87,6 +101,12 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   already matched but can never produce a match of its own, and a browser window whose
   URL cannot be read suggests nothing. Path, query and fragment are discarded — a site
   cannot steer a suggestion by what it puts after the host.
+- The clipboard history's secret filter is exact for *marked* content and guesswork for
+  the rest. Anything carrying the exclusion markers is never recorded — that covers Funke's
+  own vault copies and every password manager that sets them. Unmarked content is judged by
+  shape, which catches API keys, tokens and PEM blocks but cannot recognize a short
+  human-chosen password: `Sommer2024!` is a word with a number on the end. Copy a password
+  out of a text file and it will sit in the history (in memory, until you clear it or quit).
 - The master password crosses the webview IPC boundary as a string once per unlock.
   Rust-side copies are zeroized immediately; the webview side is cleared but JS string
   lifetime is ultimately up to the engine's garbage collector.

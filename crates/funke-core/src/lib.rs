@@ -51,6 +51,11 @@ pub enum Action {
     RunCommand { program: String, args: Vec<String> },
     /// Copy text to the clipboard.
     CopyText { text: String },
+    /// Type text straight into the window the overlay was summoned from (clipboard
+    /// history, snippets) — the same focus seam vault autotype uses.
+    PasteText { text: String },
+    /// Drop one entry from the clipboard history (ids are per-process, see funke-clipboard).
+    ClipboardForget { id: u64 },
     /// Bring an existing top-level window to the foreground (window switcher).
     FocusWindow { hwnd: isize },
     /// Force-terminate a process (the window switcher's destructive action).
@@ -195,16 +200,18 @@ impl Registry {
         if query.is_empty() {
             return Vec::new();
         }
-        if let Some((keyword, rest)) = query.text.trim().split_once(char::is_whitespace) {
+        // The space is what commits to the scope, so it must survive to be found: a
+        // keyword alone ("c") is still ordinary query text, but "c " hands the provider
+        // an *empty* query — which is how a browse view (the clipboard's history list)
+        // is reached. Trimming both ends first would eat that trailing space.
+        if let Some((keyword, rest)) = query.text.trim_start().split_once(char::is_whitespace) {
             let rest = rest.trim();
-            if !rest.is_empty() {
-                let scoped = self.providers.iter().find(|p| {
-                    let meta = p.metadata();
-                    meta.prefix.is_some_and(|prefix| prefix.eq_ignore_ascii_case(keyword)) && enabled(&meta)
-                });
-                if let Some(provider) = scoped {
-                    return Self::rank(provider.query(&Query::new(rest)));
-                }
+            let scoped = self.providers.iter().find(|p| {
+                let meta = p.metadata();
+                meta.prefix.is_some_and(|prefix| prefix.eq_ignore_ascii_case(keyword)) && enabled(&meta)
+            });
+            if let Some(provider) = scoped {
+                return Self::rank(provider.query(&Query::new(rest)));
             }
         }
         Self::rank(
@@ -342,6 +349,31 @@ mod tests {
         // A bare keyword with nothing after it stays a normal global query.
         let results = registry.search(&Query::new("f"));
         assert_eq!(results.len(), 2);
+    }
+
+    /// The space commits to the scope: `c ` is a provider's browse view (its whole list,
+    /// unfiltered), not a global search for "c". Providers that have nothing to browse
+    /// see an empty query and return nothing, which is what they did before.
+    #[test]
+    fn a_keyword_and_a_space_scopes_with_an_empty_query() {
+        let mut registry = Registry::new();
+        registry.register(Box::new(FixedProvider {
+            id: "clipboard",
+            prefix: Some("c"),
+            score: 10,
+            prefix_only: true,
+        }));
+        registry.register(Box::new(FixedProvider {
+            id: "other",
+            prefix: None,
+            score: 90,
+            ..Default::default()
+        }));
+
+        let results = registry.search(&Query::new("c "));
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].provider, "clipboard");
+        assert_eq!(results[0].title, "", "the provider is asked for everything it has");
     }
 
     #[test]

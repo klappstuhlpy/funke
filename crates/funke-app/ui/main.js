@@ -11,6 +11,7 @@ const count = document.getElementById("count");
 const TIPS = [
   "Type to search apps, files, and windows",
   "f <query> searches files only, w windows, g the web, v your vault",
+  "c shows what you copied — Enter pastes it back into the window you came from",
   "Tab lists every action of the selected result",
 ];
 
@@ -490,6 +491,10 @@ listen("vault-icons-updated", () => refreshResults());
 // can land a few milliseconds after the overlay is already up: pull the credential
 // suggestions for it in without touching what the user is doing.
 listen("focus-context", () => refreshResults());
+
+// A clip was removed (or the history cleared) while its list is on screen — the row has
+// to go now, not on the next summon.
+listen("clipboard-changed", () => refreshResults());
 
 // Hello unlock failed (cancelled, expired session, Hello not set up, …): fall back to
 // the masked password prompt with the reason shown — Esc returns to the query.

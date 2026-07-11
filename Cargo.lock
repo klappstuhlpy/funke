@@ -1200,6 +1200,7 @@ dependencies = [
  "arboard",
  "dirs 6.0.0",
  "funke-apps",
+ "funke-clipboard",
  "funke-core",
  "funke-files",
  "funke-plugin",
@@ -1229,6 +1230,15 @@ dependencies = [
  "funke-shell",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "funke-clipboard"
+version = "0.1.0"
+dependencies = [
+ "funke-core",
+ "windows",
+ "zeroize",
 ]
 
 [[package]]

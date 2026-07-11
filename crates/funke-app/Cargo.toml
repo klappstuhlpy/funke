@@ -19,6 +19,7 @@ funke-shell = { path = "../funke-shell" }
 funke-files = { path = "../funke-files" }
 funke-utils = { path = "../funke-utils" }
 funke-windows = { path = "../funke-windows" }
+funke-clipboard = { path = "../funke-clipboard" }
 funke-vault = { path = "../funke-vault" }
 funke-plugin = { path = "../funke-plugin" }
 zeroize = "1"

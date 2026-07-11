@@ -127,3 +127,20 @@ fn type_text(text: &str) {
 fn press(vk: u16) {
     send(&[key(vk, 0, 0), key(vk, 0, KEYEVENTF_KEYUP)]);
 }
+
+/// Send Ctrl+V to the focused window — how a clipboard clip gets pasted.
+///
+/// Deliberately *not* [`type_text`]: a clip is arbitrary text, and typing it means
+/// sending every newline in it as an Enter keypress. In a chat window or a form that
+/// submits the half-pasted message; Ctrl+V inserts the text as text. The caller has
+/// already put the clip on the clipboard.
+pub fn paste() {
+    const VK_CONTROL: u16 = 0x11;
+    const VK_V: u16 = 0x56;
+    send(&[
+        key(VK_CONTROL, 0, 0),
+        key(VK_V, 0, 0),
+        key(VK_V, 0, KEYEVENTF_KEYUP),
+        key(VK_CONTROL, 0, KEYEVENTF_KEYUP),
+    ]);
+}

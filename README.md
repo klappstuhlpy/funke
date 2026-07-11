@@ -42,6 +42,11 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   address bar; Enter types it straight back into the window you came from. Locked vault? It
   offers the unlock first. Autotype follows a per-entry sequence when you give the item an
   `autotype` field (`{USERNAME}{TAB}{PASSWORD}{TOTP}{ENTER}`, `{DELAY=500}`, …).
+- **Clipboard history** (`c`) — the last 100 things you copied: `c ` browses, `c foo`
+  searches, Enter pastes the clip back into the window you came from. Kept **in memory
+  only, never on disk**; passwords copied from Funke or any other password manager are
+  excluded outright, and unmarked secrets (API keys, tokens, private keys) are filtered
+  out by shape — see [SECURITY.md](SECURITY.md).
 - **Web search** (`g`) — configurable engine, wearing your default browser's icon.
 - **Calculator** — `2+2*3` inline; Enter copies the result.
 - **System commands** — lock, sleep, shut down, restart, empty recycle bin; destructive ones ask to confirm.
@@ -80,6 +85,23 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
 </table>
 
 <details>
+<summary><b>Show More</b> — features of the spotlight search</summary>
+<br>
+<table>
+  <tr>
+    <td width="33%" align="center">
+      <img src="assets/vault-calculator.png" alt="Calculator: 2+2*3=8, Enter copies the result">
+      <sub><b>Calculator</b> — solve simple mathematical equations</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="assets/vault-windows.png" alt="Search open windows by using the 'w' prefix">
+      <sub><b>Windows</b> — search for open apps</sub>
+    </td>
+  </tr>
+</table>
+</details>
+
+<details>
 <summary><b>Settings</b> — hotkey, providers, plugins, startup (click to expand)</summary>
 <br>
 <table>
@@ -89,15 +111,21 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
       <sub><b>General</b> — launch at startup, updates</sub>
     </td>
     <td width="50%" align="center">
-      <img src="assets/settings-hotkey.png" alt="Settings: Hotkey — rebind the summon shortcut">
-      <sub><b>Hotkey</b> — rebind the summon shortcut</sub>
+      <img src="assets/settings-appearance.png" alt="Settings: Appearance — customize the look of the overlay">
+      <sub><b>Appearance</b> — accent color, overlay size</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
+      <img src="assets/settings-hotkey.png" alt="Settings: Hotkey — rebind the summon shortcut">
+      <sub><b>Hotkey</b> — rebind the summon shortcut</sub>
+    </td>
+    <td width="50%" align="center">
       <img src="assets/settings-commands.png" alt="Settings: Commands — provider toggles, web engine, vault options">
       <sub><b>Commands</b> — provider toggles, web engine, vault options</sub>
     </td>
+  </tr>
+  <tr>
     <td width="50%" align="center">
       <img src="assets/settings-plugins.png" alt="Settings: Plugins — installed plugins and the curated catalog">
       <sub><b>Plugins</b> — installed plugins and the curated catalog</sub>
@@ -142,6 +170,7 @@ crates/
 ├── funke-files/     # filename index of chosen roots: walkdir + notify refresh, `f` prefix
 ├── funke-utils/     # utility providers: calculator, web search (`g`, engine from settings), system commands
 ├── funke-windows/   # window switcher (`w`): switch to or kill open top-level windows
+├── funke-clipboard/ # clipboard history (`c`): in-memory ring, secret-aware, never persisted
 ├── funke-vault/     # Bitwarden/Vaultwarden (`v`): bw serve client, autotype, prefix-only privacy
 ├── funke-plugin/    # plugin protocol (JSON-RPC/stdio): author SDK + launcher-side host
 └── funke-app/       # Tauri shell: tray, hotkey, overlay + settings windows, IPC commands, built-in providers
