@@ -9,6 +9,8 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-12
+
 ### Fixed
 - **Codex rows wore a blank page instead of a logo** (agent-sessions 0.1.1). The icon was taken
   from the tool's binary, which is right for `claude.exe` — it embeds its own mark — but
@@ -405,7 +407,8 @@ plugin foundation.
 - Repo went public with `LICENSE` (MIT), `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and
   `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/klappstuhlpy/funke/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/klappstuhlpy/funke/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/klappstuhlpy/funke/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/klappstuhlpy/funke/compare/v0.3.0...v0.3.1
