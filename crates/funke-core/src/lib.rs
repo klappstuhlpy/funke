@@ -8,6 +8,7 @@ mod frecency;
 mod fuzzy;
 mod glyph;
 pub mod i18n;
+mod orchestrator;
 mod recents;
 mod settings;
 
@@ -15,10 +16,12 @@ pub use frecency::FrecencyStore;
 pub use fuzzy::FuzzyMatcher;
 pub use glyph::glyph_data_url;
 pub use i18n::{alias_score, t, tf, Locale};
+pub use orchestrator::DEFAULT_DEADLINE;
 pub use recents::RecentsStore;
 pub use settings::{Settings, Snippet};
 
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// A single keystroke-driven search request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,19 +193,26 @@ pub struct ProviderMeta {
     pub prefix_only: bool,
 }
 
-/// A search source. Implementations must be cheap to call on every debounced keystroke.
+/// A search source.
 ///
-/// M0 keeps this synchronous; the M1 orchestrator makes querying async with
-/// cancellation so slow providers can't hold up the result list.
+/// Deliberately synchronous: [`Registry::search_streaming`] supplies the concurrency by
+/// calling `query` on a worker thread per provider, so a slow source costs its own rows
+/// and never the keystroke. A provider that answers from memory should still do so —
+/// arriving inside the deadline is the difference between rows that are simply *there*
+/// and rows that appear a moment later.
 pub trait SearchProvider: Send + Sync {
     fn metadata(&self) -> ProviderMeta;
     fn query(&self, query: &Query) -> Vec<ResultItem>;
 }
 
 /// Owns all enabled providers and merges their results.
+///
+/// Providers are held behind `Arc` so the orchestrator's worker threads can each hold one
+/// while the registry keeps owning the set — a provider abandoned past the deadline stays
+/// alive until it finishes, whatever the registry does next.
 #[derive(Default)]
 pub struct Registry {
-    providers: Vec<Box<dyn SearchProvider>>,
+    providers: Vec<Arc<dyn SearchProvider>>,
 }
 
 impl Registry {
@@ -213,7 +223,7 @@ impl Registry {
     }
 
     pub fn register(&mut self, provider: Box<dyn SearchProvider>) {
-        self.providers.push(provider);
+        self.providers.push(Arc::from(provider));
     }
 
     /// Drop a provider by id. The counterpart to registering a plugin live: an uninstalled
@@ -236,34 +246,50 @@ impl Registry {
     /// [`search`](Self::search), restricted to providers the filter accepts — how the
     /// app applies the settings toggles. A keyword for a rejected provider is treated
     /// as ordinary query text.
+    ///
+    /// The blocking path: every provider is called in turn, so the reply waits for the
+    /// slowest of them. The app searches through [`search_streaming`](Self::search_streaming)
+    /// instead; this stays as the degenerate case, and as what the tests pin the dispatch
+    /// rules against.
     pub fn search_enabled(&self, query: &Query, enabled: impl Fn(&ProviderMeta) -> bool) -> Vec<ResultItem> {
         if query.is_empty() {
             return Vec::new();
         }
-        // The space is what commits to the scope, so it must survive to be found: a
-        // keyword alone ("c") is still ordinary query text, but "c " hands the provider
-        // an *empty* query — which is how a browse view (the clipboard's history list)
-        // is reached. Trimming both ends first would eat that trailing space.
+        let (providers, query) = self.dispatch(query, &enabled);
+        Self::rank(providers.iter().flat_map(|p| p.query(&query)).collect())
+    }
+
+    /// Who answers this query, and with what text — the keyword-scoping rule, in one place,
+    /// so the blocking and streaming paths can never disagree about it.
+    ///
+    /// The space is what commits to the scope, so it must survive to be found: a keyword
+    /// alone (`c`) is still ordinary query text, but `c ` hands the provider an *empty*
+    /// query — which is how a browse view (the clipboard's history list) is reached.
+    /// Trimming both ends first would eat that trailing space.
+    fn dispatch(
+        &self,
+        query: &Query,
+        enabled: &dyn Fn(&ProviderMeta) -> bool,
+    ) -> (Vec<Arc<dyn SearchProvider>>, Query) {
         if let Some((keyword, rest)) = query.text.trim_start().split_once(char::is_whitespace) {
-            let rest = rest.trim();
             let scoped = self.providers.iter().find(|p| {
                 let meta = p.metadata();
                 meta.prefix.is_some_and(|prefix| prefix.eq_ignore_ascii_case(keyword)) && enabled(&meta)
             });
             if let Some(provider) = scoped {
-                return Self::rank(provider.query(&Query::scoped(rest)));
+                return (vec![Arc::clone(provider)], Query::scoped(rest.trim()));
             }
         }
-        Self::rank(
-            self.providers
-                .iter()
-                .filter(|p| {
-                    let meta = p.metadata();
-                    !meta.prefix_only && enabled(&meta)
-                })
-                .flat_map(|p| p.query(query))
-                .collect(),
-        )
+        let providers = self
+            .providers
+            .iter()
+            .filter(|p| {
+                let meta = p.metadata();
+                !meta.prefix_only && enabled(&meta)
+            })
+            .map(Arc::clone)
+            .collect();
+        (providers, query.clone())
     }
 
     /// Metadata of every registered provider, in registration order (for the settings UI).

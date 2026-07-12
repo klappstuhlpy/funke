@@ -62,8 +62,26 @@ they actually typed. That boost is the difference between a search box and a lau
 feels like it read your mind.
 
 **Providers must be cheap per keystroke.** Index in the background, query against memory.
-There is no async orchestrator yet — one slow provider blocks the list — so this is a rule,
-not a preference.
+This was once a rule the whole result list depended on — a single blocking `query()` held up
+every other provider's rows — and it stayed a rule only for as long as every provider could
+keep it. Some cannot: a content search asks an index in another process, and answers when it
+answers.
+
+So the deadline moved out of the providers and into the registry (`orchestrator.rs`). A query
+is fanned out on a worker thread per provider and the keystroke waits **120 ms**; whatever has
+answered by then is merged and painted, and a provider that arrives later has its rows
+delivered to the overlay afterwards, re-ranked into the list they belong to. The trait stays
+synchronous on purpose — making a dozen providers async to solve a problem two of them have is
+churn; the orchestrator supplies the concurrency instead.
+
+Cancellation is by **generation**, not cooperation: providers are never interrupted, they are
+*abandoned*. Every keystroke takes a number, and rows that arrive carrying a number the user
+has already typed past are dropped on the floor. This costs an abandoned thread finishing work
+nobody wants, which is cheap and, crucially, needs nothing from the provider — a cooperative
+cancellation token belongs in `Query` only once some provider burns real CPU, and none does.
+
+The rule survives as guidance, because arriving inside the deadline is still the difference
+between rows that are simply *there* and rows that appear a moment later.
 
 **Core purity:** `funke-core` imports neither Tauri nor Win32. It is unit-testable without a
 GUI, and every ranking, parsing and settings decision in it is tested that way.
@@ -326,9 +344,6 @@ Nothing here is scheduled. It is what is knowingly missing, with the reason it i
 - **Phase B file indexing** (USN Journal + MFT, elevated service). Wanted for the ~200 MB RSS
   and the minute-wide staleness window of the built-in index. Deprioritized, not cancelled:
   Everything's IPC delivers the same result for the people who have it.
-- **Async, cancellable search orchestration.** Today a slow provider blocks the whole list; the
-  mitigation is the "providers must be cheap" rule, which holds only as long as every provider
-  obeys it.
 - **Content search**, by querying the Windows Search index — never by building an indexer.
 - **A certificate**, so releases stop being greeted by SmartScreen.
 - **The name.**

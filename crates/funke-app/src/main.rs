@@ -60,6 +60,27 @@ struct AppState {
     /// The exclusion state actually applied to the overlay HWND, so redundant
     /// `SetWindowDisplayAffinity` calls are never issued — see [`refresh_capture_shield`].
     shield_applied: std::sync::atomic::AtomicBool,
+    /// Bumped by every `search`. A provider that answers after its keystroke's deadline
+    /// finds its generation superseded and its rows are dropped — cancellation without the
+    /// providers having to cooperate in it (`Registry::search_streaming`).
+    query_generation: Arc<std::sync::atomic::AtomicU64>,
+    /// What the overlay is currently showing, so a late batch can be merged into it.
+    live: Mutex<LiveSearch>,
+}
+
+/// The rows on screen for one generation of the search, kept so that a provider arriving
+/// after the deadline can be merged into them and re-ranked rather than appended blindly.
+#[derive(Default)]
+struct LiveSearch {
+    generation: u64,
+    /// Ranked and boosted — the list `search` replied with, plus every late batch since.
+    items: Vec<ResultItem>,
+    /// Rows that landed between the fan-out returning and its reply being stored. A
+    /// straggler can win that race by microseconds; rather than drop it or emit it *before*
+    /// the reply it belongs to, it rides along inside that reply.
+    early: Vec<ResultItem>,
+    /// The reply for `generation` has been stored: from here on, late rows merge and emit.
+    armed: bool,
 }
 
 fn unix_now() -> u64 {
@@ -70,45 +91,149 @@ fn unix_now() -> u64 {
 }
 
 /// One titled group of results; sections are ordered by their best-ranked item.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 struct Section {
     label: String,
     items: Vec<ResultItem>,
 }
 
+/// A reply to one keystroke. The generation is what lets the overlay tell a late batch that
+/// belongs to the query on screen from one belonging to a query the user has typed past.
+#[derive(serde::Serialize, Clone)]
+struct SearchReply {
+    generation: u64,
+    sections: Vec<Section>,
+}
+
 #[tauri::command]
-fn search(app: AppHandle, state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
+fn search(app: AppHandle, state: tauri::State<'_, AppState>, text: String) -> SearchReply {
+    use std::sync::atomic::Ordering;
+
+    let generation = state.query_generation.fetch_add(1, Ordering::SeqCst) + 1;
+    // Claim the screen for this generation *before* the fan-out, so a provider that answers
+    // between the deadline and the reply being stored knows which query it is answering.
+    *state.live.lock().unwrap() = LiveSearch {
+        generation,
+        ..Default::default()
+    };
+
     let settings = state.settings.read().unwrap().clone();
     let registry = state.registry.read().unwrap();
-    let mut items = registry.search_enabled(&Query::new(text), |meta| settings.provider_enabled(meta.id));
+    let late_app = app.clone();
+    let mut items = registry.search_streaming(
+        &Query::new(text),
+        |meta| settings.provider_enabled(meta.id),
+        funke_core::DEFAULT_DEADLINE,
+        generation,
+        Arc::clone(&state.query_generation),
+        move |_provider, items| merge_late_results(&late_app, generation, items),
+    );
+
+    boost(&state, &mut items);
+
+    let mut live = state.live.lock().unwrap();
+    if live.generation != generation {
+        // Superseded while we were waiting: the overlay is already showing a newer query.
+        // Our rows still go back to our own caller, which drops them — but they must not
+        // overwrite what is on screen.
+        return SearchReply {
+            generation,
+            sections: sections_for(&registry, items),
+        };
+    }
+    items.append(&mut live.early);
+    items.sort_by_key(|item| std::cmp::Reverse(item.score));
+    items.truncate(Registry::MAX_RESULTS);
+    live.items = items;
+    live.armed = true;
+    let reply = SearchReply {
+        generation,
+        sections: sections_for(&registry, live.items.clone()),
+    };
+    let has_vault_rows = live.items.iter().any(|item| item.provider == "vault");
+    drop(live);
 
     // Vault rows on screen are one of the capture-shield triggers (SECURITY.md).
-    let has_vault_rows = items.iter().any(|item| item.provider == "vault");
-    state
-        .shield_rows
-        .store(has_vault_rows, std::sync::atomic::Ordering::SeqCst);
+    state.shield_rows.store(has_vault_rows, Ordering::SeqCst);
     refresh_capture_shield(&app);
-    let store = state.frecency.lock().unwrap();
+    reply
+}
+
+/// A provider that missed the deadline has answered. Merge its rows into the generation
+/// they belong to and re-rank the whole list — ranking is the registry's job, so the
+/// overlay is handed finished sections and never has to sort anything itself.
+///
+/// Runs on the orchestrator's collector thread. Nothing here creates a window, which is the
+/// one thing that would have to happen on the main thread.
+fn merge_late_results(app: &AppHandle, generation: u64, mut items: Vec<ResultItem>) {
+    use std::sync::atomic::Ordering;
+
+    let state = app.state::<AppState>();
+    if state.query_generation.load(Ordering::SeqCst) != generation {
+        return;
+    }
+    boost(&state, &mut items);
+
+    let mut live = state.live.lock().unwrap();
+    if live.generation != generation {
+        return;
+    }
+    if !live.armed {
+        // The reply these rows belong to has not been sent yet: ride along inside it.
+        live.early.append(&mut items);
+        return;
+    }
+    live.items.append(&mut items);
+    live.items.sort_by_key(|item| std::cmp::Reverse(item.score));
+    live.items.truncate(Registry::MAX_RESULTS);
+    let merged = live.items.clone();
+    let has_vault_rows = merged.iter().any(|item| item.provider == "vault");
+    // Released before the registry is read: `search` takes the registry first and `live`
+    // second, so holding `live` while waiting for the registry here would invert the order
+    // — and a `reload_plugins` writer queued between the two readers would deadlock both.
+    drop(live);
+
+    let registry = state.registry.read().unwrap();
+    let reply = SearchReply {
+        generation,
+        sections: sections_for(&registry, merged),
+    };
+    drop(registry);
+
+    // A vault row that arrives late raises the shield exactly as one that arrived on time.
+    state.shield_rows.store(has_vault_rows, Ordering::SeqCst);
+    refresh_capture_shield(app);
+    let _ = app.emit("search-late-results", reply);
+}
+
+/// Frecency and vault context, the two things the app knows about ranking that the
+/// providers don't. Applied identically to the rows that made the deadline and to the ones
+/// that didn't — a late row must not rank differently for having been late.
+fn boost(state: &AppState, items: &mut [ResultItem]) {
     let now = unix_now();
-    for item in &mut items {
+    let store = state.frecency.lock().unwrap();
+    for item in items.iter_mut() {
         item.score += store.boost(&item.id, now);
     }
+    drop(store);
 
     // Context boost: vault entries belonging to the window that was focused before the
     // overlay (a Steam login window floats the Steam credential, a GitHub tab the GitHub
     // one). Same scorer as the overview's suggestions — see funke_vault::context.
-    if has_vault_rows {
-        let scores = state.vault.context_scores(&state.focus_context.lock().unwrap());
-        for item in &mut items {
-            if let Some(entry_id) = item.id.strip_prefix("vault:") {
-                item.score += scores.get(entry_id).copied().unwrap_or(0);
-            }
+    if !items.iter().any(|item| item.provider == "vault") {
+        return;
+    }
+    let scores = state.vault.context_scores(&state.focus_context.lock().unwrap());
+    for item in items.iter_mut() {
+        if let Some(entry_id) = item.id.strip_prefix("vault:") {
+            item.score += scores.get(entry_id).copied().unwrap_or(0);
         }
     }
-    items.sort_by_key(|item| std::cmp::Reverse(item.score));
+}
 
-    // Group by section label, keeping global rank order both across sections (a section
-    // sits where its best item ranks) and within each section.
+/// Group ranked rows by section label, keeping global rank order both across sections (a
+/// section sits where its best item ranks) and within each section.
+fn sections_for(registry: &Registry, items: Vec<ResultItem>) -> Vec<Section> {
     let mut sections: Vec<Section> = Vec::new();
     for item in items {
         let label = registry
@@ -985,6 +1110,10 @@ fn hide(app: &AppHandle, restore_focus: bool) {
         let state = app.state::<AppState>();
         state.shield_prompt.store(false, Ordering::SeqCst);
         state.shield_rows.store(false, Ordering::SeqCst);
+        // Dismissing the overlay retires the query on it: a provider still working on that
+        // keystroke now finds its generation superseded, exactly as if the user had typed
+        // on. Nothing arrives into an overlay that has been put away.
+        state.query_generation.fetch_add(1, Ordering::SeqCst);
     }
     refresh_capture_shield(app);
     if let Some(win) = app.get_webview_window(MAIN_WINDOW) {
@@ -1114,6 +1243,8 @@ fn main() {
             shield_prompt: std::sync::atomic::AtomicBool::new(false),
             shield_rows: std::sync::atomic::AtomicBool::new(false),
             shield_applied: std::sync::atomic::AtomicBool::new(false),
+            query_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            live: Mutex::new(LiveSearch::default()),
         })
         .invoke_handler(tauri::generate_handler![
             search,

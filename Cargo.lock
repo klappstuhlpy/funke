@@ -1195,7 +1195,7 @@ dependencies = [
 
 [[package]]
 name = "funke-app"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "arboard",
  "dirs 6.0.0",
@@ -1244,7 +1244,7 @@ dependencies = [
 
 [[package]]
 name = "funke-core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "nucleo-matcher",
  "serde",

@@ -10,6 +10,15 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 ## [Unreleased]
 
 ### Added
+- **A slow source can no longer freeze your typing.** Until now every provider answered in
+  turn, so the result list was only ever as fast as the slowest one — which is why "answer
+  from memory" had to be a rule rather than a preference, and why a search of file *contents*
+  was unbuildable. The registry now fans a query out across all its sources at once and waits
+  120 ms; whatever has answered by then is what you see, and anything slower arrives a moment
+  later and drops into place, re-ranked, without disturbing the row you had selected. Type on
+  and the results of the query you abandoned are discarded rather than fighting the ones you
+  want. Nothing about the launcher feels different today — every current source already
+  answers in single-digit milliseconds. It is what makes the ones that can't possible.
 - **Screen capture can't see vault content anymore.** While the overlay shows the masked
   master-password prompt, vault rows, or a context suggestion, the window is excluded
   from screenshots, recordings, and screen shares (`SetWindowDisplayAffinity` with

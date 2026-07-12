@@ -40,6 +40,19 @@ let unlocking = false;
 // still loading its overview, and the overview must not paint over the warning.
 let paintToken = 0;
 
+// The generation of the reply on screen. A source that can't answer within the keystroke's
+// deadline (a cold vault, a content search) is not waited for: its rows arrive afterwards
+// on `search-late-results`, tagged with the generation they belong to. Anything tagged with
+// an older generation answers a query the user has already typed past. -1 = not in results.
+let searchGeneration = -1;
+
+// A late batch can beat the very reply it belongs to: the backend answers the moment the
+// deadline passes, and a provider finishing a millisecond after that emits into the same
+// event loop. Such a batch is held here rather than discarded as a generation the overlay
+// has never heard of, and applied once its reply lands. If no reply with its generation
+// ever arrives — the input was emptied, the overlay dismissed — it is simply never used.
+let pendingLate = null;
+
 // A blocked autotype is on screen (see showBlocked): the warning holds the list until the
 // user answers it — by overriding, by picking a copy, by typing, or by leaving.
 let blocked = false;
@@ -248,6 +261,8 @@ function closeActions() {
 function enterVaultPrompt() {
   vaultPrompt = true;
   vaultReturnQuery = input.value;
+  searchGeneration = -1; // the query behind the prompt is retired: no late rows into it
+  pendingLate = null;
   closeActions();
   // Shield before the first masked character can be typed (screen capture must not see
   // the master-password prompt — best-effort, the prompt never waits on it).
@@ -316,6 +331,8 @@ async function loadOverview({ keepSelection = false } = {}) {
   const data = await invoke("overview");
   if (token !== paintToken) return;
   blocked = false;
+  searchGeneration = -1; // an emptied input retires its query along with its rows
+  pendingLate = null;
   const previous = selected;
   mode = "overview";
   sections = [];
@@ -350,13 +367,46 @@ async function search() {
     return;
   }
   const token = ++paintToken;
-  const results = await invoke("search", { text });
+  const reply = await invoke("search", { text });
   if (token !== paintToken) return;
   mode = "results";
   groups = [];
-  sections = results;
+  searchGeneration = reply.generation;
+  sections = reply.sections;
   items = sections.flatMap((section) => section.items);
   selected = 0;
+  count.textContent = items.length === 1 ? t("overlay.result") : t("overlay.results", { count: items.length });
+  render();
+
+  // A straggler that overtook this reply was waiting for it: its rows are these rows plus
+  // its own, so it goes on top rather than being thrown away.
+  const early = pendingLate;
+  pendingLate = null;
+  if (early && early.generation === reply.generation) mergeLateResults(early);
+}
+
+// A provider that missed its keystroke's deadline has answered. The backend has already
+// merged and re-ranked the whole list — the overlay never sorts anything itself — so this
+// swaps the finished sections in and decides one thing only: where the highlight goes.
+//
+// It goes on the row it was already on, by id. Rows arriving from behind may well outrank
+// it and push it down the list, and that is fine; what must never happen is the row under
+// Enter changing identity between the user deciding to press it and pressing it.
+function mergeLateResults(reply) {
+  // Newer than what is on screen: this batch has overtaken its own reply (see `pendingLate`).
+  // It cannot be painted yet — the rows it merges into haven't arrived — so it waits.
+  if (reply.generation > searchGeneration) {
+    pendingLate = reply;
+    return;
+  }
+  if (reply.generation !== searchGeneration) return;
+  if (mode !== "results" || actionsFor || vaultPrompt || blocked) return;
+
+  const anchor = items[selected]?.id;
+  sections = reply.sections;
+  items = sections.flatMap((section) => section.items);
+  const held = anchor === undefined ? -1 : items.findIndex((item) => item.id === anchor);
+  selected = held >= 0 ? held : Math.min(selected, Math.max(0, items.length - 1));
   count.textContent = items.length === 1 ? t("overlay.result") : t("overlay.results", { count: items.length });
   render();
 }
@@ -370,6 +420,8 @@ async function search() {
 // here is interpreted: the row and its actions are the backend's, as always.
 function showBlocked(label, item) {
   paintToken += 1;
+  searchGeneration = -1;
+  pendingLate = null;
   vaultPrompt = false;
   unlocking = false;
   blocked = true;
@@ -399,14 +451,19 @@ async function refreshResults() {
   }
   const prev = selected;
   const token = ++paintToken;
-  const results = await invoke("search", { text });
+  const reply = await invoke("search", { text });
   if (token !== paintToken) return;
   mode = "results";
-  sections = results;
+  searchGeneration = reply.generation;
+  sections = reply.sections;
   items = sections.flatMap((section) => section.items);
   selected = Math.min(prev, Math.max(0, items.length - 1));
   count.textContent = items.length === 1 ? t("overlay.result") : t("overlay.results", { count: items.length });
   render();
+
+  const early = pendingLate;
+  pendingLate = null;
+  if (early && early.generation === reply.generation) mergeLateResults(early);
 }
 
 async function run(item, actionIndex) {
@@ -522,6 +579,11 @@ listen("overlay-hidden", () => {
   input.value = "";
   loadOverview();
 });
+
+// A source that could not answer inside the keystroke's deadline — a vault whose `bw serve`
+// was still booting, a search of file *contents* — has answered now. Its rows join the list
+// they belong to instead of having held it up (funke-core's orchestrator).
+listen("search-late-results", (e) => mergeLateResults(e.payload));
 
 // The locked vault's "Unlock vault" row lands here (run_action emits, overlay stays up).
 listen("vault-unlock", () => enterVaultPrompt());
