@@ -9,6 +9,25 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+### Fixed
+- **Codex rows wore a blank page instead of a logo** (agent-sessions 0.1.1). The icon was taken
+  from the tool's binary, which is right for `claude.exe` — it embeds its own mark — but
+  `codex.exe` carries no icon resource at all, so the shell answered with Windows' *generic
+  console icon*: the blank page on every Codex row. There is nothing there to extract, so the
+  Codex mark is now drawn in the plugin, in the same dim ivory the house glyphs use. Claude Code
+  still wears its real extracted icon, because a real icon beats a copy of one.
+
+### Changed
+- **A plugin is versioned by its own manifest, not by the launcher's tag.** The release packaged
+  `funke-plugin-<id>-<tag>.zip`, so agent-sessions 0.1.0 shipped as `…-v0.4.1.zip` — a plugin
+  wearing the launcher's version number, which it has no relationship to. Plugins release *on* a
+  funke tag; they are not *part of* funke. The archive is now `funke-plugin-<id>-v<its own
+  version>.zip`.
+  The release also **refuses to package a plugin that changed without its version moving**. That
+  is not tidiness: the catalog pins a plugin by version and SHA-256, so a filename is a promise
+  about its bytes — publishing different contents under a name a previous release already used
+  would quietly make that promise false.
+
 ## [0.4.1] - 2026-07-12
 
 ### Added
