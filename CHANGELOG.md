@@ -9,6 +9,45 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-12
+
+### Added
+- **An Agent Sessions plugin** (`funke-plugins/agent-sessions`, keyword `cc`). `cc ` lists
+  your Claude Code *and* Codex conversations newest-first; `cc <text>` searches them by name,
+  by the prompt you opened them with, or by project and branch. Enter resumes one in a
+  terminal in the directory it ran in, Shift+Enter opens that directory, and the third action
+  copies the resume command for a terminal you already have open. It needs the `claude` and/or
+  `codex` CLI on `PATH` — a tool that isn't there refuses to resume and says which one is
+  missing, but its sessions still list, because a transcript on disk is proof it once ran.
+  **Two sources, one provider**, the shape `funke-files` uses for its walk and Everything: both
+  tools answer the same question ("resume what I was working on"), so they share the row, the
+  ranking and the actions, and each row wears its tool's *real* icon — extracted from the
+  installed binary through the same shell API `funke-apps` uses, rather than a hand-drawn
+  imitation of somebody's logo. A tool that has never run here contributes nothing and costs
+  one `stat`, so having only one of the two is free.
+  Each row is titled with the name Claude Code gives a conversation (`ai-title`), falling back
+  to the opening prompt where there is none — Codex does not name its sessions, so it is always
+  titled by its prompt. Both formats are the tools' private ones, so both readers treat every
+  field as optional and a session they cannot parse is simply not listed: a format change costs
+  rows, never a crash.
+  It is a **plugin rather than a compiled-in provider** on purpose: it needs none of the host
+  seams the built-ins exist for (no focus capture, no masked prompt), it reads files and spawns
+  a process, and shipping it out-of-process means the transcript formats can be chased without
+  cutting a launcher release. It is `prefix_only` for the reason snippets keep their bodies out
+  of global results: an opening prompt is whatever you happened to be typing that day.
+
+### Changed
+- **The plugins pane's "Remove?" confirmation had no room to breathe.** The ✕ is a 26px square
+  sized for a single glyph, and arming it only widened the box — so the word it turns into was
+  squeezed edge to edge, as was the "Removing…" that follows. The armed state is now a class
+  rather than an inline width: it gets real padding, and it wears the danger colour of what the
+  next click commits to.
+- **A plugin can have a browse view.** A scoped query with nothing typed after the keyword
+  (`cc `) reaches its provider as an *empty* query — that is how `c ` opens the clipboard's
+  history — but the plugin adapter was dropping it, so plugins alone had no way to answer
+  "show me everything". They can now. It is the difference between `cc ` listing your last
+  sessions and having to guess a letter of one.
+
 ### Fixed
 - **A credential suggestion wore an empty "Recent" heading.** The overview's standing
   "Recent" strip is the heading for the *unlabelled* case — the one group it could possibly
@@ -347,7 +386,8 @@ plugin foundation.
 - Repo went public with `LICENSE` (MIT), `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and
   `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/klappstuhlpy/funke/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/klappstuhlpy/funke/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/klappstuhlpy/funke/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/klappstuhlpy/funke/compare/v0.2.0...v0.3.0
