@@ -4,9 +4,13 @@ name: Release
 #   - funke-<tag>-windows-x86_64-setup.exe       the NSIS installer (+ uninstaller,
 #     registered in Add/Remove Programs)
 #   - funke-<tag>-windows-x86_64.zip             the portable launcher binary
-#   - funke-plugin-<id>-<tag>.zip                one per funke-plugins/* member that
+#   - funke-plugin-<id>-v<plugin version>.zip    one per funke-plugins/* member that
 #     CHANGED since the previous tag, containing "<id>/plugin.json + <entry>.exe" so it
-#     unzips straight into %APPDATA%\funke\plugins.
+#     unzips straight into %APPDATA%\funke\plugins. A plugin is versioned by its OWN
+#     plugin.json, not by the launcher's tag — they ship on the same release but they are
+#     not the same product, and the catalog pins a plugin by (version, sha256). Changing a
+#     plugin without bumping that version is therefore an error: it would put different
+#     bytes behind a name a previous release already used.
 #
 # Version is inferred from crates/funke-app/Cargo.toml (tauri.conf.json omits it), so a
 # release is only as new as that bump — keep the tag and the Cargo version in step.
@@ -147,6 +151,7 @@ jobs:
           Get-ChildItem funke-plugins -Directory | ForEach-Object {
             $manifestPath = Join-Path $_.FullName 'plugin.json'
             if (-not (Test-Path $manifestPath)) { return }
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
             if ($prev) {
               git diff --quiet $prev $env:TAG -- ("funke-plugins/{0}" -f $_.Name)
               # `git diff --quiet` exits 1 when a plugin *changed*; capture it, then clear
@@ -154,8 +159,21 @@ jobs:
               $unchanged = $LASTEXITCODE -eq 0
               $global:LASTEXITCODE = 0
               if ($unchanged) { Write-Host "Skipping $($_.Name) — unchanged since $prev."; return }
+
+              # It changed. Its own version must have moved too, or this release would publish
+              # different bytes under a filename the previous one already used — and the catalog
+              # pins a plugin by (version, sha256), so that name is a promise about its contents.
+              # Absent for a plugin that is new since $prev — nothing to compare, nothing to bump.
+              $before = (git show ("{0}:funke-plugins/{1}/plugin.json" -f $prev, $_.Name) 2>$null) -join "`n"
+              $global:LASTEXITCODE = 0
+              if ($before) {
+                $wasVersion = ($before | ConvertFrom-Json).version
+                if ($wasVersion -eq $manifest.version) {
+                  throw ("Plugin '{0}' changed since {1} but its plugin.json version is still {2}. Bump it — a plugin is versioned by its own manifest, not by the launcher tag." -f $manifest.id, $prev, $manifest.version)
+                }
+                Write-Host ("Packaging {0}: {1} -> {2}" -f $manifest.id, $wasVersion, $manifest.version)
+              }
             }
-            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
             $stage = Join-Path stage $manifest.id
             New-Item -ItemType Directory $stage -Force | Out-Null
             $builtEntry = Join-Path 'target/release' $manifest.entry
@@ -170,7 +188,7 @@ jobs:
               Write-Host "Skipping $($_.Name) — no built or in-folder entry '$($manifest.entry)'."; return
             }
             Compress-Archive -Path $stage `
-              -DestinationPath ("dist/funke-plugin-{0}-{1}.zip" -f $manifest.id, $env:TAG)
+              -DestinationPath ("dist/funke-plugin-{0}-v{1}.zip" -f $manifest.id, $manifest.version)
           }
 
       - name: Publish release
