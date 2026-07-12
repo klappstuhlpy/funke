@@ -89,7 +89,7 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   talk to it while it runs. This is inherent to the official CLI's serve mode and is
   the reason the port is random and the server's lifetime is bounded by Funke's.
 - Autotype sends keystrokes to whatever window held focus before the overlay was
-  summoned. Since 0.4.3 it refuses to type into a window that shows **no password field**
+  summoned. Since 0.5.0 it refuses to type into a window that shows **no password field**
   (UI Automation decides; "Only autotype into login forms", on by default) — which is what
   keeps a credential out of a chat box, where a stray `{ENTER}` would *send* it. The guard
   is a check, not a proof: UI Automation cannot read every window (games, remote sessions,

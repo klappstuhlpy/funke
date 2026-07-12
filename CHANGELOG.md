@@ -9,6 +9,58 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-12
+
+### Added
+- **Autotype refuses to type a password into a window that has no login form.** Autotype is
+  `SendInput`: the keystrokes go wherever focus happens to be, and the window has no say in it.
+  In a chat box that is not a small mistake — a password typed into Discord's message bar, with
+  the sequence's trailing Enter behind it, is a password *posted to a channel*. So before a
+  secret is typed, the target window is asked through UI Automation (the same public
+  accessibility surface the address-bar reader already uses) whether it shows a password field
+  at all. A chat window, an editor, a game, the desktop: no field, no typing.
+  The second half of the same question is *where* in the window. A browser parked on a login
+  page with focus on the page body would otherwise swallow the username and fire the Enter at
+  whatever listened, so when the caret isn't in a field, the form's own username field is
+  focused first. If only the password field can be reached (a password-only page), the sequence
+  is typed **from `{PASSWORD}` on** — typing `{USERNAME}{TAB}` into a password box is how a
+  username ends up in a password field and a password wherever the Tab landed.
+  A refusal is never silent and never final: the overlay comes back with the credential, the
+  reason nothing was typed, and a **Type it anyway** that arms and takes a confirming Enter (the
+  copies stay one key away underneath — pasting by hand is usually the right answer to "that is
+  not a login form", and always the safer one). UI Automation cannot read every window — games,
+  remote sessions, terminals — and a guard with no way past it is a guard the user switches off.
+  It is exactly that: a switch, `Vault · autotype → Only autotype into login forms`, on by
+  default.
+- **Open website & autofill** (⇧Enter on any vault entry with a web URI). For the credential
+  whose window isn't open yet: it opens the entry's site in the default browser, waits for the
+  browser to actually *be on that site* with a login form up, then fills it in. The waiting is
+  what makes it safe — the address bar is matched by the same conservative scorer the context
+  suggestions use (registrable-domain equality, deliberately no fuzzy matching), so a page it
+  cannot identify is never typed into. A site that never shows a form, or an SSO redirect to a
+  domain the entry doesn't name, ends in the same warning row rather than a guess. App-only
+  entries (`androidapp://…`) have no site to open and don't offer the action.
+  Most saved URIs are **homepages** (`discord.com`, `github.com`), which show no password field
+  at all, so the login page is found in three steps — and none of them invents a URL. First the
+  item's **`loginurl` custom field**, if it has one (the same escape hatch `autotype` is). Then
+  the most login-shaped URI the item already carries: an entry holding both `github.com` and
+  `github.com/login` opens the second. Failing both, Funke asks the *page* for its **own sign-in
+  link** and clicks it, then goes on waiting for the form. That click is fenced hard: inside the
+  page document only (a browser's own chrome has a "Sign in" button — Edge's profile, Chrome's
+  sync), and on an **exact** name match only — `"Sign in with Google"` contains "sign in" and
+  would hand the session to an identity provider your entry never named. It clicks; it does not
+  type, and every check above still has to pass on the page it lands on.
+  **Deliberately not built: searching the web for the login page.** It would make the target of
+  an autofill something an attacker can pick through SEO or an ad, which is the exact thing the
+  guard above exists to prevent. If the page can't be identified from your own vault data or the
+  site's own markup, the warning row is the right answer. (DESIGN.md §5 records why.)
+
+### Changed
+- Both autofill flows now run **on a worker thread** rather than inside the sync IPC command.
+  They inspect the target window through UI Automation, wait for pages, and sleep between
+  keystrokes; the main thread is the event loop *and* an STA, where a UIA call can deadlock —
+  the same seam `VaultHelloUnlock` already hops off the main thread for.
+
 ## [0.4.2] - 2026-07-12
 
 ### Fixed
@@ -407,7 +459,8 @@ plugin foundation.
 - Repo went public with `LICENSE` (MIT), `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and
   `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/klappstuhlpy/funke/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/klappstuhlpy/funke/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/klappstuhlpy/funke/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/klappstuhlpy/funke/compare/v0.3.1...v0.4.0

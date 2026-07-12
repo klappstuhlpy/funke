@@ -1,6 +1,6 @@
 [package]
 name = "funke-app"
-version = "0.4.2"
+version = "0.5.0"
 edition = "2021"
 license.workspace = true
 description = "Funke launcher — Tauri shell, tray, hotkey, and IPC around funke-core"
