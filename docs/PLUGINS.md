@@ -121,6 +121,11 @@ don't appear for that keystroke:
    ]}}
 ```
 
+- `text` — the query with your keyword stripped. It arrives **empty** when the user has
+  typed your keyword and a space and nothing else (`cc `), which is an invitation to
+  offer a browse view — your rows with no filter, best or newest first. (The clipboard's
+  history list is the built-in that works this way; the Agent Sessions plugin lists your
+  recent sessions.) Return nothing if a bare listing makes no sense for you.
 - `id` — yours to choose; it comes back verbatim in `invoke`. Encode whatever state
   you need into it (the template packs the query text in).
 - `score` — higher ranks higher; built-in fuzzy matches land roughly in 0–200.

@@ -1,0 +1,9 @@
+{
+  "id": "agent-sessions",
+  "name": "Agent Sessions",
+  "version": "0.1.0",
+  "description": "Search and resume Claude Code and Codex sessions — 'cc ' lists them newest-first, Enter reopens one in its project. Needs the claude and/or codex CLI on your PATH.",
+  "entry": "funke-plugin-agent-sessions.exe",
+  "prefix": "cc",
+  "prefix_only": true
+}

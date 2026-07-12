@@ -355,7 +355,12 @@ impl SearchProvider for PluginProvider {
     }
 
     fn query(&self, query: &Query) -> Vec<ResultItem> {
-        if query.is_empty() {
+        // An empty query only ever reaches a provider *scoped* — the keyword and its space,
+        // nothing typed yet (`Registry::search_enabled` drops the empty global query before
+        // it gets here). That is a browse view, the way `c ` opens the clipboard's history,
+        // and a plugin is entitled to one: it is the difference between "cc " listing your
+        // last sessions and forcing you to guess a letter of one.
+        if query.is_empty() && !query.scoped {
             return Vec::new();
         }
         let plugin_id = &self.handle.manifest.id;
