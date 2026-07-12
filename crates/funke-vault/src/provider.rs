@@ -216,26 +216,48 @@ fn entry_row(entry: crate::VaultEntry, score: i64, icon: Option<String>) -> Resu
             None => org.clone(),
         });
     }
-    let mut actions = vec![
-        NamedAction::new(
-            funke_core::t("action.autotype"),
-            Action::VaultAutotype { id: entry.id.clone() },
-        ),
-        NamedAction::new(
-            funke_core::t("action.copy_password"),
-            Action::VaultCopy {
-                id: entry.id.clone(),
-                field: "password".into(),
-            },
-        ),
-        NamedAction::new(
-            funke_core::t("action.copy_username"),
-            Action::VaultCopy {
-                id: entry.id.clone(),
-                field: "username".into(),
-            },
-        ),
-    ];
+    ResultItem {
+        id: format!("vault:{}", entry.id),
+        provider: "vault".into(),
+        title: entry.name.clone(),
+        subtitle,
+        icon: icon.or_else(|| Some(glyph_data_url(VAULT_GLYPH))),
+        score,
+        actions: entry_actions(&entry),
+    }
+}
+
+/// The actions of a login row. Autotype leads (Enter); "open website & autofill" sits on
+/// ⇧Enter when the entry has a site to open — it is the same credential going to the same
+/// place, just for the window you haven't opened yet — and the copies follow.
+fn entry_actions(entry: &crate::VaultEntry) -> Vec<NamedAction> {
+    let mut actions = vec![NamedAction::new(
+        funke_core::t("action.autotype"),
+        Action::VaultAutotype {
+            id: entry.id.clone(),
+            force: false,
+        },
+    )];
+    if entry.uri.is_some() {
+        actions.push(NamedAction::new(
+            funke_core::t("action.autotype_open"),
+            Action::VaultOpenAutotype { id: entry.id.clone() },
+        ));
+    }
+    actions.push(NamedAction::new(
+        funke_core::t("action.copy_password"),
+        Action::VaultCopy {
+            id: entry.id.clone(),
+            field: "password".into(),
+        },
+    ));
+    actions.push(NamedAction::new(
+        funke_core::t("action.copy_username"),
+        Action::VaultCopy {
+            id: entry.id.clone(),
+            field: "username".into(),
+        },
+    ));
     if entry.has_totp {
         actions.push(NamedAction::new(
             funke_core::t("action.copy_totp"),
@@ -245,13 +267,51 @@ fn entry_row(entry: crate::VaultEntry, score: i64, icon: Option<String>) -> Resu
             },
         ));
     }
+    actions
+}
+
+/// The row a **refused** autotype puts back on screen: the credential it was about to
+/// type, `reason` saying why nothing was (the caller localizes it — only the host knows
+/// whether the window had no form, or the caret no field, or the site never loaded).
+///
+/// Its first action is the override, and it is the only place in the app that produces a
+/// forcing [`Action::VaultAutotype`] — a guard the user cannot get past is a guard they
+/// will turn off, but it has to be *asked* for, per attempt, and confirmed (`confirm`, so
+/// the UI arms the row and takes a second Enter). The copies stay available underneath:
+/// pasting into the window by hand is usually the right answer to "that isn't a login
+/// form", and it is always the safer one.
+pub fn blocked_row(vault: &Arc<Vault>, id: &str, reason: String) -> ResultItem {
+    let entry = vault.entry(id);
+    let icon = entry
+        .as_ref()
+        .and_then(|entry| entry.host.as_deref())
+        .and_then(|host| vault.icon_for(host));
+    let mut actions = vec![NamedAction {
+        label: funke_core::t("action.autotype_anyway").into(),
+        action: Action::VaultAutotype {
+            id: id.to_string(),
+            force: true,
+        },
+        confirm: true,
+    }];
+    // Everything an entry normally offers *except* the guarded autotype it just refused —
+    // and the copies are what the user most likely wants instead.
+    if let Some(entry) = &entry {
+        actions.extend(
+            entry_actions(entry)
+                .into_iter()
+                .filter(|named| !matches!(named.action, Action::VaultAutotype { .. })),
+        );
+    }
     ResultItem {
-        id: format!("vault:{}", entry.id),
+        // Not a searchable row and never persisted (the vault is excluded from recents and
+        // frecency), but the id still has to be stable rather than localized.
+        id: format!("vault:{id}"),
         provider: "vault".into(),
-        title: entry.name,
-        subtitle,
-        icon: icon.or_else(|| Some(glyph_data_url(VAULT_GLYPH))),
-        score,
+        title: entry.map(|entry| entry.name).unwrap_or_else(|| "Vault".into()),
+        subtitle: Some(reason),
+        icon: icon.or_else(|| Some(glyph_data_url(LOCK_GLYPH))),
+        score: STATUS_SCORE,
         actions,
     }
 }
@@ -267,6 +327,7 @@ mod tests {
             name: name.into(),
             username: username.map(str::to_string),
             host: host.map(str::to_string),
+            uri: None,
             has_totp: false,
             organization: None,
             autotype: None,
@@ -280,6 +341,53 @@ mod tests {
             ..Default::default()
         };
         Arc::new(Vault::new(Arc::new(std::sync::RwLock::new(settings))))
+    }
+
+    /// Only entries with a website can offer to open one — and the autotype an entry row
+    /// produces never forces its way past the guard.
+    #[test]
+    fn opening_the_website_is_offered_only_when_there_is_one() {
+        let row = entry_row(entry("uuid-1", "Router", None, Some("192.168.1.1")), 10, None);
+        assert!(
+            !row.actions.iter().any(|named| named.label == "Open website & autofill"),
+            "an entry with no web URI has no site to open"
+        );
+
+        let mut with_site = entry("uuid-2", "GitHub", Some("ben"), Some("github.com"));
+        with_site.uri = Some("https://github.com/login".into());
+        let row = entry_row(with_site, 10, None);
+        assert!(matches!(
+            row.actions[0].action,
+            Action::VaultAutotype { force: false, .. }
+        ));
+        assert_eq!(row.actions[1].label, "Open website & autofill", "⇧Enter opens the site");
+        assert!(matches!(row.actions[1].action, Action::VaultOpenAutotype { .. }));
+        assert_eq!(row.actions[2].label, "Copy password");
+    }
+
+    /// The refusal row: the override is armed (never silent), and the copies remain — the
+    /// safe way out of "that window is not a login form".
+    #[test]
+    fn a_blocked_autotype_offers_a_confirmed_override_and_the_copies() {
+        let vault = offline_vault();
+        vault.force_status(VaultStatus::Unlocked);
+        vault.force_entries(vec![entry("uuid-1", "GitHub", Some("ben"), Some("github.com"))]);
+
+        let row = blocked_row(&vault, "uuid-1", "No login form in Discord".into());
+        assert_eq!(row.title, "GitHub");
+        assert_eq!(row.subtitle.as_deref(), Some("No login form in Discord"));
+        assert!(matches!(
+            row.actions[0].action,
+            Action::VaultAutotype { force: true, .. }
+        ));
+        assert!(row.actions[0].confirm, "typing anyway takes a second Enter");
+        assert!(
+            row.actions[1..]
+                .iter()
+                .all(|named| !matches!(named.action, Action::VaultAutotype { .. })),
+            "the guarded autotype it just refused is not offered again"
+        );
+        assert_eq!(row.actions[1].label, "Copy password");
     }
 
     #[test]
@@ -338,7 +446,7 @@ mod tests {
         assert_eq!(rows[0].title, "Discord");
         assert!(matches!(
             rows[0].primary_action(),
-            Some(Action::VaultAutotype { id }) if id == "uuid-1"
+            Some(Action::VaultAutotype { id, force: false }) if id == "uuid-1"
         ));
     }
 

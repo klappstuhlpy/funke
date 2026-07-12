@@ -44,6 +44,11 @@ pub struct Settings {
     /// Default autotype template, e.g. `{USERNAME}{TAB}{PASSWORD}{ENTER}`. Empty = the
     /// built-in sequence. An entry's own `autotype` custom field overrides this.
     pub vault_autotype_sequence: String,
+    /// Only autotype into a window that shows a login form (a password field UI
+    /// Automation can see). What stops a password — and the sequence's Enter — from being
+    /// typed into a chat box, a search bar, or the desktop. A blocked attempt is offered
+    /// back to the user as "type anyway", so this costs a confirmation, never the action.
+    pub vault_autotype_guard: bool,
     /// Lock the vault automatically when the Windows session locks (screen lock).
     pub vault_lock_on_screen_lock: bool,
     /// Offer the credential for the app that was focused when the overlay was summoned
@@ -86,6 +91,7 @@ impl Default for Settings {
             vault_idle_lock_minutes: 10,
             vault_autotype_enter: true,
             vault_autotype_sequence: String::new(),
+            vault_autotype_guard: true,
             vault_lock_on_screen_lock: true,
             vault_context_suggest: true,
             snippets: Vec::new(),

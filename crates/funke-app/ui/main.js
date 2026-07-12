@@ -34,6 +34,16 @@ let vaultPrompt = false;
 let vaultReturnQuery = "";
 let unlocking = false;
 
+// Every path that paints the list takes a ticket first. The ones that await the backend
+// (overview, search) check it again afterwards and drop their result if something else has
+// claimed the screen since — a blocked autotype arrives *while* the re-summoned overlay is
+// still loading its overview, and the overview must not paint over the warning.
+let paintToken = 0;
+
+// A blocked autotype is on screen (see showBlocked): the warning holds the list until the
+// user answers it — by overriding, by picking a copy, by typing, or by leaving.
+let blocked = false;
+
 // The window is sized by its content: report the panel height after every render.
 function resize() {
   invoke("resize_overlay", { height: Math.ceil(panel.getBoundingClientRect().height) });
@@ -298,7 +308,10 @@ async function submitVaultPassword() {
 // suggestions — or its unlock row, when it's locked and can't know yet), then recents.
 // `keepSelection` is for in-place refreshes (the context or a favicon arriving late).
 async function loadOverview({ keepSelection = false } = {}) {
+  const token = ++paintToken;
   const data = await invoke("overview");
+  if (token !== paintToken) return;
+  blocked = false;
   const previous = selected;
   mode = "overview";
   sections = [];
@@ -326,33 +339,66 @@ async function loadOverview({ keepSelection = false } = {}) {
 
 async function search() {
   const text = input.value;
+  blocked = false; // typing (or a re-run) leaves the warning behind
   closeActions();
   if (!text.trim()) {
     loadOverview();
     return;
   }
+  const token = ++paintToken;
+  const results = await invoke("search", { text });
+  if (token !== paintToken) return;
   mode = "results";
   groups = [];
-  sections = await invoke("search", { text });
+  sections = results;
   items = sections.flatMap((section) => section.items);
   selected = 0;
   count.textContent = items.length === 1 ? t("overlay.result") : t("overlay.results", { count: items.length });
   render();
 }
 
+/* ── a refused autotype ── */
+
+// The vault's login-form guard turned an autotype down (it would have typed a password
+// into a chat box, or found no field at all). The credential comes back with the reason
+// nothing was typed; its first action is the armed "type it anyway", so Enter arms and a
+// second Enter overrides — the same confirm path every destructive action uses. Nothing
+// here is interpreted: the row and its actions are the backend's, as always.
+function showBlocked(label, item) {
+  paintToken += 1;
+  vaultPrompt = false;
+  unlocking = false;
+  blocked = true;
+  closeActions();
+  input.type = "text";
+  input.placeholder = t("overlay.placeholder");
+  input.value = "";
+  mode = "results";
+  groups = [];
+  sections = [{ label, items: [item] }];
+  items = [item];
+  selected = 0;
+  count.textContent = label;
+  render();
+  input.focus();
+}
+
 // Re-run whatever is on screen in place, keeping the highlighted row — used when vault
 // favicons (or the focus context) arrive in the background. Never disturbs an open
-// actions menu or the password prompt.
+// actions menu, the password prompt, or a warning the user hasn't answered yet.
 async function refreshResults() {
-  if (actionsFor || vaultPrompt) return;
+  if (actionsFor || vaultPrompt || blocked) return;
   const text = input.value;
   if (!text.trim()) {
     loadOverview({ keepSelection: true });
     return;
   }
   const prev = selected;
+  const token = ++paintToken;
+  const results = await invoke("search", { text });
+  if (token !== paintToken) return;
   mode = "results";
-  sections = await invoke("search", { text });
+  sections = results;
   items = sections.flatMap((section) => section.items);
   selected = Math.min(prev, Math.max(0, items.length - 1));
   count.textContent = items.length === 1 ? t("overlay.result") : t("overlay.results", { count: items.length });
@@ -482,6 +528,11 @@ listen("vault-unlocked", () => {
   input.focus();
   search();
 });
+
+// Autotype refused: the vault won't type a password into a window that shows no login
+// form (funke-shell's `form` guard). The overlay takes the warning over whatever it was
+// showing — including the overview it may still be loading, hence the paint token.
+listen("autotype-blocked", (e) => showBlocked(e.payload.label, e.payload.item));
 
 // Background favicon fetches populated the cache: re-render the current results so
 // the icons appear in place, without disturbing the selection.

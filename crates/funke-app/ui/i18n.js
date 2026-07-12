@@ -117,6 +117,9 @@ const STRINGS = {
     "settings.vault.context": "Suggest for the focused app",
     "settings.vault.context.desc":
       "When you summon Funke over Discord (or a GitHub tab), offer that credential in the empty overlay — matched by process, window title, and the browser's address bar. Off means vault entries only ever appear behind <code>v</code>.",
+    "settings.vault.guard": "Only autotype into login forms",
+    "settings.vault.guard.desc":
+      "Type a password only into a window that shows a password field. It's what stops a credential — and the Enter behind it — from landing in a chat box, a search bar, or the desktop. A blocked attempt comes back with the entry, the reason, and a <b>Type it anyway</b> you can confirm, so windows Funke can't read (games, remote sessions, terminals) still work — they just ask first.",
     "settings.vault.autotype_enter": "Autotype presses Enter",
     "settings.vault.autotype_enter.desc":
       "After typing the password, submit the form automatically. Turn off to type the credentials and stop, leaving Enter to you. Applies to the built-in sequence only — a custom one below is typed exactly as written.",
@@ -311,6 +314,9 @@ const STRINGS = {
     "settings.vault.context": "Zur App im Vordergrund vorschlagen",
     "settings.vault.context.desc":
       "Rufst du Funke über Discord auf (oder über einen GitHub-Tab), schlägt das leere Overlay gleich die passenden Zugangsdaten vor — erkannt an Prozess, Fenstertitel und der Adresszeile des Browsers. Aus: Tresor-Einträge tauchen nur hinter <code>v</code> auf.",
+    "settings.vault.guard": "Nur in Login-Formulare tippen",
+    "settings.vault.guard.desc":
+      "Tippt ein Passwort nur in ein Fenster, das ein Passwortfeld zeigt. Das verhindert, dass Zugangsdaten — und das Enter dahinter — in einem Chatfenster, einer Suchleiste oder auf dem Desktop landen. Wird ein Versuch blockiert, kommt der Eintrag mit dem Grund zurück, dazu ein <b>Trotzdem tippen</b> zum Bestätigen: Fenster, die Funke nicht lesen kann (Spiele, Remote-Sitzungen, Terminals), funktionieren also weiter — sie fragen nur vorher.",
     "settings.vault.autotype_enter": "Autotype drückt Enter",
     "settings.vault.autotype_enter.desc":
       "Schickt das Formular nach dem Passwort gleich ab. Ist es aus, tippt Funke nur die Zugangsdaten — Enter bleibt dir überlassen. Gilt nur für die eingebaute Sequenz; eine eigene unten wird genau so getippt, wie sie dasteht.",

@@ -15,9 +15,9 @@
 
 use std::mem::ManuallyDrop;
 
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, VARIANT_BOOL};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
-use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
+use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_BOOL, VT_I4};
 use windows::Win32::UI::Accessibility::{
     CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationValuePattern, TreeScope_Descendants,
     UIA_ControlTypePropertyId, UIA_DocumentControlTypeId, UIA_EditControlTypeId, UIA_ValuePatternId,
@@ -55,13 +55,23 @@ pub fn is_browser_process(stem: &str) -> bool {
     BROWSERS.contains(&stem.to_ascii_lowercase().trim_end_matches(".exe"))
 }
 
+/// A UI Automation instance for the calling thread, COM initialized on the way (MTA —
+/// a UIA call from an STA thread that doesn't pump messages can deadlock).
+///
+/// Shared with [`crate::form`], which reads the *fields* of a window where this module
+/// reads its address bar. Elements, conditions and the instance they came from belong
+/// together — never mix them across two instances.
+pub(crate) fn automation() -> Option<IUIAutomation> {
+    COM_INIT.with(|()| ());
+    unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok() }
+}
+
 /// The URL currently shown in a browser window, or `None` when it can't be read — an
 /// unsupported browser, accessibility unavailable, or simply a page with no address
 /// (the caller then falls back to the window title and process name).
 pub fn browser_url(hwnd: isize) -> Option<String> {
-    COM_INIT.with(|()| ());
+    let automation = automation()?;
     unsafe {
-        let automation: IUIAutomation = CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok()?;
         let window = automation
             .ElementFromHandle(HWND(hwnd as *mut core::ffi::c_void))
             .ok()?;
@@ -86,7 +96,7 @@ pub fn browser_url(hwnd: isize) -> Option<String> {
 /// A `VT_I4` VARIANT — what `CreatePropertyCondition` wants for a control-type id. The
 /// raw Win32 VARIANT is a bare union, so it gets filled by hand; an integer variant owns
 /// nothing, so there is nothing to `VariantClear`.
-fn int_variant(value: i32) -> VARIANT {
+pub(crate) fn int_variant(value: i32) -> VARIANT {
     VARIANT {
         Anonymous: VARIANT_0 {
             Anonymous: ManuallyDrop::new(VARIANT_0_0 {
@@ -95,6 +105,24 @@ fn int_variant(value: i32) -> VARIANT {
                 wReserved2: 0,
                 wReserved3: 0,
                 Anonymous: VARIANT_0_0_0 { lVal: value },
+            }),
+        },
+    }
+}
+
+/// The same, `VT_BOOL` — for the flag properties [`crate::form`] conditions on
+/// (`IsPassword`, `IsOffscreen`, `HasKeyboardFocus`). COM's boolean is -1 for true.
+pub(crate) fn bool_variant(value: bool) -> VARIANT {
+    VARIANT {
+        Anonymous: VARIANT_0 {
+            Anonymous: ManuallyDrop::new(VARIANT_0_0 {
+                vt: VT_BOOL,
+                wReserved1: 0,
+                wReserved2: 0,
+                wReserved3: 0,
+                Anonymous: VARIANT_0_0_0 {
+                    boolVal: VARIANT_BOOL(if value { -1 } else { 0 }),
+                },
             }),
         },
     }

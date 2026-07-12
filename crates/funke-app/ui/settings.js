@@ -147,6 +147,7 @@ function renderAll() {
 
   document.getElementById("vault-hello").setAttribute("aria-checked", String(settings.vault_hello));
   document.getElementById("vault-icons").setAttribute("aria-checked", String(settings.vault_icons));
+  document.getElementById("vault-guard").setAttribute("aria-checked", String(settings.vault_autotype_guard));
   document
     .getElementById("vault-autotype-enter")
     .setAttribute("aria-checked", String(settings.vault_autotype_enter));
@@ -269,6 +270,9 @@ function buildStaticControls() {
   });
   document.getElementById("vault-hello").addEventListener("click", () => save({ vault_hello: !settings.vault_hello }));
   document.getElementById("vault-icons").addEventListener("click", () => save({ vault_icons: !settings.vault_icons }));
+  document
+    .getElementById("vault-guard")
+    .addEventListener("click", () => save({ vault_autotype_guard: !settings.vault_autotype_guard }));
   document
     .getElementById("vault-autotype-enter")
     .addEventListener("click", () => save({ vault_autotype_enter: !settings.vault_autotype_enter }));

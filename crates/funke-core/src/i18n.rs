@@ -121,6 +121,8 @@ const EN: &[(&str, &str)] = &[
     ("action.copy_to_clipboard", "Copy to clipboard"),
     ("action.remove_from_history", "Remove from history"),
     ("action.autotype", "Autotype into last window"),
+    ("action.autotype_open", "Open website & autofill"),
+    ("action.autotype_anyway", "Type it anyway"),
     ("action.copy_password", "Copy password"),
     ("action.copy_username", "Copy username"),
     ("action.copy_totp", "Copy TOTP"),
@@ -188,6 +190,23 @@ const EN: &[(&str, &str)] = &[
     ),
     // Reads on from "Bitwarden — ", so it is a clause, not a label.
     ("vault.how.master", "prompts for your master password"),
+    // A refused autotype (see funke-shell's `form` module). The row names the credential;
+    // these say why nothing was typed, and its Enter offers to type it anyway.
+    ("vault.blocked", "Autotype blocked"),
+    ("vault.blocked.window", "the focused window"),
+    (
+        "vault.blocked.no_form",
+        "No login form in {app} — nothing was typed, in case that's a chat box",
+    ),
+    (
+        "vault.blocked.no_field",
+        "Couldn't put the caret in {app}'s login form — nothing was typed",
+    ),
+    (
+        "vault.blocked.no_site",
+        "No login form appeared on {app} — nothing was typed",
+    ),
+    ("vault.blocked.no_url", "This entry has no website to open"),
     // What the app itself answers the settings window with. The section fallback is only
     // reached by a provider the registry cannot name — a bug, but a visible one.
     ("results.fallback", "Results"),
@@ -227,6 +246,8 @@ const DE: &[(&str, &str)] = &[
     ("action.copy_to_clipboard", "In Zwischenablage kopieren"),
     ("action.remove_from_history", "Aus Verlauf entfernen"),
     ("action.autotype", "Automatisch ausfüllen"),
+    ("action.autotype_open", "Website öffnen & ausfüllen"),
+    ("action.autotype_anyway", "Trotzdem tippen"),
     ("action.copy_password", "Passwort kopieren"),
     ("action.copy_username", "Benutzernamen kopieren"),
     ("action.copy_totp", "TOTP-Code kopieren"),
@@ -302,6 +323,22 @@ const DE: &[(&str, &str)] = &[
         "Enter nutzt Windows Hello, ⇧Enter das Master-Passwort",
     ),
     ("vault.how.master", "fragt nach dem Master-Passwort"),
+
+    ("vault.blocked", "Autotype blockiert"),
+    ("vault.blocked.window", "dem aktiven Fenster"),
+    (
+        "vault.blocked.no_form",
+        "Kein Login-Formular in {app} — nichts getippt, es könnte ein Chatfenster sein",
+    ),
+    (
+        "vault.blocked.no_field",
+        "Cursor ließ sich nicht ins Login-Formular von {app} setzen — nichts getippt",
+    ),
+    (
+        "vault.blocked.no_site",
+        "Auf {app} ist kein Login-Formular erschienen — nichts getippt",
+    ),
+    ("vault.blocked.no_url", "Dieser Eintrag hat keine Website zum Öffnen"),
 
     ("results.fallback", "Treffer"),
     ("hotkey.rejected", "„{hotkey}“ ließ sich nicht belegen: {error}"),

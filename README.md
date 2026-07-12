@@ -37,8 +37,13 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
 - **Windows** (`w`) — switch to any open window (Enter focuses, restores minimized) or end its process.
 - **Vault** (`v`) — Bitwarden/Vaultwarden via the official `bw` CLI: unlock in the overlay
   (or via **Windows Hello** after the first unlock, opt-in), autotype into the previous
-  window, copy password/username/**TOTP** with 30 s clipboard auto-clear, website icons,
-  idle auto-lock. Prefix-only for privacy — see [SECURITY.md](SECURITY.md).
+  window, **open the website and autofill** it (⇧Enter) when that window isn't open yet,
+  copy password/username/**TOTP** with 30 s clipboard auto-clear, website icons, idle
+  auto-lock. Prefix-only for privacy — see [SECURITY.md](SECURITY.md).
+- **Autotype that looks before it types** — a password only goes into a window that actually
+  shows a login form, so a mis-aimed autotype can't type your credentials into a chat box and
+  press Enter. Can't find one? Funke says so and offers to type it anyway, rather than doing it
+  quietly.
 - **Credentials for the app you're in** — summon Funke over Discord (or a GitHub tab) and the
   empty overlay offers *that* credential, matched by process, window title, and the browser's
   address bar; Enter types it straight back into the window you came from. Locked vault? It

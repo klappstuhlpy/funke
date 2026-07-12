@@ -223,6 +223,7 @@ mod tests {
             name: name.into(),
             username: Some("ben".into()),
             host: host.map(str::to_string),
+            uri: None,
             has_totp: false,
             organization: None,
             autotype: None,

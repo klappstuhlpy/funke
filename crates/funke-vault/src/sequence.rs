@@ -63,6 +63,21 @@ pub fn parse(template: &str) -> Vec<Step> {
     steps
 }
 
+/// The tail of a sequence from its first `{PASSWORD}` on — what to type when the caret
+/// could only be put in the **password** field itself (a password-only page, or a form
+/// whose username field UI Automation can't reach; see `funke_shell::Ready::PasswordOnly`).
+///
+/// Typing the whole sequence there would put the username in the password box and the
+/// password wherever `{TAB}` happened to land. A sequence with no `{PASSWORD}` at all
+/// yields nothing: there is no honest way to run `{USERNAME}{TAB}` into a password field,
+/// and the caller reports that as a blocked autotype rather than typing something else.
+pub fn password_onward(steps: &[Step]) -> Vec<Step> {
+    match steps.iter().position(|step| *step == Step::Password) {
+        Some(start) => steps[start..].to_vec(),
+        None => Vec::new(),
+    }
+}
+
 fn step_for(token: &str) -> Option<Step> {
     if let Some(ms) = token
         .strip_prefix("DELAY=")
@@ -118,6 +133,24 @@ mod tests {
             ]
         );
         assert_eq!(parse("{DELAY=999999}"), vec![Step::Delay(5_000)], "delays are capped");
+    }
+
+    /// The caret is in the password box: everything the sequence would have typed *before*
+    /// the password belongs to a field that isn't there.
+    #[test]
+    fn a_password_only_target_gets_the_sequence_from_the_password_on() {
+        assert_eq!(
+            password_onward(&parse("{USERNAME}{TAB}{PASSWORD}{ENTER}")),
+            vec![Step::Password, Step::Enter]
+        );
+        assert_eq!(
+            password_onward(&parse("{USERNAME}{TAB}{PASSWORD}{TAB}{TOTP}{ENTER}")),
+            vec![Step::Password, Step::Tab, Step::Totp, Step::Enter]
+        );
+        // Nothing to salvage: a sequence that never types a password has no meaning in a
+        // password field, so it types nothing at all.
+        assert!(password_onward(&parse("{USERNAME}{ENTER}")).is_empty());
+        assert!(password_onward(&[]).is_empty());
     }
 
     #[test]

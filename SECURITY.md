@@ -89,10 +89,28 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   talk to it while it runs. This is inherent to the official CLI's serve mode and is
   the reason the port is random and the server's lifetime is bounded by Funke's.
 - Autotype sends keystrokes to whatever window held focus before the overlay was
-  summoned. Verify the target window before confirming — a focus change in the ~150 ms
-  between dismiss and typing cannot be fully ruled out. A custom autotype sequence
-  (Settings, or an entry's `autotype` field) is typed exactly as written: a sequence that
-  types the password into the wrong field of the wrong form is the author's to get right.
+  summoned. Since 0.4.3 it refuses to type into a window that shows **no password field**
+  (UI Automation decides; "Only autotype into login forms", on by default) — which is what
+  keeps a credential out of a chat box, where a stray `{ENTER}` would *send* it. The guard
+  is a check, not a proof: UI Automation cannot read every window (games, remote sessions,
+  terminals), so a refusal is offered back as a confirmable "type it anyway", and a window
+  that *does* expose a password field is not thereby trustworthy. Verify the target window
+  before confirming — a focus change in the ~150 ms between dismiss and typing cannot be
+  fully ruled out. A custom autotype sequence (Settings, or an entry's `autotype` field) is
+  typed exactly as written: a sequence that types the password into the wrong field of the
+  wrong form is the author's to get right.
+- "Open website & autofill" types only once the browser's address bar names the entry's
+  site (registrable-domain equality — the same conservative matcher the suggestions use)
+  *and* a login form is up. It follows the **default browser**, and it will not follow a
+  redirect to a domain the entry does not name: an SSO login hosted elsewhere times out
+  unfilled rather than typing a password at a host the entry never claimed.
+  When the saved URI is a homepage, Funke will **click the page's own sign-in link** (an
+  exact name match — "Log in", "Sign in", "Anmelden" — inside the page, never the browser's
+  own chrome, never "Sign in with Google"). It never *guesses* a login URL and never looks
+  one up in a search engine: the target of an autofill must not be something SEO can choose.
+  The click is a navigation, not a secret — the host and login-form checks still gate the
+  typing on whatever page it lands on. To pin the page yourself, give the item a `loginurl`
+  custom field; it wins over everything.
 - Context matching can be wrong. It is deliberately conservative — a hit needs the URL's
   registrable domain, the process name, or (for a native app) the window title to *name*
   the entry — but a suggestion is only ever an offer: nothing is typed until you press

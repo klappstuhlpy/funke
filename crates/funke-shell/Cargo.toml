@@ -1,6 +1,6 @@
 [package]
 name = "funke-shell"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license.workspace = true
 description = "Windows shell helpers shared by provider crates (icon extraction, UI Automation)"

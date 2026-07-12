@@ -153,8 +153,46 @@ zeroized after use.
   templates that *name* fields (`{USERNAME}` `{PASSWORD}` `{TOTP}` `{TAB}` `{ENTER}`
   `{DELAY=n}`), parsed into steps — **no secret ever lives inside a parsed sequence**; the app
   resolves them at `SendInput` time from freshly fetched buffers.
+- **In scope, and the guard that makes it defensible: autotype only into a login form.**
+  `SendInput` types wherever focus is, and the window has no say in it — which makes the worst
+  case of a mis-aimed autotype *publication*, not failure: a password typed into a chat box,
+  with the sequence's `{ENTER}` behind it, is a password sent to a channel. So before a secret
+  is typed, `funke-shell`'s `form` module asks the target window through UI Automation (the
+  surface `uia.rs` already reads address bars from) whether it shows a **password field** at
+  all, and then whether the caret is **in a field** — focusing the form's username field itself
+  when it isn't, which is also how "open website & autofill" aims at a freshly loaded page.
+  Reaching only the password field (a password-only page) types the sequence from `{PASSWORD}`
+  on; the alternative is a username in the password box.
+  The guard is **advisory by design**. A window UIA cannot read — a game, an RDP session, a
+  terminal — is indistinguishable from a window with nothing to type into, so a refusal returns
+  the credential to the overlay with the reason and a confirmed "type it anyway" (and the copies
+  underneath), rather than a dead end. A guard with no way past it is a guard the user turns off;
+  it is a setting (`vault_autotype_guard`, on) precisely so that turning it off is a decision and
+  not a workaround.
+- **In scope: open website & autofill.** For the credential whose window isn't open yet: open the
+  entry's URI, wait until the browser is demonstrably on that site (the address bar, scored by
+  the same conservative matcher the context suggestions use) *and* a login form is up, then fill
+  it. The waiting is the safety: a page that cannot be identified is never typed into. An SSO
+  redirect to a domain the entry doesn't name times out into the same warning row — the honest
+  answer, given that the alternative is typing a password at a host we cannot vouch for.
+  Most saved URIs are **homepages**, which show no password field, so the login page is found in
+  three steps, none of which invents a URL: the item's `loginurl` custom field (the same escape
+  hatch `autotype` is), else the most login-shaped URI the item already carries, else the page's
+  **own sign-in link**, invoked through UI Automation once the homepage has settled
+  (`funke_shell::click_sign_in`). That click is fenced to the document (a browser's chrome has a
+  "Sign in" button of its own — Edge's profile, Chrome's sync) and to *exact* names, because
+  "Sign in with Google" contains "sign in" and leads to an identity provider the entry never
+  named. It clicks; it does not type. Every check above still has to pass on the page it lands on.
+- **Rejected: finding the login page with a web search.** The obvious fix for a homepage URI —
+  search "<site> login", open the first result — makes the *target of an autofill* something an
+  attacker can influence through SEO, ads, or a typosquat. It would hand the guard's whole
+  purpose back. If the page cannot be identified from the entry's own data or the site's own
+  markup, the warning row is the correct outcome. Written down because it will be suggested again.
 - **Out of scope: in-browser DOM autofill.** That is a browser extension's job, and the
-  Bitwarden extension already does it. Written down to preempt the #1 feature request.
+  Bitwarden extension already does it. Written down to preempt the #1 feature request. Note the
+  guard above is *not* a step toward it: reading a page's accessibility tree to decide whether a
+  password field exists is a world away from writing into the DOM, and the credential still goes
+  in as keystrokes.
 - **Out of scope: native passkey provision.** Supplying vault passkeys to the Windows WebAuthn
   prompt means registering as a third-party passkey provider and performing the FIDO2 ceremony
   ourselves — i.e. vault crypto outside the CLI, which the rule above forbids. A passkey also

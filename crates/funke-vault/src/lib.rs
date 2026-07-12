@@ -26,9 +26,9 @@ mod provider;
 mod sequence;
 mod serve;
 
-pub use context::FocusContext;
-pub use provider::{suggestions, VaultProvider};
-pub use sequence::Step;
+pub use context::{FocusContext, MIN_SUGGEST_SCORE};
+pub use provider::{blocked_row, suggestions, VaultProvider};
+pub use sequence::{password_onward, Step};
 
 use std::collections::{HashMap, HashSet};
 use std::process::Child;
@@ -60,6 +60,9 @@ pub struct VaultEntry {
     pub name: String,
     pub username: Option<String>,
     pub host: Option<String>,
+    /// The item's website, ready for a browser (`https://github.com/login`) — `None` when
+    /// it has no web URI at all (an app-only entry). What "open website & autofill" opens.
+    pub uri: Option<String>,
     /// The item has a TOTP seed (the seed itself never leaves the CLI).
     pub has_totp: bool,
     /// Organization name when the item lives in a shared vault; `None` = personal.
@@ -144,6 +147,17 @@ impl Vault {
 
     pub fn entries(&self) -> Vec<VaultEntry> {
         self.entries.read().unwrap().clone()
+    }
+
+    /// One cached entry by id — its name, site and URI, never its secrets. `None` once the
+    /// vault locks (the cache is wiped) or if the item is gone from the server.
+    pub fn entry(&self, id: &str) -> Option<VaultEntry> {
+        self.entries
+            .read()
+            .unwrap()
+            .iter()
+            .find(|entry| entry.id == id)
+            .cloned()
     }
 
     pub fn touch(&self) {
@@ -502,6 +516,7 @@ mod tests {
             name: "GitHub".into(),
             username: Some("ben".into()),
             host: Some("github.com".into()),
+            uri: Some("https://github.com/login".into()),
             has_totp: true,
             organization: None,
             autotype: autotype.map(str::to_string),

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod autofill;
 mod autotype;
 mod focus;
 mod native;
@@ -109,6 +110,15 @@ fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
 }
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Learn what the user picked, so it ranks sooner next time.
+fn record_frecency(state: &AppState, id: &str) {
+    let mut store = state.frecency.lock().unwrap();
+    store.record(id, unix_now());
+    if let Err(e) = store.save(&state.frecency_path) {
+        eprintln!("failed to persist frecency store: {e}");
+    }
+}
 
 /// Run one of the item's actions by index (Enter = 0, Shift+Enter = 1, actions menu =
 /// any). The UI never interprets actions — it sends the whole item and an index back.
@@ -276,27 +286,28 @@ fn run_action(
         } => {
             state.plugins.invoke(&plugin, &item, action_index)?;
         }
-        Action::VaultAutotype { id } => {
-            // The sequence says which fields it wants; only those are fetched.
-            let steps = state.vault.autotype_steps(&id);
-            let creds = state.vault.credentials(&id)?;
-            let totp = if steps.contains(&funke_vault::Step::Totp) {
-                Some(state.vault.totp(&id)?)
-            } else {
-                None
-            };
+        // Both autofill flows get a thread of their own, for the same reason
+        // `VaultHelloUnlock` does: this command runs on the main thread, which is the
+        // event loop and an STA — and they inspect the target window through UI
+        // Automation, wait for pages to load, and sleep between keystrokes. See
+        // `autofill`, which owns the login-form guard the secrets pass through.
+        Action::VaultAutotype { id, force } => {
+            // The overlay is *not* hidden here: `autofill` hides it once it knows the
+            // secret is going somewhere, so a refusal keeps the window it needs to explain
+            // itself in. Frecency is recorded up front, since this arm never reaches the
+            // tail below (a credential you autotype is one you reach for).
+            record_frecency(&state, &item.id);
             let target = state.prev_focus.lock().unwrap().take();
-            hide(&app, false);
-            if let Some(hwnd) = target {
-                focus::focus_window(hwnd);
-            }
-            // Give the focus change a beat to land before keystrokes flow.
-            std::thread::sleep(std::time::Duration::from_millis(150));
-            autotype::run(&steps, &creds, totp.as_deref());
-            // Credentials zeroize on drop (funke-vault); the TOTP code is ours to wipe.
-            if let Some(mut code) = totp {
-                zeroize::Zeroize::zeroize(&mut code);
-            }
+            let app = app.clone();
+            std::thread::spawn(move || autofill::autotype(app, id, target, force));
+            return Ok(());
+        }
+        Action::VaultOpenAutotype { id } => {
+            record_frecency(&state, &item.id);
+            let target = state.prev_focus.lock().unwrap().take();
+            let app = app.clone();
+            std::thread::spawn(move || autofill::open_and_autotype(app, id, target));
+            return Ok(());
         }
         Action::FocusWindow { hwnd } => {
             // Hide first: the overlay must be gone before foreground moves, and the
@@ -328,11 +339,7 @@ fn run_action(
     let persistable = item.provider != funke_clipboard::PROVIDER_ID;
 
     if persistable {
-        let mut store = state.frecency.lock().unwrap();
-        store.record(&item.id, unix_now());
-        if let Err(e) = store.save(&state.frecency_path) {
-            eprintln!("failed to persist frecency store: {e}");
-        }
+        record_frecency(&state, &item.id);
     }
 
     // Launcher controls, copied calc results, window handles (stale after the window

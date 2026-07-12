@@ -294,35 +294,111 @@ pub fn list_entries(port: u16) -> Result<Vec<VaultEntry>, String> {
 
 fn to_entry(item: Item, orgs: &HashMap<String, String>) -> VaultEntry {
     let login = item.login.as_ref();
+    let uris = login.and_then(|l| l.uris.as_ref());
     VaultEntry {
         id: item.id,
         name: item.name,
         username: login.and_then(|l| l.username.clone()).filter(|u| !u.is_empty()),
-        host: login
-            .and_then(|l| l.uris.as_ref())
+        host: uris
             .and_then(|uris| uris.iter().find_map(|u| u.uri.as_deref().and_then(host_of)))
             .map(str::to_string),
+        uri: login_uri(item.fields.as_deref(), uris.map(Vec::as_slice)),
         has_totp: login.and_then(|l| l.totp.as_deref()).is_some_and(|t| !t.is_empty()),
         organization: item.organization_id.and_then(|id| orgs.get(&id).cloned()),
         autotype: item.fields.as_ref().and_then(|fields| autotype_field(fields)),
     }
 }
 
-/// The item's `autotype` custom field — a KeePass-style sequence overriding the default
-/// for this login (see [`crate::sequence`]). Case-insensitive; a `funke-` prefix works
-/// too, for vaults that already use `autotype` for something else.
-fn autotype_field(fields: &[Field]) -> Option<String> {
-    fields
+/// Which page "open website & autofill" opens, most specific first:
+///
+/// 1. the item's **`loginurl` custom field** — the same escape hatch `autotype` is: when a
+///    heuristic gets it wrong, the entry itself gets to say where its login lives;
+/// 2. the **most login-shaped URI** the item already carries ([`looks_like_login`]) — an
+///    item saved with both `github.com` and `github.com/login` means the second one here;
+/// 3. failing that, its first web URI (a homepage; the sign-in link on it is the browser's
+///    problem, and `funke_shell::click_sign_in` asks the *page* for it rather than guessing
+///    a URL — see DESIGN §5).
+fn login_uri(fields: Option<&[Field]>, uris: Option<&[Uri]>) -> Option<String> {
+    if let Some(explicit) = fields.and_then(named_field("loginurl")).and_then(|uri| web_uri(&uri)) {
+        return Some(explicit);
+    }
+    let web: Vec<String> = uris
+        .unwrap_or_default()
         .iter()
-        .find(|field| {
-            field.name.as_deref().is_some_and(|name| {
-                let name = name.trim();
-                name.eq_ignore_ascii_case("autotype") || name.eq_ignore_ascii_case("funke-autotype")
+        .filter_map(|uri| uri.uri.as_deref().and_then(web_uri))
+        .collect();
+    web.iter()
+        .find(|uri| looks_like_login(uri))
+        .or_else(|| web.first())
+        .cloned()
+}
+
+/// Does this URL's *path* say it is a sign-in page? Only the path is read — a host called
+/// `login.example.com` is a site, not a page, and matching on the query string would let
+/// `?next=/login` masquerade as one.
+fn looks_like_login(uri: &str) -> bool {
+    const MARKERS: &[&str] = &["login", "log-in", "signin", "sign-in", "auth", "anmelden", "session"];
+    let after_scheme = uri.split_once("://").map_or(uri, |(_, rest)| rest);
+    let Some((_host, path)) = after_scheme
+        .split(['?', '#'])
+        .next()
+        .and_then(|rest| rest.split_once('/'))
+    else {
+        return false;
+    };
+    let path = path.to_ascii_lowercase();
+    MARKERS.iter().any(|marker| path.contains(marker))
+}
+
+/// The item's website, as something a browser can be handed — what "open website &
+/// autofill" opens. Bitwarden URIs are free text: they carry `androidapp://com.discord`
+/// and `iosapp://` entries that name an app rather than a page, and those are skipped
+/// (opening one would hand the shell a scheme nothing on Windows answers). A scheme-less
+/// `github.com` is a website with the scheme left off, and gets `https://`.
+fn web_uri(uri: &str) -> Option<String> {
+    let uri = uri.trim();
+    let (scheme, rest) = match uri.split_once("://") {
+        Some((scheme, rest)) => (Some(scheme.to_ascii_lowercase()), rest),
+        None => (None, uri),
+    };
+    // A host, not a note: an entry whose "URI" is the word "Steam" names an app, and
+    // https://Steam is not a page.
+    let host = host_of(rest)?;
+    if !host.contains('.') && !host.eq_ignore_ascii_case("localhost") {
+        return None;
+    }
+    match scheme.as_deref() {
+        Some("http") | Some("https") => Some(uri.to_string()),
+        // A bare host (or `www.…`) — the shape a user types into the address bar.
+        None => Some(format!("https://{uri}")),
+        Some(_) => None,
+    }
+}
+
+/// The item's `autotype` custom field — a KeePass-style sequence overriding the default
+/// for this login (see [`crate::sequence`]).
+fn autotype_field(fields: &[Field]) -> Option<String> {
+    named_field("autotype")(fields)
+}
+
+/// One custom field by name, non-empty and trimmed. Case-insensitive, and a `funke-`
+/// prefix works too (`funke-autotype`, `funke-loginurl`) for vaults that already use the
+/// bare name for something of their own. The rest of an item's custom fields — which may
+/// hold secrets — is never read.
+fn named_field(name: &'static str) -> impl Fn(&[Field]) -> Option<String> {
+    move |fields| {
+        fields
+            .iter()
+            .find(|field| {
+                field.name.as_deref().is_some_and(|candidate| {
+                    let candidate = candidate.trim();
+                    candidate.eq_ignore_ascii_case(name) || candidate.eq_ignore_ascii_case(&format!("funke-{name}"))
+                })
             })
-        })
-        .and_then(|field| field.value.clone())
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+            .and_then(|field| field.value.clone())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    }
 }
 
 /// `https://github.com/login` → `github.com`, tolerant of scheme-less URIs.
@@ -410,6 +486,83 @@ mod tests {
         );
         assert_eq!(host_of("example.com"), Some("example.com"));
         assert_eq!(host_of(""), None);
+    }
+
+    /// What "open website & autofill" is allowed to hand the shell: a page, never an
+    /// app-URI or a note the user parked in the URI field.
+    #[test]
+    fn only_web_uris_can_be_opened() {
+        assert_eq!(
+            web_uri("https://github.com/login").as_deref(),
+            Some("https://github.com/login")
+        );
+        assert_eq!(web_uri("github.com").as_deref(), Some("https://github.com"));
+        assert_eq!(
+            web_uri("http://192.168.1.1/admin").as_deref(),
+            Some("http://192.168.1.1/admin")
+        );
+        assert_eq!(web_uri("androidapp://com.discord"), None);
+        assert_eq!(web_uri("iosapp://com.steam"), None);
+        assert_eq!(web_uri("Steam"), None, "a name is not a website");
+        assert_eq!(web_uri(""), None);
+    }
+
+    fn uris(list: &[&str]) -> Vec<Uri> {
+        list.iter()
+            .map(|uri| Uri {
+                uri: Some((*uri).to_string()),
+            })
+            .collect()
+    }
+
+    fn field(name: &str, value: &str) -> Field {
+        Field {
+            name: Some(name.into()),
+            value: Some(value.into()),
+        }
+    }
+
+    /// Which page gets opened, and why: the entry's own say-so first, then the URI that
+    /// looks like a sign-in page, then whatever it has. Nothing is ever *constructed* — a
+    /// login URL Funke invented is a page nobody vouched for.
+    #[test]
+    fn the_login_page_is_chosen_from_what_the_entry_carries() {
+        // A homepage is what most entries hold; it is used as-is (the sign-in link on it is
+        // asked for at open time, not guessed here).
+        assert_eq!(
+            login_uri(None, Some(&uris(&["https://github.com"]))).as_deref(),
+            Some("https://github.com")
+        );
+        // …but if the entry already knows the login page, that one wins, whatever its order.
+        assert_eq!(
+            login_uri(None, Some(&uris(&["https://github.com", "https://github.com/login"]))).as_deref(),
+            Some("https://github.com/login")
+        );
+        // The `loginurl` field overrides everything — the escape hatch for a heuristic that
+        // got it wrong, exactly like `autotype`.
+        assert_eq!(
+            login_uri(
+                Some(&[field("loginurl", "https://id.example.com/enter")]),
+                Some(&uris(&["https://example.com/signin"]))
+            )
+            .as_deref(),
+            Some("https://id.example.com/enter")
+        );
+        // App-only entries have no page to open at all.
+        assert_eq!(login_uri(None, Some(&uris(&["androidapp://com.discord"]))), None);
+        assert_eq!(login_uri(None, None), None);
+    }
+
+    #[test]
+    fn only_a_uris_path_can_make_it_look_like_a_login_page() {
+        assert!(looks_like_login("https://github.com/login"));
+        assert!(looks_like_login("https://accounts.google.com/signin/v2"));
+        assert!(looks_like_login("https://example.de/anmelden"));
+        assert!(!looks_like_login("https://github.com"));
+        // The host is a site, not a page: `login.example.com/dashboard` is not a login form,
+        // and a query string is the site's text, not its address.
+        assert!(!looks_like_login("https://login.example.com/dashboard"));
+        assert!(!looks_like_login("https://example.com/?next=/login"));
     }
 
     #[test]

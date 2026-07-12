@@ -97,7 +97,19 @@ pub enum Action {
     /// it never rides inside a `ResultItem`.
     VaultCopy { id: String, field: String },
     /// Autotype a vault item's credentials into the previously focused window.
-    VaultAutotype { id: String },
+    ///
+    /// `force` skips the login-form guard (`Settings::vault_autotype_guard`): it is what
+    /// the "type anyway" row a blocked autotype offers carries, and the only way a secret
+    /// is ever typed into a window that shows no password field. Never set on a row the
+    /// providers produce — the user has to ask for it, per attempt.
+    VaultAutotype {
+        id: String,
+        #[serde(default)]
+        force: bool,
+    },
+    /// Open a vault item's website in the default browser and autofill it once the login
+    /// form is up — for the credential you have no window open for yet.
+    VaultOpenAutotype { id: String },
     /// Hand an action back to the out-of-process plugin that produced the item;
     /// the plugin executes it (the host only routes).
     PluginInvoke {
