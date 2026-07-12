@@ -1,6 +1,6 @@
 [package]
 name = "funke-plugin-agent-sessions"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license.workspace = true
 description = "Search and resume Claude Code and Codex sessions from the launcher"
