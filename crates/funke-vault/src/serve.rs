@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use base64::Engine;
 use serde::Deserialize;
 
+use crate::job::KillOnDropJob;
 use crate::VaultEntry;
 
 const START_TIMEOUT: Duration = Duration::from_secs(15);
@@ -30,6 +31,24 @@ pub enum StartError {
     Failed(String),
 }
 
+/// The running `bw serve` child plus the job object that bounds its lifetime.
+///
+/// The job is the load-bearing half: with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` set, the
+/// kernel terminates the server the moment this process's last handle to the job closes —
+/// which happens even when funke crashes and no destructor runs. `kill()` stays for the
+/// graceful paths (and as the whole story on the rare machine where the job couldn't be
+/// created).
+pub struct ServeProcess {
+    child: Child,
+    _job: Option<KillOnDropJob>,
+}
+
+impl ServeProcess {
+    pub fn kill(&mut self) -> std::io::Result<()> {
+        self.child.kill()
+    }
+}
+
 /// What `/status` reports: the vault state plus the configured server (which decides
 /// where favicons come from).
 pub struct StatusInfo {
@@ -38,18 +57,18 @@ pub struct StatusInfo {
 }
 
 /// Find the CLI, spawn `bw serve`, and wait until `/status` answers.
-/// Returns the child, the port, and the reported status.
-pub fn start() -> Result<(Child, u16, StatusInfo), StartError> {
+/// Returns the child (job-bound, see [`ServeProcess`]), the port, and the reported status.
+pub fn start() -> Result<(ServeProcess, u16, StatusInfo), StartError> {
     start_with(None)
 }
 
 /// [`start`], but with `BW_SESSION` in the child's environment — the server comes up
 /// already unlocked (the Windows Hello path).
-pub fn start_with_session(session: &str) -> Result<(Child, u16, StatusInfo), StartError> {
+pub fn start_with_session(session: &str) -> Result<(ServeProcess, u16, StatusInfo), StartError> {
     start_with(Some(session))
 }
 
-fn start_with(session: Option<&str>) -> Result<(Child, u16, StatusInfo), StartError> {
+fn start_with(session: Option<&str>) -> Result<(ServeProcess, u16, StatusInfo), StartError> {
     if !cli_available() {
         return Err(StartError::NoCli);
     }
@@ -71,10 +90,20 @@ fn start_with(session: Option<&str>) -> Result<(Child, u16, StatusInfo), StartEr
     }
     let mut child = command.spawn().map_err(|e| StartError::Failed(e.to_string()))?;
 
+    // Bind the child's lifetime to ours at the kernel: a crashed funke must not leave an
+    // unlocked REST API listening. Best-effort — no job is a warning, never a refusal.
+    let job = match KillOnDropJob::new().and_then(|job| job.assign(&child).map(|()| job)) {
+        Ok(job) => Some(job),
+        Err(e) => {
+            eprintln!("warning: bw serve is not job-bound (it may outlive a crashed funke): {e}");
+            None
+        }
+    };
+
     let deadline = Instant::now() + START_TIMEOUT;
     loop {
         if let Ok(status) = status(port) {
-            return Ok((child, port, status));
+            return Ok((ServeProcess { child, _job: job }, port, status));
         }
         if Instant::now() >= deadline {
             let _ = child.kill();

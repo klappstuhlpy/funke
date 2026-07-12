@@ -10,10 +10,13 @@
 //! Privacy/security posture:
 //! - `prefix_only`: entries appear for `v <query>` searches, never global ones.
 //! - Auto-lock after `Settings::vault_idle_lock_minutes` without vault use, and (opt-in)
-//!   the moment the Windows session locks (`POST /lock` + cache wipe; with a persisted
-//!   Hello session the server is killed instead — a `bw lock` would invalidate the
-//!   stored session key).
-//! - `bw serve` binds 127.0.0.1 and dies with the launcher ([`Vault::shutdown`]).
+//!   the moment the user walks away — session lock, sleep/hibernate, RDP disconnect
+//!   ([`session_events`], with [`lockscreen`]'s poll as fallback). Locking is
+//!   `POST /lock` + cache wipe; with a persisted Hello session the server is killed
+//!   instead — a `bw lock` would invalidate the stored session key.
+//! - `bw serve` binds 127.0.0.1 and dies with the launcher — gracefully via
+//!   [`Vault::shutdown`], and on a crash via the kill-on-close job object every serve
+//!   child is assigned to ([`job`]): the kernel, not a destructor, bounds its lifetime.
 //! - Windows Hello unlock (opt-in, [`hello`]): a DPAPI-protected session key lets
 //!   repeat unlocks skip the master password behind a Hello consent prompt.
 //! - Website icons (opt-in-out): favicons come from the configured server's icon
@@ -21,17 +24,19 @@
 
 mod context;
 mod hello;
+mod job;
 mod lockscreen;
 mod provider;
+mod secret_buf;
 mod sequence;
 mod serve;
+mod session_events;
 
 pub use context::{FocusContext, MIN_SUGGEST_SCORE};
 pub use provider::{blocked_row, suggestions, VaultProvider};
 pub use sequence::{password_onward, Step};
 
 use std::collections::{HashMap, HashSet};
-use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -92,7 +97,8 @@ pub struct Vault {
     status: Mutex<VaultStatus>,
     /// Set once `bw serve` responds; the whole REST surface hangs off this port.
     port: Mutex<Option<u16>>,
-    child: Mutex<Option<Child>>,
+    /// The serve child and its kill-on-close job — dropping the slot is itself a kill.
+    child: Mutex<Option<serve::ServeProcess>>,
     entries: RwLock<Vec<VaultEntry>>,
     /// Per-host favicon data URLs; a cached `None` means "tried, no icon" (no retry).
     icons: RwLock<HashMap<String, Option<String>>>,
@@ -237,9 +243,10 @@ impl Vault {
             return Err("Windows Hello unlock isn't set up — unlock with your master password once".into());
         }
         hello::verify(hwnd, "Unlock your Bitwarden vault")?;
-        let mut session = hello::load_session()?;
-        let respawned = self.respawn_serve(Some(&session));
-        session.zeroize();
+        // Page-locked while it waits for `bw serve` to boot; zeroized+freed on drop.
+        let session = hello::load_session()?;
+        let respawned = self.respawn_serve(Some(session.as_str()?));
+        drop(session);
         let (port, status) = respawned?;
         if status != "unlocked" {
             // Invalidated elsewhere (bw lock/logout, a newer unlock) — back to the
@@ -479,6 +486,18 @@ impl Vault {
         if self.watchdog_running.swap(true, Ordering::SeqCst) {
             return;
         }
+        // The message-driven twin of the poll below: session lock, RDP disconnect, and
+        // suspend/resume arrive as events the moment they happen, where the poll would
+        // notice the lock case alone, up to 30 s late. Same setting governs both — all
+        // four are the user walking away.
+        let events_vault = Arc::clone(self);
+        session_events::watch(move || {
+            if events_vault.settings.read().unwrap().vault_lock_on_screen_lock
+                && events_vault.status() == VaultStatus::Unlocked
+            {
+                events_vault.lock();
+            }
+        });
         let vault = Arc::clone(self);
         std::thread::spawn(move || loop {
             std::thread::sleep(Duration::from_secs(30));

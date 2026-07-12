@@ -34,9 +34,18 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   in-memory to pick a credential and is dropped on the next summon.
 - **Auto-lock.** The vault locks itself after a configurable idle period (Settings →
   default 10 minutes; can be disabled) without vault use, and — opt-in, on by default —
-  the moment you lock Windows (cache wiped; `POST /lock`, or with Windows Hello enabled
-  the `bw serve` process is killed instead — see below). `bw serve` is also locked and
+  the moment you walk away: locking Windows, the machine going to sleep or hibernating,
+  or a remote-desktop session disconnecting (all delivered as session events, with a
+  polling fallback; cache wiped; `POST /lock`, or with Windows Hello enabled the
+  `bw serve` process is killed instead — see below). `bw serve` is also locked and
   killed when Funke exits.
+- **Vault content is hidden from screen capture** (Settings → Vault, on by default).
+  While the overlay shows the masked master-password prompt, vault search results, or a
+  context suggestion, the window is excluded from screenshots, recordings, and screen
+  shares (`WDA_EXCLUDEFROMCAPTURE`; on Windows builds too old for it, the window captures
+  as a black box instead). Plain results stay capturable on purpose — a launcher you
+  cannot screenshot reads as a bug — and the shield drops the moment the vault content
+  leaves the screen.
 - **Clipboard auto-clear, and exclusion from every clipboard monitor.** Copied secrets
   (passwords, usernames, TOTP codes) are wiped from the clipboard after 30 seconds unless
   you've since copied something else — and they are written with the standard exclusion
@@ -87,7 +96,11 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
 
 - `bw serve` has no request authentication: any local process running as your user can
   talk to it while it runs. This is inherent to the official CLI's serve mode and is
-  the reason the port is random and the server's lifetime is bounded by Funke's.
+  the reason the port is random and the server's lifetime is bounded by Funke's — and
+  that bound is enforced by the kernel, not just by a clean exit: every serve process is
+  assigned to a kill-on-close job object, so even a crashed or force-killed Funke cannot
+  leave an unlocked server listening. (On the rare system where the job cannot be
+  created, Funke logs a warning and falls back to the exit-time kill.)
 - Autotype sends keystrokes to whatever window held focus before the overlay was
   summoned. Since 0.5.0 it refuses to type into a window that shows **no password field**
   (UI Automation decides; "Only autotype into login forms", on by default) — which is what
@@ -128,6 +141,15 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
 - The master password crosses the webview IPC boundary as a string once per unlock.
   Rust-side copies are zeroized immediately; the webview side is cleared but JS string
   lifetime is ultimately up to the engine's garbage collector.
+- Zeroizing bounds a secret's lifetime, not its location. Two additional mitigations
+  narrow the location story: Funke excludes itself from Windows Error Reporting at
+  startup (a crash dump would carry whatever secret was in flight; an admin-configured
+  LocalDumps policy or an attached debugger can still dump), and the decrypted Windows
+  Hello session key is held in page-locked (`VirtualLock`) memory that cannot be swapped
+  to the pagefile while it waits for `bw serve` to boot. Secrets that merely pass
+  through (a fetched password between REST parse and keystrokes) are zeroized but not
+  page-locked — the parse makes transient copies no wrapper can catch, and pretending
+  otherwise would be theater.
 - With Windows Hello unlock enabled, the Hello prompt is a **user-presence gate, not
   an extra encryption layer**: the session key is protected by DPAPI, so other code
   running under your Windows account could decrypt it without a Hello prompt. This is

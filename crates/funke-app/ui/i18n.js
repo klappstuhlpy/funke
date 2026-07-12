@@ -116,7 +116,7 @@ const STRINGS = {
       "Show site favicons on vault entries, fetched from your Bitwarden server's icon service (it learns the sites you search).",
     "settings.vault.context": "Suggest for the focused app",
     "settings.vault.context.desc":
-      "When you summon Funke over Discord (or a GitHub tab), offer that credential in the empty overlay — matched by process, window title, and the browser's address bar. Off means vault entries only ever appear behind <code>v</code>.",
+      "When you summon Funke over an app (or a website in your browser), offer that credential in the empty overlay — matched by process, window title, and the browser's address bar. Off means vault entries only ever appear behind <code>v</code>.",
     "settings.vault.guard": "Only autotype into login forms",
     "settings.vault.guard.desc":
       "Type a password only into a window that shows a password field. It's what stops a credential — and the Enter behind it — from landing in a chat box, a search bar, or the desktop. A blocked attempt comes back with the entry, the reason, and a <b>Type it anyway</b> you can confirm, so windows Funke can't read (games, remote sessions, terminals) still work — they just ask first.",
@@ -126,8 +126,12 @@ const STRINGS = {
     "settings.vault.sequence": "Autotype sequence",
     "settings.vault.sequence.desc":
       "What autotype types, if not the usual username ⇥ password. Tokens: <code>{USERNAME}</code> <code>{PASSWORD}</code> <code>{TOTP}</code> <code>{TAB}</code> <code>{ENTER}</code> <code>{DELAY=500}</code>. A single entry can override this with an <code>autotype</code> custom field in Bitwarden.",
-    "settings.vault.lock_screen": "Lock on screen lock",
-    "settings.vault.lock_screen.desc": "Lock the vault immediately when you lock Windows (Win+L).",
+    "settings.vault.lock_screen": "Lock when you step away",
+    "settings.vault.lock_screen.desc":
+      "Lock the vault the moment Windows locks (Win+L), the machine goes to sleep, or a remote session disconnects.",
+    "settings.vault.capture_shield": "Hide vault content from screen capture",
+    "settings.vault.capture_shield.desc":
+      "Screenshots, recordings and screen shares can't see the overlay while it shows the master-password prompt or vault entries. Everything else stays capturable.",
     "settings.vault.idle": "Auto-lock after idle",
     "settings.vault.idle.desc": "Lock the vault after this long without using it.",
     "settings.idle.minutes": "{count} minutes",
@@ -313,7 +317,7 @@ const STRINGS = {
       "Zeigt Favicons auf den Tresor-Einträgen. Die kommen vom Icon-Dienst deines Bitwarden-Servers — der erfährt damit, nach welchen Seiten du suchst.",
     "settings.vault.context": "Zur App im Vordergrund vorschlagen",
     "settings.vault.context.desc":
-      "Rufst du Funke über Discord auf (oder über einen GitHub-Tab), schlägt das leere Overlay gleich die passenden Zugangsdaten vor — erkannt an Prozess, Fenstertitel und der Adresszeile des Browsers. Aus: Tresor-Einträge tauchen nur hinter <code>v</code> auf.",
+      "Rufst du Funke über einer App auf (oder über einer Website im Browser), schlägt das leere Overlay gleich die passenden Zugangsdaten vor — erkannt an Prozess, Fenstertitel und der Adresszeile des Browsers. Aus: Tresor-Einträge tauchen nur hinter <code>v</code> auf.",
     "settings.vault.guard": "Nur in Login-Formulare tippen",
     "settings.vault.guard.desc":
       "Tippt ein Passwort nur in ein Fenster, das ein Passwortfeld zeigt. Das verhindert, dass Zugangsdaten — und das Enter dahinter — in einem Chatfenster, einer Suchleiste oder auf dem Desktop landen. Wird ein Versuch blockiert, kommt der Eintrag mit dem Grund zurück, dazu ein <b>Trotzdem tippen</b> zum Bestätigen: Fenster, die Funke nicht lesen kann (Spiele, Remote-Sitzungen, Terminals), funktionieren also weiter — sie fragen nur vorher.",
@@ -323,8 +327,12 @@ const STRINGS = {
     "settings.vault.sequence": "Autotype-Sequenz",
     "settings.vault.sequence.desc":
       "Was Autotype tippen soll, wenn nicht das übliche „Benutzername ⇥ Passwort“. Platzhalter: <code>{USERNAME}</code> <code>{PASSWORD}</code> <code>{TOTP}</code> <code>{TAB}</code> <code>{ENTER}</code> <code>{DELAY=500}</code>. Ein einzelner Eintrag kann das mit einem <code>autotype</code>-Feld in Bitwarden überschreiben.",
-    "settings.vault.lock_screen": "Bei Bildschirmsperre sperren",
-    "settings.vault.lock_screen.desc": "Sperrt den Tresor gleich mit, wenn du Windows sperrst (Win+L).",
+    "settings.vault.lock_screen": "Beim Weggehen sperren",
+    "settings.vault.lock_screen.desc":
+      "Sperrt den Tresor, sobald Windows gesperrt wird (Win+L), der Rechner in den Ruhezustand geht oder eine Remote-Sitzung getrennt wird.",
+    "settings.vault.capture_shield": "Tresorinhalte vor Bildschirmaufnahmen verbergen",
+    "settings.vault.capture_shield.desc":
+      "Screenshots, Aufnahmen und geteilte Bildschirme sehen das Overlay nicht, solange es die Master-Passwort-Abfrage oder Tresoreinträge zeigt. Alles andere bleibt aufnehmbar.",
     "settings.vault.idle": "Nach Inaktivität sperren",
     "settings.vault.idle.desc": "Sperrt den Tresor, wenn er so lange nicht benutzt wurde.",
     "settings.idle.minutes": "{count} Minuten",

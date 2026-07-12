@@ -249,6 +249,9 @@ function enterVaultPrompt() {
   vaultPrompt = true;
   vaultReturnQuery = input.value;
   closeActions();
+  // Shield before the first masked character can be typed (screen capture must not see
+  // the master-password prompt — best-effort, the prompt never waits on it).
+  invoke("set_capture_shield", { active: true });
   input.value = "";
   input.type = "password";
   input.placeholder = t("overlay.master_password");
@@ -259,6 +262,7 @@ function enterVaultPrompt() {
 function exitVaultPrompt(restoreQuery) {
   vaultPrompt = false;
   unlocking = false;
+  invoke("set_capture_shield", { active: false });
   input.value = "";
   input.type = "text";
   input.placeholder = t("overlay.placeholder");
@@ -563,6 +567,8 @@ listen("overlay-shown", () => {
     vaultReturnQuery = "";
     input.type = "text";
     input.placeholder = t("overlay.placeholder");
+    // This reset bypasses exitVaultPrompt, so the shield it raised is dropped here.
+    invoke("set_capture_shield", { active: false });
   }
   input.value = "";
   loadOverview(); // refreshes greeting/uptime; content is already reset

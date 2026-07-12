@@ -9,6 +9,36 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+### Added
+- **Screen capture can't see vault content anymore.** While the overlay shows the masked
+  master-password prompt, vault rows, or a context suggestion, the window is excluded
+  from screenshots, recordings, and screen shares (`SetWindowDisplayAffinity` with
+  `WDA_EXCLUDEFROMCAPTURE`; older Windows falls back to capturing a black box). The
+  shield is scoped, not blanket: plain results stay capturable, so demos and bug-report
+  screenshots keep working, and the exclusion drops as soon as the vault content leaves
+  the screen. `Vault → Hide vault content from screen capture`, on by default.
+- **The vault now locks when the machine sleeps or a remote session disconnects** — not
+  only on screen lock. All three are the same event ("the user walked away"), but only
+  the lock case was covered, and even that by a 30-second poll. Session and power events
+  are now delivered as window messages the moment they happen; suspend is caught on both
+  edges (a fast sleep can swallow the suspend message, so the wake always locks too).
+  The poll stays as fallback, and the existing "Lock when you step away" setting governs
+  all of it.
+- **`bw serve` can no longer outlive a crashed Funke.** Until now the vault server was
+  killed on exit — a *graceful* path. If Funke crashed or was force-killed, an unlocked
+  `bw serve`, whose loopback REST API has no request authentication, kept listening
+  indefinitely. Every serve process is now assigned to a kill-on-close Windows job
+  object, so the kernel terminates it the moment Funke's process ends, however it ends.
+  Where the job can't be created the old behavior remains, with a logged warning.
+
+### Changed
+- **Secrets stay out of crash dumps and (where they rest) out of the pagefile.** Funke
+  excludes itself from Windows Error Reporting at startup — a WER dump of a crashed
+  launcher would have carried whatever secret was in flight — and the decrypted Windows
+  Hello session key now lives in page-locked memory (`VirtualLock`) from DPAPI decrypt to
+  `bw serve` boot, so it cannot be swapped to disk while it waits. Both are hardening
+  layers with documented limits (SECURITY.md), not vaults.
+
 ## [0.5.0] - 2026-07-12
 
 ### Added

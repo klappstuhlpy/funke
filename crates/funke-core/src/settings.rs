@@ -49,8 +49,14 @@ pub struct Settings {
     /// typed into a chat box, a search bar, or the desktop. A blocked attempt is offered
     /// back to the user as "type anyway", so this costs a confirmation, never the action.
     pub vault_autotype_guard: bool,
-    /// Lock the vault automatically when the Windows session locks (screen lock).
+    /// Lock the vault automatically when the user walks away: session lock (Win+L),
+    /// sleep/hibernate, or an RDP disconnect. (The field name predates the wider
+    /// trigger list — it is persisted API, so it keeps its name.)
     pub vault_lock_on_screen_lock: bool,
+    /// Hide the overlay from screen capture (screenshots, recordings, shares) while it
+    /// shows vault content — the masked master-password prompt, vault rows, context
+    /// suggestions. Plain results stay capturable, so demos and screenshots still work.
+    pub vault_capture_shield: bool,
     /// Offer the credential for the app that was focused when the overlay was summoned
     /// (empty query), matched by window title, process, and — in browsers — the address
     /// bar's URL. Off means vault entries only ever appear behind the `v` keyword.
@@ -93,6 +99,7 @@ impl Default for Settings {
             vault_autotype_sequence: String::new(),
             vault_autotype_guard: true,
             vault_lock_on_screen_lock: true,
+            vault_capture_shield: true,
             vault_context_suggest: true,
             snippets: Vec::new(),
         }

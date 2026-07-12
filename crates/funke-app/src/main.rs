@@ -51,6 +51,15 @@ struct AppState {
     focus_context: Mutex<funke_vault::FocusContext>,
     /// A Windows Hello prompt is up: its focus steal must not dismiss the overlay.
     hello_in_flight: std::sync::atomic::AtomicBool,
+    /// The overlay is in the masked master-password prompt (declared by the UI). One of
+    /// the two capture-shield triggers — see [`refresh_capture_shield`].
+    shield_prompt: std::sync::atomic::AtomicBool,
+    /// The last reply the overlay rendered contained vault rows (derived in `search` /
+    /// `overview`). The other capture-shield trigger.
+    shield_rows: std::sync::atomic::AtomicBool,
+    /// The exclusion state actually applied to the overlay HWND, so redundant
+    /// `SetWindowDisplayAffinity` calls are never issued — see [`refresh_capture_shield`].
+    shield_applied: std::sync::atomic::AtomicBool,
 }
 
 fn unix_now() -> u64 {
@@ -68,10 +77,17 @@ struct Section {
 }
 
 #[tauri::command]
-fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
+fn search(app: AppHandle, state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
     let settings = state.settings.read().unwrap().clone();
     let registry = state.registry.read().unwrap();
     let mut items = registry.search_enabled(&Query::new(text), |meta| settings.provider_enabled(meta.id));
+
+    // Vault rows on screen are one of the capture-shield triggers (SECURITY.md).
+    let has_vault_rows = items.iter().any(|item| item.provider == "vault");
+    state
+        .shield_rows
+        .store(has_vault_rows, std::sync::atomic::Ordering::SeqCst);
+    refresh_capture_shield(&app);
     let store = state.frecency.lock().unwrap();
     let now = unix_now();
     for item in &mut items {
@@ -81,7 +97,7 @@ fn search(state: tauri::State<'_, AppState>, text: String) -> Vec<Section> {
     // Context boost: vault entries belonging to the window that was focused before the
     // overlay (a Steam login window floats the Steam credential, a GitHub tab the GitHub
     // one). Same scorer as the overview's suggestions — see funke_vault::context.
-    if items.iter().any(|item| item.provider == "vault") {
+    if has_vault_rows {
         let scores = state.vault.context_scores(&state.focus_context.lock().unwrap());
         for item in &mut items {
             if let Some(entry_id) = item.id.strip_prefix("vault:") {
@@ -434,13 +450,19 @@ struct Overview {
 const MAX_SUGGESTIONS: usize = 3;
 
 #[tauri::command]
-fn overview(state: tauri::State<'_, AppState>) -> Overview {
+fn overview(app: AppHandle, state: tauri::State<'_, AppState>) -> Overview {
     let context = state.focus_context.lock().unwrap().clone();
     let suggestions = if state.settings.read().unwrap().provider_enabled("vault") {
         funke_vault::suggestions(&state.vault, &context, MAX_SUGGESTIONS)
     } else {
         Vec::new()
     };
+    // Context suggestions are vault rows (a credential name for the app in front of you),
+    // so they raise the capture shield exactly like a `v` search does.
+    state
+        .shield_rows
+        .store(!suggestions.is_empty(), std::sync::atomic::Ordering::SeqCst);
+    refresh_capture_shield(&app);
     Overview {
         suggestion_label: (!suggestions.is_empty()).then(|| context.label()).flatten(),
         suggestions,
@@ -508,6 +530,8 @@ fn save_settings(app: AppHandle, state: tauri::State<'_, AppState>, settings: Se
     }
     // The overlay re-themes itself (accent, width) and re-translates itself off this event.
     let _ = app.emit("settings-changed", &settings);
+    // Toggling the capture shield off must release an exclusion that is currently up.
+    refresh_capture_shield(&app);
     Ok(())
 }
 
@@ -844,6 +868,48 @@ fn hide_overlay(app: AppHandle) {
     hide(&app, true);
 }
 
+/// The UI entering/leaving the masked master-password prompt. The prompt is drawn by the
+/// webview, so only the UI knows the moment it appears — the shield must be up before the
+/// first masked character is typed.
+#[tauri::command]
+fn set_capture_shield(app: AppHandle, state: tauri::State<'_, AppState>, active: bool) {
+    state.shield_prompt.store(active, std::sync::atomic::Ordering::SeqCst);
+    refresh_capture_shield(&app);
+}
+
+/// Apply the capture-shield policy to the overlay window: excluded from screen capture
+/// while it shows vault content (the masked prompt and/or vault rows) and the setting is
+/// on; capturable otherwise. Recomputed on every trigger change, so plain results never
+/// stay stuck behind a stale exclusion.
+///
+/// Two guards protect the transparent WebView2 window, which reacts to
+/// `SetWindowDisplayAffinity` — even a no-op `WDA_NONE` — by materializing an opaque
+/// (white) surface: the affinity is only ever touched on a **real transition**, and only
+/// while the window is **visible**. Without them, the webview's boot-time overview (it
+/// pre-renders while hidden) painted a blank bar over the desktop at every startup.
+/// Ordering keeps this sound: `hide` clears the triggers and refreshes *before* the
+/// window hides, so an engaged shield is always released while the window can take the
+/// call; a trigger that flips while hidden is applied by the next visible refresh (the
+/// summon path re-queries the overview before any vault content can render).
+fn refresh_capture_shield(app: &AppHandle) {
+    use std::sync::atomic::Ordering;
+    let state = app.state::<AppState>();
+    let exclude = state.settings.read().unwrap().vault_capture_shield
+        && (state.shield_prompt.load(Ordering::SeqCst) || state.shield_rows.load(Ordering::SeqCst));
+    let Some(win) = app.get_webview_window(MAIN_WINDOW) else {
+        return;
+    };
+    if !win.is_visible().unwrap_or(false) {
+        return;
+    }
+    if state.shield_applied.swap(exclude, Ordering::SeqCst) == exclude {
+        return;
+    }
+    if let Ok(hwnd) = win.hwnd() {
+        native::set_capture_exclusion(hwnd.0 as isize, exclude);
+    }
+}
+
 /// Grow/shrink the window to fit the result list (called by the UI after each render),
 /// keeping the top edge anchored so the panel expands downward like Spotlight.
 #[tauri::command]
@@ -912,6 +978,15 @@ fn capture_context(app: &AppHandle, hwnd: isize) {
 }
 
 fn hide(app: &AppHandle, restore_focus: bool) {
+    // A hidden window keeps its display affinity, so drop the shield with the content:
+    // the next summon starts on the overview, which decides its own shielding.
+    {
+        use std::sync::atomic::Ordering;
+        let state = app.state::<AppState>();
+        state.shield_prompt.store(false, Ordering::SeqCst);
+        state.shield_rows.store(false, Ordering::SeqCst);
+    }
+    refresh_capture_shield(app);
     if let Some(win) = app.get_webview_window(MAIN_WINDOW) {
         let _ = win.hide();
         // Lets the UI reset to the overview while invisible, so the next summon
@@ -992,6 +1067,9 @@ fn consume_autostart_request(settings: &RwLock<Settings>, settings_path: &Path) 
 }
 
 fn main() {
+    // Before anything can hold a secret: crash dumps of this process must not be
+    // collected (a WER dump would carry whatever was in flight when it died).
+    native::exclude_from_error_reporting();
     let settings_path = data_path("settings.json");
     let frecency_path = data_path("frecency.json");
     let recents_path = data_path("recents.json");
@@ -1033,12 +1111,16 @@ fn main() {
             prev_focus: Mutex::new(None),
             focus_context: Mutex::new(funke_vault::FocusContext::default()),
             hello_in_flight: std::sync::atomic::AtomicBool::new(false),
+            shield_prompt: std::sync::atomic::AtomicBool::new(false),
+            shield_rows: std::sync::atomic::AtomicBool::new(false),
+            shield_applied: std::sync::atomic::AtomicBool::new(false),
         })
         .invoke_handler(tauri::generate_handler![
             search,
             run_action,
             hide_overlay,
             resize_overlay,
+            set_capture_shield,
             overview,
             remove_recent,
             get_settings,

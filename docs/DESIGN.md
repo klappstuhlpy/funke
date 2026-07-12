@@ -2,7 +2,7 @@
 
 What Funke is, how it is built, and why each load-bearing choice was made that way.
 
-This is a **record, not a roadmap**. Everything below either exists in the tree or is written
+Everything below either exists in the tree or is written
 down as a deliberate decision *not* to build it — and the second kind matters as much as the
 first: most of the interesting choices here were choices to leave something out. The document
 began (2026-07) as a plan with a milestone list; when the list ran out, it was rewritten into
@@ -227,8 +227,11 @@ hidden.
 **Security posture, from day one**, because this is a public app that touches passwords:
 secrets in zeroized buffers, never logged; clipboard copies auto-clear after ~30 s **and carry
 the clipboard-exclusion markers**, so Win+V, the cloud clipboard and every third-party manager
-never record them; auto-lock on idle and (opt-in) on screen lock; no telemetry; a `SECURITY.md`
-with a disclosure contact. It is kept in sync with behavior, and it lists the accepted
+never record them; auto-lock on idle and (opt-in) the moment the user walks away — session
+lock, sleep, or RDP disconnect, as events with a polling fallback; `bw serve` assigned to a
+kill-on-close job object, so the kernel bounds its lifetime even when funke crashes; the
+overlay excluded from screen capture while it shows vault content; no telemetry; a
+`SECURITY.md` with a disclosure contact. It is kept in sync with behavior, and it lists the accepted
 limitations instead of pretending there are none.
 
 ## 6. Clipboard and snippets
@@ -316,23 +319,7 @@ file loads as empty; a failed app index yields an empty provider.
 their UX decisions), ueli (a webview launcher, proof the approach works), Keypirinha
 (keyboard-first UX), Everything (indexing behavior).
 
-## 9. What's built
-
-The milestone record, condensed.
-
-|        |                         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-|--------|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **M0** | Skeleton                | Workspace, Tauri shell, tray, single-instance, hotkey ↔ overlay, focus capture/restore, provider pipeline, CI.                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **M1** | App launcher            | Start Menu and Store apps (PowerShell `Get-StartApps`, so classic *and* UWP via `shell:AppsFolder`) plus PATH executables; nucleo matching; frecency; real icons via `IShellItemImageFactory`. The design foundation landed here too: native glass, content-driven height, the tokenized warm theme. *Dogfooding started here and never stopped.* Deviation from plan: frecency persists as JSON, not SQLite.                                                                                                   |
-| **M2** | File search             | The Phase-A index, prefilter ahead of nucleo, `notify` rebuilds, and keyword routing (`f`) in the core registry.                                                                                                                                                                                                                                                                                                                                                                                                |
-| **M3** | Utilities + settings    | Calculator (`fasteval` — swapped from `meval`, which dragged in an unmaintained `nom 1.2.4`), web search, system commands, the empty-state overview (recents, greeting, tips), sectioned results, and the settings window. Live-applied: hotkey, accent, width, engine, provider toggles, autostart. The **multi-action UI** (Enter / Shift+Enter / Tab menu / Ctrl+n, `confirm` on destructive ones) landed here and unlocked copy-path and the **window switcher** (`w`). Auto-updater configured and signed. |
-| **M4** | Vault                   | `funke-vault`: `bw serve`, the `v` provider, autotype, copy password/username/TOTP with auto-clear, Windows Hello unlock, website favicons, idle and screen-lock auto-lock, **focus context** and its suggestions, per-entry autotype sequences.                                                                                                                                                                                                                                                                |
-| **M5** | Public plugin API + 1.0 | Protocol v1, `funke-plugin` (proto + SDK + host), discovery, the Plugins pane, `docs/PLUGINS.md`, Rust and Python templates. The repo went **public** (MIT), the release pipeline landed, and plugin lifecycle went live in both directions: Refresh adds, Browse/Install fetches from the checksum-pinned catalog, ✕ uninstalls — none of it needing a relaunch.                                                                                                                                               |
-| **M7** | Clipboard history       | `c`, in memory only, exclusion markers plus the shape heuristic, Ctrl+V paste. It needed one core change: a bare keyword and a space (`c `) now scopes a provider with an *empty* query, so there is something to browse.                                                                                                                                                                                                                                                                                       |
-| **M8** | Snippets                | `s`, stored in `Settings`, placeholders resolved at paste time, bodies searched only when scoped (`Query::scoped`).                                                                                                                                                                                                                                                                                                                                                                                             |
-|        | Localization            | English and German, across both windows and everything the providers produce. The locale follows Windows unless set, and a change repaints without a restart.                                                                                                                                                                                                                                                                                                                                                   |
-
-## 10. Open ground
+## 9. Open ground
 
 Nothing here is scheduled. It is what is knowingly missing, with the reason it is missing.
 

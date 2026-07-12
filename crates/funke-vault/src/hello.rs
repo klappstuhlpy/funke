@@ -21,6 +21,8 @@ use windows::Win32::System::WinRT::IUserConsentVerifierInterop;
 use windows_future::IAsyncOperation;
 use zeroize::Zeroize;
 
+use crate::secret_buf::SecretBuf;
+
 /// Same directory as settings/frecency (`%APPDATA%/funke`).
 fn session_path() -> PathBuf {
     dirs::data_dir()
@@ -43,18 +45,19 @@ pub fn save_session(session: &str) -> Result<(), String> {
 }
 
 /// Decrypt the stored session key. Call only after [`verify`] succeeded — DPAPI itself
-/// doesn't prompt. The caller zeroizes the returned string.
-pub fn load_session() -> Result<String, String> {
+/// doesn't prompt. Returned page-locked so the decrypted key can't reach the pagefile
+/// while it waits for `bw serve` to boot; the DPAPI output it was copied from is
+/// zeroized here (it existed unlocked for that moment — see [`crate::secret_buf`]).
+pub fn load_session() -> Result<SecretBuf, String> {
     let raw = fs::read(session_path()).map_err(|_| "no stored vault session")?;
-    let plain = unprotect(&raw)?;
-    match String::from_utf8(plain) {
-        Ok(session) => Ok(session),
-        Err(e) => {
-            let mut bytes = e.into_bytes();
-            bytes.zeroize();
-            Err("stored vault session is corrupt".into())
-        }
+    let mut plain = unprotect(&raw)?;
+    if std::str::from_utf8(&plain).is_err() {
+        plain.zeroize();
+        return Err("stored vault session is corrupt".into());
     }
+    let session = SecretBuf::from_slice(&plain);
+    plain.zeroize();
+    session
 }
 
 pub fn forget_session() {

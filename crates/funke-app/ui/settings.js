@@ -152,6 +152,9 @@ function renderAll() {
     .getElementById("vault-autotype-enter")
     .setAttribute("aria-checked", String(settings.vault_autotype_enter));
   document.getElementById("vault-lock-screen").setAttribute("aria-checked", String(settings.vault_lock_on_screen_lock));
+  document
+    .getElementById("vault-capture-shield")
+    .setAttribute("aria-checked", String(settings.vault_capture_shield));
   document.getElementById("vault-context").setAttribute("aria-checked", String(settings.vault_context_suggest));
 
   const sequence = document.getElementById("vault-sequence");
@@ -279,6 +282,9 @@ function buildStaticControls() {
   document
     .getElementById("vault-lock-screen")
     .addEventListener("click", () => save({ vault_lock_on_screen_lock: !settings.vault_lock_on_screen_lock }));
+  document
+    .getElementById("vault-capture-shield")
+    .addEventListener("click", () => save({ vault_capture_shield: !settings.vault_capture_shield }));
   document
     .getElementById("vault-context")
     .addEventListener("click", () => save({ vault_context_suggest: !settings.vault_context_suggest }));
