@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use base64::Engine;
 use serde::Deserialize;
 
+use crate::cli;
 use crate::job::KillOnDropJob;
 use crate::VaultEntry;
 
@@ -28,7 +29,23 @@ const TYPE_LOGIN: u8 = 1;
 
 pub enum StartError {
     NoCli,
+    /// A CLI is installed, but it isn't the one Bitwarden signed, and the user has asked for
+    /// that to be a refusal rather than a warning (`Settings::vault_require_signed_cli`).
+    Unverified,
     Failed(String),
+}
+
+/// Every `bw` invocation in this crate, built from the pinned absolute path — never from the
+/// bare name, which would re-walk `PATH` on each spawn (see [`crate::cli`]).
+fn bw() -> Option<Command> {
+    let mut command = Command::new(&cli::cli()?.path);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    Some(command)
 }
 
 /// The running `bw serve` child plus the job object that bounds its lifetime.
@@ -58,35 +75,40 @@ pub struct StatusInfo {
 
 /// Find the CLI, spawn `bw serve`, and wait until `/status` answers.
 /// Returns the child (job-bound, see [`ServeProcess`]), the port, and the reported status.
-pub fn start() -> Result<(ServeProcess, u16, StatusInfo), StartError> {
-    start_with(None)
+pub fn start(require_signed: bool) -> Result<(ServeProcess, u16, StatusInfo), StartError> {
+    start_with(None, require_signed)
 }
 
 /// [`start`], but with `BW_SESSION` in the child's environment — the server comes up
 /// already unlocked (the Windows Hello path).
-pub fn start_with_session(session: &str) -> Result<(ServeProcess, u16, StatusInfo), StartError> {
-    start_with(Some(session))
+pub fn start_with_session(session: &str, require_signed: bool) -> Result<(ServeProcess, u16, StatusInfo), StartError> {
+    start_with(Some(session), require_signed)
 }
 
-fn start_with(session: Option<&str>) -> Result<(ServeProcess, u16, StatusInfo), StartError> {
+fn start_with(session: Option<&str>, require_signed: bool) -> Result<(ServeProcess, u16, StatusInfo), StartError> {
+    let Some(resolved) = cli::cli() else {
+        return Err(StartError::NoCli);
+    };
+    // The opt-in refusal. The default is to warn and carry on — an npm-installed CLI is a
+    // shim around a Node script and cannot be signed at all, and bricking that install would
+    // teach people to turn the whole check off.
+    if require_signed && !resolved.trust.verified() {
+        return Err(StartError::Unverified);
+    }
     if !cli_available() {
         return Err(StartError::NoCli);
     }
     let port = free_port().map_err(|e| StartError::Failed(format!("no free port: {e}")))?;
 
-    let mut command = Command::new("bw");
+    let Some(mut command) = bw() else {
+        return Err(StartError::NoCli);
+    };
     command
         .args(["serve", "--hostname", "127.0.0.1", "--port", &port.to_string()])
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     if let Some(session) = session {
         command.env("BW_SESSION", session);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
     }
     let mut child = command.spawn().map_err(|e| StartError::Failed(e.to_string()))?;
 
@@ -121,17 +143,12 @@ fn start_with(session: Option<&str>) -> Result<(ServeProcess, u16, StatusInfo), 
 /// stdout. The password travels via an env var, never the command line. Runs the KDF
 /// a second time, so this takes as long as the unlock itself.
 pub fn unlock_raw(password: &str) -> Result<String, String> {
-    let mut command = Command::new("bw");
+    // The spawn this pin exists for: the master password rides in this child's environment.
+    let mut command = bw().ok_or("no bw CLI found")?;
     command
         .args(["unlock", "--raw", "--passwordenv", "FUNKE_BW_PASSWORD"])
         .env("FUNKE_BW_PASSWORD", password)
         .stdin(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
     let output = command.output().map_err(|e| format!("bw unlock failed to run: {e}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -149,16 +166,14 @@ pub fn unlock_raw(password: &str) -> Result<String, String> {
     }
 }
 
-/// `bw --version` succeeding is the cheapest "CLI exists and runs" probe.
+/// `bw --version` succeeding is the cheapest "the CLI we pinned actually runs" probe — a
+/// file being where we expect it is not the same as it working (a broken npm shim, a
+/// half-deleted install).
 fn cli_available() -> bool {
-    let mut command = Command::new("bw");
+    let Some(mut command) = bw() else {
+        return false;
+    };
     command.arg("--version").stdout(Stdio::null()).stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
     command.status().map(|status| status.success()).unwrap_or(false)
 }
 

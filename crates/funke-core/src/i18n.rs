@@ -176,6 +176,14 @@ const EN: &[(&str, &str)] = &[
         "vault.cli_missing.subtitle",
         "Install bw.exe and put it on PATH — Enter opens the setup guide",
     ),
+    ("vault.cli_unverified", "Bitwarden CLI not signature-verified"),
+    (
+        "vault.cli_unverified.subtitle",
+        "The bw on this machine isn't signed by Bitwarden, and you asked Funke to refuse those — Enter opens the setup guide",
+    ),
+    ("vault.cli.unsigned", "the CLI carries no valid signature"),
+    ("vault.cli.other_signer", "the CLI is signed, but not by Bitwarden"),
+    ("vault.cli.shim", "the CLI is an unsigned script wrapper"),
     ("vault.not_logged_in", "Vault not logged in"),
     (
         "vault.not_logged_in.subtitle",
@@ -308,6 +316,14 @@ const DE: &[(&str, &str)] = &[
         "Installiere bw.exe und füge sie zum PATH hinzu. Enter öffnet die Anleitung.",
     ),
 
+    ("vault.cli_unverified", "Signatur der Bitwarden-CLI nicht bestätigt"),
+    (
+        "vault.cli_unverified.subtitle",
+        "Die bw auf diesem Rechner ist nicht von Bitwarden signiert, und du hast Funke gebeten, solche abzulehnen. Enter öffnet die Anleitung.",
+    ),
+    ("vault.cli.unsigned", "CLI ohne gültige Signatur"),
+    ("vault.cli.other_signer", "CLI signiert, aber nicht von Bitwarden"),
+    ("vault.cli.shim", "CLI ist ein unsignierter Skript-Wrapper"),
     ("vault.not_logged_in", "Nicht bei Bitwarden angemeldet"),
     (
         "vault.not_logged_in.subtitle",

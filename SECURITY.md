@@ -15,6 +15,18 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   official Bitwarden CLI: Funke spawns `bw serve` bound to `127.0.0.1` on a random port
   (at launch, still locked — unlocking is always an explicit act) and talks to its REST
   API. Funke never sees your master key.
+- **The `bw` binary is pinned and its signature checked.** Your master password is handed
+  to that executable in its environment, so *which* executable it is matters: Funke
+  resolves `bw` once at startup — known install locations (winget, Program Files, scoop,
+  npm) **before** `PATH`, so a planted `bw.exe` early in `PATH` cannot win — and then
+  spawns that absolute path for the rest of the session rather than re-walking `PATH` on
+  every spawn. It also asks Windows who signed it (Authenticode, *and* whether the
+  certificate says Bitwarden — a signature by somebody else is not good enough).
+  A CLI that doesn't verify is **used anyway, with the reason shown on the vault's unlock
+  row**: an `npm -g install @bitwarden/cli` is an unsigned `.cmd` wrapper around a Node
+  script and cannot ever be verified, and a launcher that bricked that install would only
+  teach people to switch the check off. Settings → Vault → *Only run a Bitwarden-signed
+  CLI* turns the warning into a refusal.
 - **Secrets don't ride in the UI.** Search results carry item ids only; usernames and
   URI hosts are cached for matching, passwords are fetched by id at the moment you run
   an action and zeroized after use.

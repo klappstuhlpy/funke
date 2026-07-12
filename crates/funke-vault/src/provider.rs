@@ -63,6 +63,17 @@ impl SearchProvider for VaultProvider {
                     url: CLI_HELP_URL.into(),
                 },
             )],
+            // The opt-in refusal (`vault_require_signed_cli`): a CLI is installed, but it
+            // isn't the one Bitwarden signed, and the user asked us not to run it.
+            VaultStatus::UnverifiedCli => vec![status_row(
+                "vault:unverified-cli",
+                "vault.cli_unverified",
+                "vault.cli_unverified.subtitle",
+                LOCK_GLYPH,
+                Action::OpenUrl {
+                    url: CLI_HELP_URL.into(),
+                },
+            )],
             VaultStatus::Unauthenticated => vec![status_row(
                 "vault:login",
                 "vault.not_logged_in",
@@ -72,7 +83,7 @@ impl SearchProvider for VaultProvider {
                     url: CLI_HELP_URL.into(),
                 },
             )],
-            VaultStatus::Locked => vec![unlock_row(self.vault.hello_ready(), None)],
+            VaultStatus::Locked => vec![unlock_row(self.vault.hello_ready(), None, self.vault.cli_note())],
             VaultStatus::Unlocked => {
                 self.vault.touch();
                 let Some(matcher) = FuzzyMatcher::new(&query.text) else {
@@ -155,7 +166,11 @@ pub fn suggestions(vault: &Arc<Vault>, focus: &FocusContext, limit: usize) -> Ve
                 })
                 .collect()
         }
-        VaultStatus::Locked => vec![unlock_row(vault.hello_ready(), focus.label().as_deref())],
+        VaultStatus::Locked => vec![unlock_row(
+            vault.hello_ready(),
+            focus.label().as_deref(),
+            vault.cli_note(),
+        )],
         _ => Vec::new(),
     }
 }
@@ -163,7 +178,11 @@ pub fn suggestions(vault: &Arc<Vault>, focus: &FocusContext, limit: usize) -> Ve
 /// The locked-vault row: Enter uses Windows Hello when a session is ready, the master
 /// password otherwise (then still reachable via Shift+Enter). `context` names the app the
 /// credential would be for, when the row is offered as a suggestion rather than searched.
-fn unlock_row(hello: bool, context: Option<&str>) -> ResultItem {
+///
+/// `note` is the warn-first CLI policy's whole visible surface ([`crate::cli`]): the row the
+/// user is about to type a master password into is where a `bw` we could not verify has to
+/// be admitted to, not a log line nobody reads.
+fn unlock_row(hello: bool, context: Option<&str>, note: Option<&'static str>) -> ResultItem {
     let mut actions = Vec::new();
     if hello {
         actions.push(NamedAction::new(
@@ -183,7 +202,14 @@ fn unlock_row(hello: bool, context: Option<&str>) -> ResultItem {
             Some(context) => funke_core::tf("vault.unlock_for", &[("app", context)]),
             None => funke_core::t("vault.unlock").into(),
         },
-        subtitle: Some(funke_core::tf("vault.unlock.subtitle", &[("how", how)])),
+        subtitle: Some(match note {
+            Some(note) => format!(
+                "{} · {}",
+                funke_core::tf("vault.unlock.subtitle", &[("how", how)]),
+                funke_core::t(note)
+            ),
+            None => funke_core::tf("vault.unlock.subtitle", &[("how", how)]),
+        }),
         icon: Some(glyph_data_url(LOCK_GLYPH)),
         score: STATUS_SCORE,
         actions,

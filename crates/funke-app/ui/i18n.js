@@ -132,6 +132,9 @@ const STRINGS = {
     "settings.vault.capture_shield": "Hide vault content from screen capture",
     "settings.vault.capture_shield.desc":
       "Screenshots, recordings and screen shares can't see the overlay while it shows the master-password prompt or vault entries. Everything else stays capturable.",
+    "settings.vault.signed_cli": "Only run a Bitwarden-signed CLI",
+    "settings.vault.signed_cli.desc":
+      "Funke hands your master password to the bw executable, so it pins the one it found at startup and checks who signed it. Normally an unverified bw is used anyway with a note on the vault row — an npm install is an unsigned script wrapper, and that is a legitimate install. Turn this on to refuse instead.",
     "settings.vault.idle": "Auto-lock after idle",
     "settings.vault.idle.desc": "Lock the vault after this long without using it.",
     "settings.idle.minutes": "{count} minutes",
@@ -333,6 +336,9 @@ const STRINGS = {
     "settings.vault.capture_shield": "Tresorinhalte vor Bildschirmaufnahmen verbergen",
     "settings.vault.capture_shield.desc":
       "Screenshots, Aufnahmen und geteilte Bildschirme sehen das Overlay nicht, solange es die Master-Passwort-Abfrage oder Tresoreinträge zeigt. Alles andere bleibt aufnehmbar.",
+    "settings.vault.signed_cli": "Nur eine von Bitwarden signierte CLI ausführen",
+    "settings.vault.signed_cli.desc":
+      "Funke übergibt dein Master-Passwort an die bw-Datei und merkt sich deshalb die beim Start gefundene und prüft, wer sie signiert hat. Normalerweise wird eine nicht verifizierte bw trotzdem benutzt, mit einem Hinweis auf der Tresorzeile — eine npm-Installation ist ein unsignierter Skript-Wrapper und völlig legitim. Aktiviere dies, um sie stattdessen abzulehnen.",
     "settings.vault.idle": "Nach Inaktivität sperren",
     "settings.vault.idle.desc": "Sperrt den Tresor, wenn er so lange nicht benutzt wurde.",
     "settings.idle.minutes": "{count} Minuten",

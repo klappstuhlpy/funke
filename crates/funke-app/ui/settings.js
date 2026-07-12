@@ -155,6 +155,9 @@ function renderAll() {
   document
     .getElementById("vault-capture-shield")
     .setAttribute("aria-checked", String(settings.vault_capture_shield));
+  document
+    .getElementById("vault-signed-cli")
+    .setAttribute("aria-checked", String(settings.vault_require_signed_cli));
   document.getElementById("vault-context").setAttribute("aria-checked", String(settings.vault_context_suggest));
 
   const sequence = document.getElementById("vault-sequence");
@@ -285,6 +288,9 @@ function buildStaticControls() {
   document
     .getElementById("vault-capture-shield")
     .addEventListener("click", () => save({ vault_capture_shield: !settings.vault_capture_shield }));
+  document
+    .getElementById("vault-signed-cli")
+    .addEventListener("click", () => save({ vault_require_signed_cli: !settings.vault_require_signed_cli }));
   document
     .getElementById("vault-context")
     .addEventListener("click", () => save({ vault_context_suggest: !settings.vault_context_suggest }));

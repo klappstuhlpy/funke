@@ -1,6 +1,6 @@
 [package]
 name = "funke-vault"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 license.workspace = true
 description = "Bitwarden/Vaultwarden provider via the official CLI's `bw serve` REST API"
@@ -17,6 +17,9 @@ windows = { version = "0.61", features = [
     "Security_Credentials_UI",
     "Win32_Foundation",
     "Win32_Security_Cryptography",
+    "Win32_Security_Cryptography_Catalog",
+    "Win32_Security_Cryptography_Sip",
+    "Win32_Security_WinTrust",
     "Win32_System_JobObjects",
     "Win32_System_Memory",
     "Win32_System_Threading",

@@ -22,6 +22,7 @@
 //! - Website icons (opt-in-out): favicons come from the configured server's icon
 //!   service, cached in memory only. See SECURITY.md for both tradeoffs.
 
+mod cli;
 mod context;
 mod hello;
 mod job;
@@ -50,8 +51,11 @@ pub enum VaultStatus {
     Idle,
     /// Background startup (CLI check + `bw serve` boot) in progress.
     Starting,
-    /// No `bw` CLI on PATH.
+    /// No `bw` CLI found.
     NoCli,
+    /// A CLI is installed but not signature-verified as Bitwarden's, and the user asked
+    /// for that to be a refusal (`Settings::vault_require_signed_cli`).
+    UnverifiedCli,
     /// CLI present but `bw login` has never been run.
     Unauthenticated,
     Locked,
@@ -141,6 +145,19 @@ impl Vault {
         *self.status.lock().unwrap()
     }
 
+    fn require_signed_cli(&self) -> bool {
+        self.settings.read().unwrap().vault_require_signed_cli
+    }
+
+    /// What the pinned CLI could *not* prove about itself — a catalogue key, or `None` when
+    /// Bitwarden's own signature checks out (or there is no CLI to say anything about).
+    ///
+    /// Advisory by design: this is a note on a row, not a refusal. The refusal is the
+    /// opt-in `Settings::vault_require_signed_cli`, and it happens at spawn time.
+    pub fn cli_note(&self) -> Option<&'static str> {
+        cli::cli().and_then(|cli| cli.trust.note())
+    }
+
     #[cfg(test)]
     pub(crate) fn force_status(&self, status: VaultStatus) {
         *self.status.lock().unwrap() = status;
@@ -184,10 +201,11 @@ impl Vault {
 
         let vault = Arc::clone(self);
         std::thread::spawn(move || {
-            let outcome = serve::start();
+            let outcome = serve::start(vault.require_signed_cli());
             let mut status = vault.status.lock().unwrap();
             match outcome {
                 Err(serve::StartError::NoCli) => *status = VaultStatus::NoCli,
+                Err(serve::StartError::Unverified) => *status = VaultStatus::UnverifiedCli,
                 Err(serve::StartError::Failed(e)) => {
                     eprintln!("bw serve failed to start: {e}");
                     *status = VaultStatus::NoCli;
@@ -440,9 +458,10 @@ impl Vault {
             let _ = child.kill();
         }
         *self.port.lock().unwrap() = None;
+        let require_signed = self.require_signed_cli();
         let outcome = match session {
-            Some(session) => serve::start_with_session(session),
-            None => serve::start(),
+            Some(session) => serve::start_with_session(session, require_signed),
+            None => serve::start(require_signed),
         };
         match outcome {
             Ok((child, port, info)) => {
@@ -452,6 +471,7 @@ impl Vault {
                 Ok((port, info.status))
             }
             Err(serve::StartError::NoCli) => Err("Bitwarden CLI not found".into()),
+            Err(serve::StartError::Unverified) => Err(funke_core::t("vault.cli_unverified.subtitle").into()),
             Err(serve::StartError::Failed(e)) => Err(format!("bw serve failed to start: {e}")),
         }
     }

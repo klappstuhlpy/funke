@@ -19,6 +19,16 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   and the results of the query you abandoned are discarded rather than fighting the ones you
   want. Nothing about the launcher feels different today — every current source already
   answers in single-digit milliseconds. It is what makes the ones that can't possible.
+- **Funke now knows which `bw` it is talking to.** Every vault command used to be spawned
+  as plain `bw`, which asks Windows to walk `PATH` again on each spawn — and one of those
+  commands hands over your master password. Anything that dropped a `bw.exe` into a
+  directory earlier in `PATH` than the real one would have received it. Funke now resolves
+  the CLI once at startup, checking the real install locations *before* `PATH`, and spawns
+  that exact file from then on. It also checks Bitwarden's Authenticode signature — not
+  merely that *somebody* signed it, which anyone with a certificate can arrange. An
+  unverified CLI still runs, and says so on the vault's unlock row, because an npm install
+  is an unsigned script wrapper and that is a perfectly good way to install it;
+  `Vault → Only run a Bitwarden-signed CLI` turns the warning into a refusal.
 - **Screen capture can't see vault content anymore.** While the overlay shows the masked
   master-password prompt, vault rows, or a context suggestion, the window is excluded
   from screenshots, recordings, and screen shares (`SetWindowDisplayAffinity` with

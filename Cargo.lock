@@ -1244,7 +1244,7 @@ dependencies = [
 
 [[package]]
 name = "funke-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "nucleo-matcher",
  "serde",
@@ -1331,7 +1331,7 @@ dependencies = [
 
 [[package]]
 name = "funke-vault"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "dirs 6.0.0",

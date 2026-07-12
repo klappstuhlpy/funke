@@ -57,6 +57,11 @@ pub struct Settings {
     /// shows vault content — the masked master-password prompt, vault rows, context
     /// suggestions. Plain results stay capturable, so demos and screenshots still work.
     pub vault_capture_shield: bool,
+    /// Refuse to run a `bw` CLI that isn't signature-verified as Bitwarden's, instead of
+    /// warning and using it anyway. Off by default: an npm-installed CLI is an unsigned
+    /// `.cmd` wrapper around a Node script, which is a perfectly legitimate install, and a
+    /// launcher that bricks it would only teach people to distrust the check.
+    pub vault_require_signed_cli: bool,
     /// Offer the credential for the app that was focused when the overlay was summoned
     /// (empty query), matched by window title, process, and — in browsers — the address
     /// bar's URL. Off means vault entries only ever appear behind the `v` keyword.
@@ -100,6 +105,7 @@ impl Default for Settings {
             vault_autotype_guard: true,
             vault_lock_on_screen_lock: true,
             vault_capture_shield: true,
+            vault_require_signed_cli: false,
             vault_context_suggest: true,
             snippets: Vec::new(),
         }
