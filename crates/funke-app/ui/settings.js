@@ -435,21 +435,25 @@ function uninstallButton(plugin) {
   button.title = t("settings.plugins.uninstall", { name: plugin.name });
   button.textContent = "✕";
   let armed = null;
+
+  // Back to a bare ✕: the width and the danger fill come off with the class.
+  const disarm = () => {
+    armed = null;
+    button.classList.remove("armed");
+    button.textContent = "✕";
+  };
+
   button.addEventListener("click", async () => {
     if (!armed) {
+      button.classList.add("armed");
       button.textContent = t("settings.plugins.remove_confirm");
-      button.style.width = "auto";
-      armed = setTimeout(() => {
-        armed = null;
-        button.textContent = "✕";
-        button.style.width = "";
-      }, 3000);
+      armed = setTimeout(disarm, 3000);
       return;
     }
     clearTimeout(armed);
     armed = null;
     button.disabled = true;
-    button.textContent = t("settings.plugins.removing");
+    button.textContent = t("settings.plugins.removing"); // still a word — stays armed, keeps the room
     try {
       buildPluginRows(await invoke("remove_plugin", { id: plugin.id })); // rebuilds this row away
       renderAll();
@@ -457,8 +461,7 @@ function uninstallButton(plugin) {
     } catch (err) {
       showError(String(err));
       button.disabled = false;
-      button.textContent = "✕";
-      button.style.width = "";
+      disarm();
     }
   });
   return button;
