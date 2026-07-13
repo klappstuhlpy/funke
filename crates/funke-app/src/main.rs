@@ -366,7 +366,7 @@ fn run_action(
         Action::VaultHelloUnlock => {
             use std::sync::atomic::Ordering;
             // Never block here: sync commands run on the main thread, which is an STA
-            // — waiting for the WinRT consent operation there deadlocks the event loop
+            // — waiting for the WinRT sign operation there deadlocks the event loop
             // before the Hello dialog can even appear. The whole flow gets its own
             // thread; the flag both suppresses hide-on-blur while the dialog is up and
             // swallows repeat presses while one prompt is already pending.
@@ -381,7 +381,7 @@ fn run_action(
             let vault = Arc::clone(&state.vault);
             let app = app.clone();
             std::thread::spawn(move || {
-                let unlocked = vault.hello_unlock(hwnd);
+                let unlocked = vault.hello_unlock();
                 let state = app.state::<AppState>();
                 state.hello_in_flight.store(false, Ordering::SeqCst);
                 // The Hello dialog (a system process) took the foreground; a plain
@@ -549,12 +549,34 @@ fn copy_with_autoclear(value: String) -> Result<(), String> {
 /// Unlock the vault with the master password typed into the overlay's masked prompt.
 /// Async so the KDF (run twice when Hello minting is on) blocks a worker, not the
 /// main-thread event loop.
+///
+/// With Hello enabled this unlock *also* shows a Hello prompt — sealing the new session
+/// key means signing a challenge with the TPM, and that is a dialog from another process
+/// stealing the foreground. So it needs the same two guards `VaultHelloUnlock` has: the
+/// in-flight flag, or the blur hides the overlay out from under the unlock, and the
+/// foreground reclaim, or the caret never comes back to the search field.
 #[tauri::command]
-async fn vault_unlock(state: tauri::State<'_, AppState>, password: String) -> Result<(), String> {
+async fn vault_unlock(app: AppHandle, state: tauri::State<'_, AppState>, password: String) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
     use zeroize::Zeroize;
+
+    let prompts = state.vault.hello_enabled();
+    if prompts {
+        state.hello_in_flight.store(true, Ordering::SeqCst);
+    }
     let result = state.vault.unlock(&password);
     let mut password = password;
     password.zeroize();
+
+    if prompts {
+        state.hello_in_flight.store(false, Ordering::SeqCst);
+        if let Some(win) = app.get_webview_window(MAIN_WINDOW) {
+            if let Ok(hwnd) = win.hwnd() {
+                focus::force_foreground(hwnd.0 as isize);
+            }
+            let _ = win.set_focus();
+        }
+    }
     result
 }
 

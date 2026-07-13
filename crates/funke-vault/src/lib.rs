@@ -17,8 +17,10 @@
 //! - `bw serve` binds 127.0.0.1 and dies with the launcher — gracefully via
 //!   [`Vault::shutdown`], and on a crash via the kill-on-close job object every serve
 //!   child is assigned to ([`job`]): the kernel, not a destructor, bounds its lifetime.
-//! - Windows Hello unlock (opt-in, [`hello`]): a DPAPI-protected session key lets
-//!   repeat unlocks skip the master password behind a Hello consent prompt.
+//! - Windows Hello unlock (opt-in, [`hello`]): a stored session key lets repeat unlocks
+//!   skip the master password. The key is sealed under a signature only the TPM will
+//!   produce, and only after Hello verifies the user ([`keycred`]) — so the prompt is the
+//!   lock, not a doorbell beside it.
 //! - Website icons (opt-in-out): favicons come from the configured server's icon
 //!   service, cached in memory only. See SECURITY.md for both tradeoffs.
 
@@ -26,6 +28,7 @@ mod cli;
 mod context;
 mod hello;
 mod job;
+mod keycred;
 mod lockscreen;
 mod provider;
 mod secret_buf;
@@ -236,13 +239,16 @@ impl Vault {
             None => return Err("The vault backend isn't running yet — try again in a moment".into()),
         };
         serve::unlock(port, password)?;
-        if self.settings.read().unwrap().vault_hello {
+        if self.hello_enabled() {
             // Runs the KDF a second time (bw unlock --raw); a failure only costs the
-            // Hello shortcut, never the unlock itself.
+            // Hello shortcut, never the unlock itself. Sealing the session shows a Hello
+            // prompt of its own — signing the challenge *is* the prompt, and on the first
+            // unlock the key has to be minted first. Both are the price of the Hello
+            // prompt meaning something later.
             match serve::unlock_raw(password) {
                 Ok(mut session) => {
                     if let Err(e) = hello::save_session(&session) {
-                        eprintln!("failed to store the Windows Hello session: {e}");
+                        eprintln!("no Windows Hello session was stored: {e}");
                     }
                     session.zeroize();
                 }
@@ -253,34 +259,41 @@ impl Vault {
         Ok(())
     }
 
-    /// Unlock without the master password: Windows Hello consent prompt (parented to
-    /// `hwnd`), then redeem the DPAPI-protected session key by respawning `bw serve`
-    /// pre-unlocked with it.
-    pub fn hello_unlock(self: &Arc<Self>, hwnd: isize) -> Result<(), String> {
+    /// Unlock without the master password: a Windows Hello prompt, whose signature is what
+    /// unseals the stored session key ([`hello`]) — then respawn `bw serve` pre-unlocked
+    /// with it. No prompt, no key: the Hello dialog is the lock itself here, which is why
+    /// there is no separate consent check to pass.
+    pub fn hello_unlock(self: &Arc<Self>) -> Result<(), String> {
         if !self.hello_ready() {
-            return Err("Windows Hello unlock isn't set up — unlock with your master password once".into());
+            return Err(funke_core::t("vault.hello.not_ready").into());
         }
-        hello::verify(hwnd, "Unlock your Bitwarden vault")?;
         // Page-locked while it waits for `bw serve` to boot; zeroized+freed on drop.
-        let session = hello::load_session()?;
+        let session = hello::load_session().map_err(|e| e.message())?;
         let respawned = self.respawn_serve(Some(session.as_str()?));
         drop(session);
         let (port, status) = respawned?;
         if status != "unlocked" {
-            // Invalidated elsewhere (bw lock/logout, a newer unlock) — back to the
-            // password prompt; the next master-password unlock mints a fresh key.
+            // The *session* was invalidated elsewhere (bw lock/logout, a newer unlock) —
+            // the Hello key is fine, so it stays. The next master-password unlock reseals
+            // a fresh session under it.
             hello::forget_session();
             *self.status.lock().unwrap() = VaultStatus::Locked;
-            return Err("The saved session has expired — unlock with your master password to refresh it".into());
+            return Err(funke_core::t("vault.hello.expired").into());
         }
         self.finish_unlock(port);
         Ok(())
     }
 
+    /// The user asked for Hello unlock. Says nothing about whether one is *stored* —
+    /// see [`Vault::hello_ready`] — but it does mean an unlock may raise a Hello prompt.
+    pub fn hello_enabled(&self) -> bool {
+        self.settings.read().unwrap().vault_hello
+    }
+
     /// A persisted Hello session exists and the setting is on — the unlock row may
     /// offer Windows Hello.
     pub fn hello_ready(&self) -> bool {
-        self.settings.read().unwrap().vault_hello && hello::has_session()
+        self.hello_enabled() && hello::has_session()
     }
 
     /// Whether the overlay's empty state may offer the credential for the focused app.
@@ -288,9 +301,11 @@ impl Vault {
         self.settings.read().unwrap().vault_context_suggest
     }
 
-    /// Drop the persisted Hello session (the settings toggle was switched off).
+    /// The settings toggle was switched off: drop the persisted session *and* the Hello
+    /// key it was sealed to. Leaving the key behind would be litter in the user's
+    /// credential store from a feature they just turned off.
     pub fn forget_hello_session(&self) {
-        hello::forget_session();
+        hello::forget_all();
     }
 
     /// `POST /lock` and forget everything cached. With a persisted Hello session the

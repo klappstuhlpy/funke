@@ -198,6 +198,32 @@ const EN: &[(&str, &str)] = &[
     ),
     // Reads on from "Bitwarden — ", so it is a clause, not a label.
     ("vault.how.master", "prompts for your master password"),
+    // Why a Windows Hello unlock didn't happen. Each of these lands in the masked
+    // master-password prompt, so each has to say what the user does *now*.
+    (
+        "vault.hello.not_ready",
+        "Windows Hello unlock isn't set up — unlock with your master password once",
+    ),
+    (
+        "vault.hello.unsupported",
+        "Windows Hello isn't set up on this device — use your master password",
+    ),
+    ("vault.hello.cancelled", "Windows Hello was cancelled"),
+    (
+        "vault.hello.reset",
+        "Windows Hello has changed since the vault session was saved — unlock with your master password once",
+    ),
+    // Not the user's doing: their stored session predates the stronger scheme, so it was
+    // discarded rather than trusted. Say that, instead of blaming their Hello setup.
+    (
+        "vault.hello.outdated",
+        "Windows Hello unlock is now protected by your Hello key — unlock with your master password once to upgrade",
+    ),
+    ("vault.hello.failed", "Windows Hello failed: {error}"),
+    (
+        "vault.hello.expired",
+        "The saved session has expired — unlock with your master password to refresh it",
+    ),
     // A refused autotype (see funke-shell's `form` module). The row names the credential;
     // these say why nothing was typed, and its Enter offers to type it anyway.
     ("vault.blocked", "Autotype blocked"),
@@ -339,6 +365,29 @@ const DE: &[(&str, &str)] = &[
         "Enter nutzt Windows Hello, ⇧Enter das Master-Passwort",
     ),
     ("vault.how.master", "fragt nach dem Master-Passwort"),
+
+    (
+        "vault.hello.not_ready",
+        "Windows Hello ist nicht eingerichtet — einmal mit dem Master-Passwort entsperren",
+    ),
+    (
+        "vault.hello.unsupported",
+        "Windows Hello ist auf diesem Gerät nicht eingerichtet — bitte das Master-Passwort verwenden",
+    ),
+    ("vault.hello.cancelled", "Windows Hello wurde abgebrochen"),
+    (
+        "vault.hello.reset",
+        "Windows Hello hat sich seit dem Speichern der Sitzung geändert — einmal mit dem Master-Passwort entsperren",
+    ),
+    (
+        "vault.hello.outdated",
+        "Windows Hello schützt die Sitzung jetzt mit deinem Hello-Schlüssel — zum Aktualisieren einmal mit dem Master-Passwort entsperren",
+    ),
+    ("vault.hello.failed", "Windows Hello fehlgeschlagen: {error}"),
+    (
+        "vault.hello.expired",
+        "Die gespeicherte Sitzung ist abgelaufen — zum Erneuern bitte mit dem Master-Passwort entsperren",
+    ),
 
     ("vault.blocked", "Autotype blockiert"),
     ("vault.blocked.window", "dem aktiven Fenster"),

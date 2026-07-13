@@ -74,12 +74,21 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   for the accident nobody marked (API keys, PATs, JWTs, PEM blocks), and the cap. It is
   `prefix_only`, so clips never surface in an ordinary search, and clips are recorded into
   neither the recents file nor frecency.
-- **Windows Hello unlock is opt-in** (Settings → Commands). When enabled, a successful
-  master-password unlock also mints a `bw` session key and stores it DPAPI-encrypted
-  (bound to your Windows account) under `%APPDATA%\funke`; later unlocks show a Windows
-  Hello consent prompt and boot `bw serve` pre-unlocked with that key. Locking then
-  kills the server process instead of `bw lock`, which would invalidate the stored key.
-  Turning the setting off deletes the stored key.
+- **Windows Hello unlock is opt-in** (Settings → Commands), and the Hello prompt is the
+  lock itself. When enabled, a successful master-password unlock mints a `bw` session key
+  and seals it under a key that **only a Hello prompt can reproduce**: `KeyCredentialManager`
+  holds a key pair whose private half lives in the TPM and signs only after Hello verifies
+  you, and the session file is `AES-256-GCM` under `HKDF-SHA256(that signature)`, DPAPI-
+  wrapped on top. Later unlocks show a Hello prompt — the signature *is* the prompt — and
+  boot `bw serve` pre-unlocked. No Hello, no signature; no signature, no key.
+  The two layers answer different attackers: DPAPI binds the file to your Windows account
+  (useless on another machine), the Hello layer binds it to your presence (useless to code
+  running *as* you). Locking kills the server process instead of `bw lock`, which would
+  invalidate the stored key. Turning the setting off deletes both the stored session and
+  the Hello key.
+  Sessions saved by Funke **before 0.6.0** used the older scheme (DPAPI only, with Hello as
+  a mere consent check) and are **discarded, not migrated** — the first Hello unlock after
+  updating asks for your master password once, and that unlock re-seals the session properly.
 - **Website icons are fetched from your server's icon service** (the Bitwarden cloud
   icon CDN, or your self-hosted server's `/icons` endpoint) and cached in memory only —
   nothing icon-related is written to disk. This tells that service which domains you
@@ -162,11 +171,15 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   through (a fetched password between REST parse and keystrokes) are zeroized but not
   page-locked — the parse makes transient copies no wrapper can catch, and pretending
   otherwise would be theater.
-- With Windows Hello unlock enabled, the Hello prompt is a **user-presence gate, not
-  an extra encryption layer**: the session key is protected by DPAPI, so other code
-  running under your Windows account could decrypt it without a Hello prompt. This is
-  the classic convenience/security tradeoff of biometric vault unlock — leave the
-  setting off if your threat model includes malware running as your user.
+- Windows Hello unlock still **widens the attack surface, it just no longer hands the
+  session key over for free**. Since 0.6.0 the key is sealed to a TPM signature Hello
+  gates (above), so code running as you cannot simply decrypt it — but it *can still ask*.
+  Nothing stops a program running under your account from raising a Hello prompt of its
+  own and hoping you approve it out of habit, and once the vault is unlocked the session
+  lives in Funke's memory, where it is page-locked and zeroized but not hidden from a
+  debugger attached as you. The prompt is a wall an attacker must get you to open, not one
+  they can walk around; if your threat model includes malware running as your user, the
+  strongest posture is still to leave the setting off and type your master password.
 - In-browser DOM autofill is **out of scope by design** — use the Bitwarden browser
   extension for that (see docs/DESIGN.md §5).
 - Native passkey provision is **out of scope by design**: answering the Windows

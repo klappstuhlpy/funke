@@ -236,11 +236,27 @@ autotype into it. A locked vault has no cache to match against, so it offers "Un
 autofill Discord" instead.
 
 **Windows Hello unlock** (opt-in): a master-password unlock also runs `bw unlock --raw` and
-persists the session key DPAPI-encrypted; later unlocks are a Hello consent prompt and a
-`bw serve` respawned with `BW_SESSION` already set. Locking **kills** the server process
-rather than calling `bw lock`, which would invalidate the stored key. The tradeoff (Hello is a
-presence gate, DPAPI is user-account encryption) is documented in `SECURITY.md` rather than
-hidden.
+persists the session key; later unlocks are a Hello prompt and a `bw serve` respawned with
+`BW_SESSION` already set. Locking **kills** the server process rather than calling `bw lock`,
+which would invalidate the stored key.
+
+**The Hello prompt is the lock, not a doorbell beside it.** The first cut of this used
+`UserConsentVerifier`: it shows a Hello dialog and reports whether a human passed it. That is
+a *presence check* — the answer is advice, and the secret it guarded was encrypted with DPAPI
+alone, which is transparent to anything running as the user. Malware never had to fail the
+prompt; it could decrypt the session key without raising one. So the key material now comes
+from Hello itself (`keycred.rs`): `KeyCredentialManager` holds a key pair whose private half
+lives in the TPM and only signs after Hello verifies the user, and the session file is sealed
+under `HKDF-SHA256(signature)` → AES-256-GCM, then DPAPI-wrapped on top. No Hello, no
+signature; no signature, no key. It works because RSA PKCS#1 v1.5 signatures are
+deterministic, so a stored challenge reproduces the same key forever — the scheme is
+KeePassXC's, and the reasoning is theirs. DPAPI stays as the outer wrapper: it binds the file
+to the Windows account, so the two walls answer different attackers.
+
+Blobs written by the old scheme are **refused, not migrated** — a v1 file is exactly the weak
+shape this replaced, and reading one would mean keeping alive the path we stopped trusting.
+It is deleted on sight; one master-password unlock mints the v2 blob. The version byte can't
+collide: a `bw` session key is base64, whose every byte is ≥ `0x2B`.
 
 **Security posture, from day one**, because this is a public app that touches passwords:
 secrets in zeroized buffers, never logged; clipboard copies auto-clear after ~30 s **and carry

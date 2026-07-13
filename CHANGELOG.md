@@ -10,6 +10,22 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 ## [Unreleased]
 
 ### Added
+- **The Windows Hello prompt is now the lock, not a doorbell beside it.** Unlocking with
+  Hello used to work like this: Funke showed a Hello dialog, Windows said "yes, that was
+  them", and Funke then decrypted the stored vault session — which was protected by DPAPI,
+  meaning any program running as you could decrypt it too, without ever raising a prompt.
+  The dialog was a formality; the lock it appeared to guard wasn't there. It is now. The
+  session key is sealed with a key derived from a signature that only your TPM can produce
+  and only after Hello verifies you, so there is no path to the vault that skips the prompt
+  — not for Funke, not for anything else running under your account. DPAPI stays as a second
+  wrapper, because the two answer different attackers: one binds the file to your Windows
+  account, the other to your presence.
+  **Sessions saved before this release are discarded rather than upgraded** — they are the
+  weak shape being retired, and reading one to convert it would mean keeping the old path
+  alive to do exactly what we stopped trusting it to do. Your first Hello unlock after
+  updating asks for your master password once, and that unlock seals the new session
+  properly. If your device has no Hello at all, nothing weaker is stored in its place: you
+  simply keep using your master password, as you did before enabling it.
 - **A slow source can no longer freeze your typing.** Until now every provider answered in
   turn, so the result list was only ever as fast as the slowest one — which is why "answer
   from memory" had to be a rule rather than a preference, and why a search of file *contents*
