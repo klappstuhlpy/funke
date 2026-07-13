@@ -644,13 +644,32 @@ fn get_settings(state: tauri::State<'_, AppState>) -> Settings {
 fn save_settings(app: AppHandle, state: tauri::State<'_, AppState>, settings: Settings) -> Result<(), String> {
     let old = state.settings.read().unwrap().clone();
 
-    if old.hotkey != settings.hotkey {
-        let _ = app.global_shortcut().unregister(old.hotkey.as_str());
-        if let Err(e) = register_hotkey(&app, &settings.hotkey) {
-            let _ = register_hotkey(&app, &old.hotkey);
+    // A quicklink ends in `OpenUrl`, which hands its string to the shell — so `file:` or a
+    // registered protocol handler would turn a text field in this window into a way to launch
+    // programs. Refused here, with the settings unchanged, exactly as a rejected hotkey is.
+    if let Some(link) = settings.quicklinks.iter().find(|link| !link.has_web_scheme()) {
+        return Err(funke_core::i18n::tf(
+            "quicklink.rejected",
+            &[("name", &link.name), ("url", &link.url)],
+        ));
+    }
+
+    // The summon hotkey and the scope hotkeys are one set of bindings, so they are torn down
+    // and put back as one. Two of them on the same chord is refused *before* any of that: only
+    // one registrant gets a chord, and the loser doesn't fail — it just never fires.
+    if let Some(clash) = settings.conflicting_scope_hotkey() {
+        return Err(funke_core::i18n::tf("hotkey.duplicate", &[("hotkey", &clash.hotkey)]));
+    }
+    if old.hotkey != settings.hotkey || old.scope_hotkeys != settings.scope_hotkeys {
+        unregister_hotkeys(&app, &old);
+        if let Some((hotkey, error)) = register_hotkeys(&app, &settings).into_iter().next() {
+            // Back to the set that worked — a half-registered set would leave the user with a
+            // summon hotkey that is gone and a scope hotkey that never arrived.
+            unregister_hotkeys(&app, &settings);
+            register_hotkeys(&app, &old);
             return Err(funke_core::i18n::tf(
                 "hotkey.rejected",
-                &[("hotkey", &settings.hotkey), ("error", &e.to_string())],
+                &[("hotkey", &hotkey), ("error", &error)],
             ));
         }
     }
@@ -708,6 +727,10 @@ fn locale() -> &'static str {
 struct ToggleableProvider {
     id: &'static str,
     name: &'static str,
+    /// Its keyword, if it has one. The Sources list is the only place a keyword is written
+    /// down — and for a `prefix_only` provider it is the *only* way in, so a source whose
+    /// keyword is a secret is a source nobody uses.
+    prefix: Option<&'static str>,
 }
 
 #[tauri::command]
@@ -723,6 +746,7 @@ fn list_providers(state: tauri::State<'_, AppState>) -> Vec<ToggleableProvider> 
         .map(|meta| ToggleableProvider {
             id: meta.id,
             name: meta.name,
+            prefix: meta.prefix,
         })
         .collect()
 }
@@ -789,13 +813,17 @@ fn load_new_plugins(state: &AppState) {
     }
 }
 
-/// A catalog entry as the Plugins pane shows it: the curated listing plus whether it is
-/// already on disk.
+/// A catalog entry as the Plugins pane shows it: the curated listing, plus what (if anything)
+/// is already on disk under that id.
 #[derive(serde::Serialize)]
 struct CatalogPlugin {
     #[serde(flatten)]
     entry: funke_plugin::catalog::CatalogEntry,
     installed: bool,
+    /// The version on disk, so the row can say what it is offering to move away from.
+    installed_version: Option<String>,
+    /// The catalog has something newer than what is installed.
+    update: bool,
 }
 
 /// Fetch the curated index. Async — and the fetch itself goes to a blocking thread, because
@@ -808,17 +836,26 @@ async fn browse_plugins(app: AppHandle) -> Result<Vec<CatalogPlugin>, String> {
             .await
             .map_err(|e| e.to_string())??;
     let state = app.state::<AppState>();
-    let installed: std::collections::HashSet<String> = state
+    // id -> the version of the copy on disk. This *is* the update check: the catalog is read
+    // only when the user presses Browse, so there is no background poll and no fifth kind of
+    // network request to explain in SECURITY.md — the answer just rides along with a fetch
+    // they asked for.
+    let installed: std::collections::HashMap<String, String> = state
         .plugins
         .handles()
         .iter()
-        .map(|handle| handle.manifest.id.clone())
+        .map(|handle| (handle.manifest.id.clone(), handle.manifest.version.clone()))
         .collect();
     Ok(entries
         .into_iter()
-        .map(|entry| CatalogPlugin {
-            installed: installed.contains(&entry.id),
-            entry,
+        .map(|entry| {
+            let on_disk = installed.get(&entry.id);
+            CatalogPlugin {
+                installed: on_disk.is_some(),
+                update: on_disk.is_some_and(|have| funke_plugin::catalog::is_newer(&entry.version, have)),
+                installed_version: on_disk.cloned(),
+                entry,
+            }
         })
         .collect())
 }
@@ -842,6 +879,20 @@ async fn install_plugin(app: AppHandle, id: String) -> Result<Vec<InstalledPlugi
     let state = app.state::<AppState>();
     load_new_plugins(&state);
     Ok(installed_plugins(&state))
+}
+
+/// Update in place: uninstall the copy on disk, then install the catalog's version through the
+/// very same verified path a first install takes — fetched fresh, hash-checked, staged.
+///
+/// An update is an install, not a patch, because the archive **is** what the catalog pins: a
+/// plugin is a `(version, sha256)` pair, and there is no smaller unit whose bytes have been
+/// reviewed. If the install half fails, the plugin is gone rather than half-replaced — which is
+/// the honest outcome (the staging design guarantees no half-written folder) and the Browse pane
+/// can reinstall it with one press.
+#[tauri::command]
+async fn update_plugin(app: AppHandle, id: String) -> Result<Vec<InstalledPlugin>, String> {
+    remove_plugin(app.clone(), id.clone()).await?;
+    install_plugin(app, id).await
 }
 
 /// Uninstall: stop the child process, drop its provider, then delete the folder — in that
@@ -995,6 +1046,42 @@ fn register_hotkey(app: &AppHandle, hotkey: &str) -> Result<(), tauri_plugin_glo
             toggle(app);
         }
     })
+}
+
+/// Register the summon hotkey and every bound scope hotkey, returning the ones Windows would
+/// not give us — `(chord, why)`. They are handled as one set because they are one set: a
+/// re-registration has to take all of them down and put all of them back.
+fn register_hotkeys(app: &AppHandle, settings: &Settings) -> Vec<(String, String)> {
+    let mut refused = Vec::new();
+    if let Err(e) = register_hotkey(app, &settings.hotkey) {
+        refused.push((settings.hotkey.clone(), e.to_string()));
+    }
+    for scope in &settings.scope_hotkeys {
+        let hotkey = scope.hotkey.trim();
+        if hotkey.is_empty() {
+            continue; // A row the user has added but not yet given a chord.
+        }
+        let prefix = scope.prefix.clone();
+        let bound = app.global_shortcut().on_shortcut(hotkey, move |app, _shortcut, event| {
+            if event.state() == ShortcutState::Pressed {
+                show_scoped(app, &prefix);
+            }
+        });
+        if let Err(e) = bound {
+            refused.push((hotkey.to_string(), e.to_string()));
+        }
+    }
+    refused
+}
+
+fn unregister_hotkeys(app: &AppHandle, settings: &Settings) {
+    let _ = app.global_shortcut().unregister(settings.hotkey.as_str());
+    for scope in &settings.scope_hotkeys {
+        let hotkey = scope.hotkey.trim();
+        if !hotkey.is_empty() {
+            let _ = app.global_shortcut().unregister(hotkey);
+        }
+    }
 }
 
 fn launch(target: &str) -> std::io::Result<()> {
@@ -1152,6 +1239,29 @@ fn hide(app: &AppHandle, restore_focus: bool) {
     }
 }
 
+/// Summon the overlay already scoped to one source — `c` straight into the clipboard's browse
+/// view, `v` into the vault.
+///
+/// Deliberately **not** a toggle, unlike the summon hotkey. That one means "show me Funke", so
+/// pressing it again means "go away". A scope hotkey means "show me the clipboard": pressing it
+/// while the overlay happens to be up on something else should *switch* to the clipboard, not
+/// dismiss the launcher and leave the user wondering what they hit.
+fn show_scoped(app: &AppHandle, prefix: &str) {
+    let visible = app
+        .get_webview_window(MAIN_WINDOW)
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false);
+    if !visible {
+        show(app);
+    }
+    if let Some(win) = app.get_webview_window(MAIN_WINDOW) {
+        // The trailing space is the whole trick: it is what commits a keyword to its provider
+        // (`Registry::dispatch`), so this is exactly the query the user would have typed. No
+        // new search path exists for scope hotkeys — only a new way to reach an old one.
+        let _ = win.emit("preset-query", format!("{} ", prefix.trim()));
+    }
+}
+
 fn toggle(app: &AppHandle) {
     let visible = app
         .get_webview_window(MAIN_WINDOW)
@@ -1174,8 +1284,10 @@ fn build_registry(
     registry.register(Box::new(providers::ControlProvider));
     registry.register(Box::new(funke_apps::AppsProvider::spawn()));
     registry.register(Box::new(funke_files::FilesProvider::spawn(Arc::clone(&settings))));
+    registry.register(Box::new(funke_content::ContentProvider::spawn(Arc::clone(&settings))));
     registry.register(Box::new(funke_utils::CalcProvider));
     registry.register(Box::new(funke_utils::SystemProvider));
+    registry.register(Box::new(funke_utils::QuicklinksProvider::new(Arc::clone(&settings))));
     registry.register(Box::new(funke_utils::WebSearchProvider::spawn(Arc::clone(&settings))));
     registry.register(Box::new(funke_windows::WindowsProvider::new()));
     registry.register(Box::new(funke_vault::VaultProvider::new(vault)));
@@ -1295,6 +1407,7 @@ fn main() {
             reload_plugins,
             browse_plugins,
             install_plugin,
+            update_plugin,
             remove_plugin,
             check_update,
             install_update
@@ -1335,12 +1448,10 @@ fn main() {
             }
 
             // Registered here (not via Builder::with_shortcuts) so a conflict with another
-            // launcher degrades to a warning instead of aborting startup.
-            if let Err(e) = register_hotkey(app.handle(), &settings.hotkey) {
-                eprintln!(
-                    "failed to register {}: {e} — is another launcher (e.g. PowerToys Run) using it?",
-                    settings.hotkey
-                );
+            // launcher degrades to a warning instead of aborting startup. One refused binding
+            // costs its own hotkey and nothing else — the rest keep working.
+            for (hotkey, error) in register_hotkeys(app.handle(), &settings) {
+                eprintln!("failed to register {hotkey}: {error} — is another launcher (e.g. PowerToys Run) using it?");
             }
 
             // Re-assert the persisted choice; the registry entry may have been removed
@@ -1427,4 +1538,113 @@ fn main() {
                 state.plugins.shutdown();
             }
         });
+}
+
+/// The UI's string catalogue lives in `ui/locales/<tag>.js` — plain scripts, outside anything
+/// Rust compiles, and therefore outside everything that would normally catch a mistake in them.
+/// `funke-core` has a parity test for its half; this is the other half's.
+///
+/// The parser is deliberately dumb: these files are generated-shaped (one `"key": "value",` per
+/// line, long values wrapped onto the next), and a parser that understood JavaScript would be a
+/// bigger thing to get wrong than the files it is checking.
+#[cfg(test)]
+mod ui_locales {
+    use std::collections::BTreeMap;
+
+    const LOCALES: &[(&str, &str)] = &[
+        ("en", include_str!("../ui/locales/en.js")),
+        ("de", include_str!("../ui/locales/de.js")),
+    ];
+
+    /// `key -> value` in file order. Duplicates are kept, so they can be counted.
+    fn entries(source: &str) -> Vec<(String, String)> {
+        let lines: Vec<&str> = source.lines().collect();
+        let mut found = Vec::new();
+        for (index, line) in lines.iter().enumerate() {
+            let Some(rest) = line.trim_start().strip_prefix('"') else {
+                continue;
+            };
+            let Some((key, after)) = rest.split_once('"') else {
+                continue;
+            };
+            let Some(after) = after.trim_start().strip_prefix(':') else {
+                continue; // A wrapped value line, not a key.
+            };
+            // The value sits after the colon, or alone on the next line when it is long.
+            let raw = match after.trim() {
+                "" => lines.get(index + 1).map(|next| next.trim()).unwrap_or_default(),
+                value => value,
+            };
+            let value = raw.trim_end_matches(',').trim().trim_matches('"');
+            found.push((key.to_string(), value.to_string()));
+        }
+        found
+    }
+
+    /// Every `{placeholder}` in a string, in any order.
+    fn placeholders(text: &str) -> Vec<&str> {
+        let mut found: Vec<&str> = text
+            .match_indices('{')
+            .filter_map(|(start, _)| {
+                let end = text[start..].find('}')? + start;
+                Some(&text[start..=end])
+            })
+            .collect();
+        found.sort_unstable();
+        found
+    }
+
+    #[test]
+    fn ui_locales_stay_in_step() {
+        let catalogs: Vec<(&str, Vec<(String, String)>)> =
+            LOCALES.iter().map(|(tag, source)| (*tag, entries(source))).collect();
+
+        let english: BTreeMap<&str, &str> = catalogs[0]
+            .1
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+        assert!(english.len() > 100, "the English catalogue did not parse");
+
+        for (tag, entries) in &catalogs {
+            let catalog: BTreeMap<&str, &str> = entries
+                .iter()
+                .map(|(key, value)| (key.as_str(), value.as_str()))
+                .collect();
+            assert_eq!(
+                catalog.len(),
+                entries.len(),
+                "ui/locales/{tag}.js has a duplicate key — one of them is a translation nobody can \
+                 reach, and JavaScript keeps the last silently"
+            );
+
+            for key in english.keys() {
+                assert!(catalog.contains_key(key), "ui/locales/{tag}.js is missing `{key}`");
+            }
+            for (key, translated) in &catalog {
+                let Some(source) = english.get(key) else {
+                    panic!("ui/locales/{tag}.js has `{key}`, which English does not");
+                };
+                assert_eq!(
+                    placeholders(source),
+                    placeholders(translated),
+                    "ui/locales/{tag}.js, `{key}`: a dropped placeholder leaves a hole in the \
+                     sentence, an invented one prints `{{…}}` at the user"
+                );
+            }
+        }
+    }
+
+    /// Every locale file has to be on both pages, or one window silently falls back to English.
+    #[test]
+    fn every_locale_file_is_loaded_by_both_windows() {
+        for page in [include_str!("../ui/index.html"), include_str!("../ui/settings.html")] {
+            for (tag, _) in LOCALES {
+                assert!(
+                    page.contains(&format!("locales/{tag}.js")),
+                    "a page does not load ui/locales/{tag}.js"
+                );
+            }
+        }
+    }
 }

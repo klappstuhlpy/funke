@@ -7,6 +7,63 @@ All notable changes to Funke are documented here. The format is based on
 The launcher version is the single source of truth in `crates/funke-app/Cargo.toml`
 (`tauri.conf.json` omits it and inherits from there); keep the git tag in step with it.
 
+## [0.7.0] - 2026-07-13
+
+The feature wave the async orchestrator was built for. Funke looks inside your files, remembers
+the pages you keep opening, converts units, opens straight into a source on its own hotkey, and
+tells you when a plugin has moved on. And its translations finally live in files, so a language
+is something you add rather than something you patch into two source files.
+
+### Changed
+- **Translations moved out of the code and into files** — `crates/funke-core/locales/<tag>.json`
+  and `crates/funke-app/ui/locales/<tag>.js`, one file per language, 305 strings that used to be
+  buried in two source files. Nothing changes for anyone using Funke; it changes everything for
+  anyone who wants to translate it. Adding a language is now four small edits, listed in
+  [docs/TRANSLATING.md](docs/TRANSLATING.md), and both halves are now checked against English by
+  a test — a missing key, a duplicate key, or a translation that drops a `{placeholder}` fails
+  the build instead of showing a hole in a sentence to whoever hit that string first.
+
+### Added
+- **Search inside your files** (`ff`). `f` finds a file by its name; `ff` finds it by what is
+  written in it — the invoice whose number you remember but whose filename you never chose, the
+  note that mentions a person, the contract with the clause in it. Funke does not read those
+  files to do it: Windows already has, and the index behind Explorer's search box is the one
+  being asked. So there is no crawler, no second copy of your disk, and nothing new on it —
+  which is also the deal's other half: `ff` finds what Windows indexed and nothing else, and if
+  the search service is off it finds nothing and says so rather than pretending. It searches the
+  same folders `f` does (Settings → Sources → File search), and its rows may take a moment
+  longer to appear than the rest — they arrive when they arrive, and nothing waits for them.
+- **Quicklinks** (Settings → Quicklinks). A page you open often, saved under the name you know
+  it by — and if you put `{query}` in the URL, an abbreviation turns it into a search:
+  `yt lofi beats` goes straight to the results, `gh rust-lang/rust` straight to the repo. They
+  turn up in an ordinary search by name, so there is no keyword to remember unless you want one.
+  The row shows the URL Enter will actually open, argument and all, before you press it.
+- **Scoped shortcuts** (Settings → Hotkey). A second hotkey that opens Funke *already inside*
+  one source — `Ctrl+Shift+V` straight into your clipboard history, say, without going through a
+  general search on the way. It types the source's keyword for you and nothing more, so it is
+  the same search you already know; you just skip the two characters. Unlike the summon hotkey it
+  never toggles: press it while Funke is up on something else and it switches to that source,
+  because "show me the clipboard" and "go away" are not the same instruction. Bind a combination
+  twice and Funke refuses the second one rather than letting Windows quietly decide which of them
+  never fires.
+- **The calculator converts units.** `100 mb in gb`, `72 f in c`, `5 km in miles`, `90 min in h`
+  — length, mass, temperature, data, time, speed, area and volume, in English and German
+  spellings, with Enter copying the number and ⇧Enter the number with its unit. It is a table and
+  some arithmetic: offline, instant, and it declines rather than guesses, so an unrecognized unit
+  gives you nothing instead of a wrong answer. Temperature is handled as the affine thing it is —
+  0 °C is 32 °F, not 0 °F. Kilobytes and kibibytes are kept apart, which is why your 1 TB disk
+  honestly reports 931 GiB. **Currency is deliberately absent**: a rate has to be fetched from
+  somewhere, and that is a decision about who you trust, not a unit conversion.
+- **Plugins tell you when they are out of date.** Settings → Plugins → Browse now shows
+  `v1.0 → v1.2` on any installed plugin the catalog has moved past, with one button to update.
+  The update runs through the same path a first install does — fetched fresh, checked against the
+  hash the catalog pins, unpacked via staging — because the archive *is* what was reviewed. The
+  catalog is still only read when you press Browse; nothing checks in the background.
+- **Every source now shows its keyword** in Settings → Sources. Plugins already did; the
+  built-in ones didn't, which made a keyword something you had to be told. For a source that
+  *only* answers behind its keyword — the vault, the clipboard, and now file contents — that
+  made it something you could have and never find.
+
 ## [0.6.0] - 2026-07-13
 
 The vault's Windows Hello prompt stops being a formality, Funke learns which `bw` it is
@@ -553,7 +610,8 @@ plugin foundation.
 - Repo went public with `LICENSE` (MIT), `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and
   `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/klappstuhlpy/funke/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/klappstuhlpy/funke/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/klappstuhlpy/funke/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/klappstuhlpy/funke/compare/v0.4.1...v0.4.2

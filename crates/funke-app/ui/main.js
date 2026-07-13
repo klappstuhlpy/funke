@@ -10,7 +10,13 @@ const count = document.getElementById("count");
 
 // Keys, not text: the tips are re-read on every render, so they follow a language change
 // without the overlay being reopened.
-const TIPS = ["overlay.tip.search", "overlay.tip.prefixes", "overlay.tip.clipboard", "overlay.tip.actions"];
+const TIPS = [
+  "overlay.tip.search",
+  "overlay.tip.prefixes",
+  "overlay.tip.content",
+  "overlay.tip.clipboard",
+  "overlay.tip.actions",
+];
 
 let items = [];
 let sections = []; // results mode: [{ label, items }] — `items` stays the flat list for navigation
@@ -618,6 +624,17 @@ listen("clipboard-changed", () => refreshResults());
 listen("vault-unlock-failed", (e) => {
   if (!vaultPrompt) enterVaultPrompt();
   renderVaultPrompt(String(e.payload));
+});
+
+// A scope hotkey (Settings → Hotkey → Scoped shortcuts): the overlay opens with a provider's
+// keyword already typed. It arrives right after `overlay-shown`, whose `loadOverview()` is
+// still in flight — and loses the race on purpose, because `search()` bumps `paintToken` and
+// an overview that lands after a query has been typed is stale by definition.
+listen("preset-query", (e) => {
+  input.value = String(e.payload);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  search();
 });
 
 listen("overlay-shown", () => {

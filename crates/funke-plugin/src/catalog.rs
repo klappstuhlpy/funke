@@ -87,6 +87,48 @@ pub fn install(entry: &CatalogEntry, plugins_dir: &Path) -> Result<PathBuf, Stri
     unpack(&archive, entry, plugins_dir)
 }
 
+/// Is the catalog's version newer than the one on disk?
+///
+/// Lenient by design, and not the `semver` crate: a plugin's version is whatever its author
+/// wrote in their own `plugin.json`, and refusing to compare `1.2` against `1.2.0` would make
+/// the update check a thing that only works for people who already got it right. Segments are
+/// split on `.`, read as far as they are digits, and a missing one is zero. A leading `v` is
+/// tolerated because half of everyone writes one.
+///
+/// The consequence, stated plainly: **pre-release tags are ignored** — `1.2.0-beta` and `1.2.0`
+/// compare equal, so an update from one to the other is never offered. If a plugin in the wild
+/// ever ships pre-releases that need ordering, take the dependency; do not grow this function.
+///
+/// An entry with no version compares as `0`, so a catalog that says nothing offers nothing.
+pub fn is_newer(available: &str, installed: &str) -> bool {
+    let segments = |version: &str| -> Vec<u64> {
+        version
+            .trim()
+            .trim_start_matches(['v', 'V'])
+            .split('.')
+            .map(|segment| {
+                segment
+                    .chars()
+                    .take_while(char::is_ascii_digit)
+                    .collect::<String>()
+                    .parse()
+                    .unwrap_or(0)
+            })
+            .collect()
+    };
+    let (available, installed) = (segments(available), segments(installed));
+    for index in 0..available.len().max(installed.len()) {
+        let (new, old) = (
+            available.get(index).copied().unwrap_or(0),
+            installed.get(index).copied().unwrap_or(0),
+        );
+        if new != old {
+            return new > old;
+        }
+    }
+    false
+}
+
 /// Delete an installed plugin's folder. Its process must be stopped first, or Windows keeps
 /// the running exe locked; we retry briefly because the kill is asynchronous.
 pub fn remove(id: &str, plugins_dir: &Path) -> Result<(), String> {
@@ -230,6 +272,30 @@ fn check_manifest(staging: &Path, id: &str) -> Result<(), String> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn a_newer_version_is_recognized_however_it_is_written() {
+        assert!(is_newer("1.1.0", "1.0.0"));
+        assert!(is_newer("1.0.1", "1.0.0"));
+        assert!(is_newer("2.0.0", "1.9.9"));
+        assert!(is_newer("1.10.0", "1.9.0"), "segments are numbers, not strings");
+        assert!(is_newer("v1.1.0", "1.0.0"), "a leading v is decoration");
+
+        assert!(!is_newer("1.0.0", "1.0.0"));
+        assert!(!is_newer("1.0.0", "1.1.0"), "downgrades are not updates");
+        assert!(!is_newer("1.0", "1.0.0"), "a missing segment is zero, not less");
+        assert!(is_newer("1.0.1", "1.0"), "…and the reverse follows from the same rule");
+
+        // A catalog entry that says nothing about its version offers nothing.
+        assert!(!is_newer("", "1.0.0"));
+        assert!(!is_newer("", ""));
+        // Garbage does not become an update.
+        assert!(!is_newer("latest", "1.0.0"));
+
+        // Documented limit: pre-release tags are not ordered, they are ignored.
+        assert!(!is_newer("1.2.0", "1.2.0-beta"));
+        assert!(!is_newer("1.2.0-beta", "1.2.0"));
+    }
 
     fn zipped(files: &[(&str, &[u8])]) -> Vec<u8> {
         let mut buffer = Vec::new();

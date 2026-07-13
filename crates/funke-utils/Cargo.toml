@@ -1,9 +1,9 @@
 [package]
 name = "funke-utils"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license.workspace = true
-description = "Small utility providers: calculator, web search, system commands"
+description = "Small utility providers: calculator, web search, quicklinks, system commands"
 
 [dependencies]
 funke-core = { path = "../funke-core" }

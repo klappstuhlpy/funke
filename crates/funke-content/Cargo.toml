@@ -1,0 +1,15 @@
+[package]
+name = "funke-content"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+description = "Content search provider: queries the Windows Search index for what is written inside files"
+
+[dependencies]
+funke-core = { path = "../funke-core" }
+funke-shell = { path = "../funke-shell" }
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Search",
+] }

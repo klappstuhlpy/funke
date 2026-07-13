@@ -97,7 +97,10 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   anywhere, and there is no account, no analytics, and no identifier. It makes exactly four
   kinds of network request: the optional vault favicon fetches above; loopback to
   `bw serve` (which syncs with your configured server); the plugin catalog, only when you
-  press Browse; and the update check.
+  press Browse (which is also where an out-of-date plugin is noticed — there is no separate
+  poll); and the update check. Unit conversion is a table and some arithmetic, offline;
+  **currency is deliberately not built**, because a rate would be a fifth kind of request and
+  a decision about whose exchange rate is the true one.
 - **The update check is the one request Funke makes without being asked** — so it is a
   setting (General → *Tell me about new versions*, on by default), and this is what it
   does. Shortly after startup it fetches the release manifest from GitHub and compares

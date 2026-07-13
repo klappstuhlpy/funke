@@ -10,6 +10,7 @@ mod glyph;
 pub mod i18n;
 mod orchestrator;
 mod recents;
+mod roots;
 mod settings;
 
 pub use frecency::FrecencyStore;
@@ -18,7 +19,8 @@ pub use glyph::glyph_data_url;
 pub use i18n::{alias_score, t, tf, Locale};
 pub use orchestrator::DEFAULT_DEADLINE;
 pub use recents::RecentsStore;
-pub use settings::{Settings, Snippet};
+pub use roots::{denied_dir_name, is_junk_path, resolve_index_roots};
+pub use settings::{Quicklink, ScopeHotkey, Settings, Snippet};
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

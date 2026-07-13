@@ -1,6 +1,6 @@
 [package]
 name = "funke-files"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license.workspace = true
 description = "Filename search provider: background-indexed user files, or Everything's whole-disk index when it is running"
@@ -11,4 +11,3 @@ funke-shell = { path = "../funke-shell" }
 funke-everything = { path = "../funke-everything" }
 walkdir = "2"
 notify = "6"
-dirs = "6"

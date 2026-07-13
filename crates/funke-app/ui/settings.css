@@ -632,6 +632,14 @@ option {
   justify-content: center;
 }
 
+/* A scope-hotkey row carries a recorder, a source picker and a delete button; at the summon
+   recorder's width the three of them push the label off the row. */
+.recorder.compact {
+  min-width: 124px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+
 .recorder:hover {
   background: var(--surface-hover);
 }

@@ -76,10 +76,15 @@ const SHORTCUTS = [
 ];
 
 let settings = null;
-let recording = false;
+// The recorder currently listening for keys — `{ el, apply }` — or null. One at a time: the
+// summon recorder and every scope-hotkey recorder share the same machinery, and while one is
+// armed, `renderAll` must not rebuild the element out from under it.
+let recording = null;
 // The id of the snippet the editor is editing, "" while creating a new one, null when the
-// editor is closed. Snippets are the one setting with enough structure to need a form.
+// editor is closed. Snippets and quicklinks are the two settings with enough structure to
+// need a form of their own.
 let editingSnippet = null;
+let editingQuicklink = null;
 
 /* ── persistence: instant apply, revert on rejection ── */
 
@@ -186,23 +191,29 @@ function renderAll() {
 
   renderRoots();
   renderSnippets();
+  renderQuicklinks();
   // Both take their words from the catalogue, so they are rebuilt rather than translated in
   // place — a language change repaints them for free.
   renderShortcuts();
   renderLinks();
 
-  if (!recording) showChord(settings.hotkey);
+  // Both would replace the element an armed recorder is standing on, so neither runs while one
+  // is listening for keys — a repaint mid-chord would eat the chord.
+  if (!recording) {
+    renderScopeHotkeys();
+    showChord(settings.hotkey);
+  }
 }
 
-/* ── the recorder shows a chord as keys, and prose as prose ── */
+/* ── a recorder shows a chord as keys, and prose as prose ── */
 
 function showChord(chord) {
   fillKeycaps(recorder, chord);
 }
 
-function showText(text) {
-  recorder.classList.remove("chord");
-  recorder.textContent = text;
+function showTextIn(el, text) {
+  el.classList.remove("chord");
+  el.textContent = text;
 }
 
 function renderShortcuts() {
@@ -370,6 +381,8 @@ function buildStaticControls() {
   });
   document.getElementById("browse-plugins").addEventListener("click", browseCatalog);
   buildSnippetControls();
+  buildQuicklinkControls();
+  buildScopeControls();
 }
 
 // The catalog is fetched over the network on demand, never at startup: opening Settings
@@ -407,9 +420,11 @@ function buildCatalogRows(available) {
     return;
   }
   available.forEach((plugin) => {
-    const byline = [plugin.version && `v${plugin.version}`, plugin.author && `by ${plugin.author}`]
-      .filter(Boolean)
-      .join(" · ");
+    // An outdated copy says so where the version normally sits: "v1.0 → v1.2".
+    const version = plugin.update
+      ? `v${plugin.installed_version} → v${plugin.version}`
+      : plugin.version && `v${plugin.version}`;
+    const byline = [version, plugin.author && `by ${plugin.author}`].filter(Boolean).join(" · ");
     const row = pluginRow(
       plugin.prefix ? `${plugin.name} · ${plugin.prefix} <query>` : plugin.name,
       [plugin.description, byline].filter(Boolean).join(" — "),
@@ -417,7 +432,17 @@ function buildCatalogRows(available) {
 
     const button = document.createElement("button");
     button.className = "button";
-    if (plugin.installed) {
+    if (plugin.update) {
+      button.classList.add("primary");
+      button.textContent = t("settings.plugins.update", { version: plugin.version });
+      button.addEventListener("click", () =>
+        withBusy(button, t("settings.plugins.updating"), async () => {
+          buildPluginRows(await invoke("update_plugin", { id: plugin.id }));
+          renderAll();
+          await browseCatalog(); // re-fetch so this row settles back to "Installed"
+        }),
+      );
+    } else if (plugin.installed) {
       button.textContent = t("settings.plugins.installed");
       button.disabled = true;
     } else {
@@ -667,6 +692,120 @@ function renderSnippets() {
   });
 }
 
+/* ── quicklinks ── */
+
+const quicklinkEditor = document.getElementById("quicklink-editor");
+const quicklinkName = document.getElementById("quicklink-name");
+const quicklinkAbbr = document.getElementById("quicklink-abbr");
+const quicklinkUrl = document.getElementById("quicklink-url");
+
+function buildQuicklinkControls() {
+  document.getElementById("add-quicklink").addEventListener("click", () => openQuicklinkEditor(null));
+  document.getElementById("quicklink-cancel").addEventListener("click", closeQuicklinkEditor);
+  quicklinkEditor.addEventListener("submit", (e) => {
+    e.preventDefault();
+    commitQuicklink();
+  });
+}
+
+// `link` is the one being edited, or null to create. Editing keeps the id, so frecency and the
+// link's place in the list survive a rename.
+function openQuicklinkEditor(link) {
+  editingQuicklink = link ? link.id : "";
+  quicklinkName.value = link ? link.name : "";
+  quicklinkAbbr.value = link ? link.abbreviation : "";
+  quicklinkUrl.value = link ? link.url : "";
+  document.getElementById("quicklink-save").textContent = link
+    ? t("settings.quicklinks.save")
+    : t("settings.quicklinks.create");
+  quicklinkEditor.hidden = false;
+  quicklinkName.focus();
+}
+
+function closeQuicklinkEditor() {
+  editingQuicklink = null;
+  quicklinkEditor.hidden = true;
+}
+
+function commitQuicklink() {
+  const name = quicklinkName.value.trim();
+  const url = quicklinkUrl.value.trim();
+  if (!name || !url) {
+    showError(t("settings.quicklinks.incomplete"));
+    return;
+  }
+  // Rust refuses a non-http quicklink too, and that refusal is the one that counts — but it
+  // arrives after the editor has closed and takes the typed URL with it. Saying so here keeps
+  // the form open with the text still in it, which is where the mistake can actually be fixed.
+  if (!/^https?:\/\//i.test(url)) {
+    showError(t("settings.quicklinks.bad_url"));
+    quicklinkUrl.focus();
+    return;
+  }
+  const edited = {
+    // crypto.randomUUID keeps ids stable and unique without a counter to persist.
+    id: editingQuicklink || crypto.randomUUID(),
+    name,
+    abbreviation: quicklinkAbbr.value.trim(),
+    url,
+  };
+  const quicklinks = editingQuicklink
+    ? settings.quicklinks.map((link) => (link.id === editingQuicklink ? edited : link))
+    : [...settings.quicklinks, edited];
+  closeQuicklinkEditor();
+  save({ quicklinks });
+}
+
+function renderQuicklinks() {
+  const box = document.getElementById("quicklink-list");
+  const empty = document.getElementById("quicklinks-empty");
+  box.innerHTML = "";
+  box.hidden = settings.quicklinks.length === 0;
+  empty.hidden = settings.quicklinks.length > 0;
+
+  settings.quicklinks.forEach((link) => {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const what = document.createElement("div");
+    what.className = "what";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = link.name;
+    if (link.abbreviation) {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = link.abbreviation;
+      label.appendChild(tag);
+    }
+    const desc = document.createElement("div");
+    desc.className = "desc";
+    desc.textContent = link.url;
+    what.append(label, desc);
+    row.appendChild(what);
+
+    const edit = document.createElement("button");
+    edit.className = "button";
+    edit.textContent = t("settings.quicklinks.edit");
+    edit.addEventListener("click", () => openQuicklinkEditor(link));
+
+    const remove = document.createElement("button");
+    remove.className = "remove";
+    remove.title = t("settings.quicklinks.delete");
+    remove.textContent = "✕";
+    remove.addEventListener("click", () => {
+      if (editingQuicklink === link.id) closeQuicklinkEditor();
+      save({ quicklinks: settings.quicklinks.filter((existing) => existing.id !== link.id) });
+    });
+
+    const group = document.createElement("div");
+    group.className = "button-group";
+    group.append(edit, remove);
+    row.appendChild(group);
+    box.appendChild(row);
+  });
+}
+
 function buildProviderRows(providers) {
   const card = document.getElementById("providers");
   providers.forEach((provider) => {
@@ -679,6 +818,14 @@ function buildProviderRows(providers) {
     label.className = "label";
     label.textContent = provider.name;
     what.appendChild(label);
+    // The keyword, where the source has one — written down here because this is the only
+    // place it is written down at all.
+    if (provider.prefix) {
+      const desc = document.createElement("div");
+      desc.className = "desc";
+      desc.textContent = t("settings.providers.keyword", { prefix: provider.prefix });
+      what.appendChild(desc);
+    }
     row.appendChild(what);
 
     const toggle = document.createElement("button");
@@ -716,7 +863,163 @@ document.querySelectorAll(".nav").forEach((nav) => {
   });
 });
 
-/* ── hotkey recorder ── */
+/* ── scope hotkeys: a shortcut that opens the overlay already inside one source ── */
+
+// [prefix, display name] for every source that has a keyword — the choices a scope hotkey has.
+// Filled at boot from the same lists the Sources and Plugins panes use, so a newly installed
+// plugin's keyword is bindable without anything here knowing it exists.
+let scopeChoices = [];
+
+function buildScopeChoices(providers, plugins) {
+  scopeChoices = [...providers, ...plugins]
+    .filter((source) => source.prefix)
+    .map((source) => [source.prefix, source.name]);
+}
+
+function buildScopeControls() {
+  document.getElementById("add-scope").addEventListener("click", () => {
+    if (!scopeChoices.length) return;
+    // A new row starts unbound: it registers nothing until it is given a chord, which is what
+    // lets it exist on screen long enough to be configured.
+    save({ scope_hotkeys: [...settings.scope_hotkeys, { hotkey: "", prefix: scopeChoices[0][0] }] });
+  });
+}
+
+function saveScopes(scopes) {
+  save({ scope_hotkeys: scopes });
+}
+
+function renderScopeHotkeys() {
+  const box = document.getElementById("scope-list");
+  box.innerHTML = "";
+  box.hidden = settings.scope_hotkeys.length === 0;
+
+  settings.scope_hotkeys.forEach((scope, index) => {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const what = document.createElement("div");
+    what.className = "what";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = t("settings.scopes.opens");
+    const desc = document.createElement("div");
+    desc.className = "desc";
+    desc.textContent = t("settings.scopes.opens.desc", { prefix: scope.prefix });
+    what.append(label, desc);
+    row.appendChild(what);
+
+    const select = document.createElement("select");
+    scopeChoices.forEach(([prefix, name]) => {
+      const option = document.createElement("option");
+      option.value = prefix;
+      option.textContent = `${name} · ${prefix}`;
+      select.appendChild(option);
+    });
+    // A prefix from a source that has since been uninstalled would otherwise silently become
+    // the first one in the list. Keep it, and let the user see what they bound.
+    if (!scopeChoices.some(([prefix]) => prefix === scope.prefix)) {
+      const orphan = document.createElement("option");
+      orphan.value = scope.prefix;
+      orphan.textContent = scope.prefix;
+      select.appendChild(orphan);
+    }
+    select.value = scope.prefix;
+    select.addEventListener("change", () => {
+      const scopes = settings.scope_hotkeys.map((existing, at) =>
+        at === index ? { ...existing, prefix: select.value } : existing,
+      );
+      saveScopes(scopes);
+    });
+
+    const chord = document.createElement("button");
+    chord.className = "recorder compact";
+    const paint = () => {
+      if (scope.hotkey) fillKeycaps(chord, scope.hotkey);
+      else showTextIn(chord, t("settings.scopes.unbound"));
+    };
+    paint();
+    makeRecorder(
+      chord,
+      (captured) => {
+        const scopes = settings.scope_hotkeys.map((existing, at) =>
+          at === index ? { ...existing, hotkey: captured } : existing,
+        );
+        saveScopes(scopes);
+      },
+      paint,
+    );
+
+    const remove = document.createElement("button");
+    remove.className = "remove";
+    remove.title = t("settings.scopes.delete");
+    remove.textContent = "✕";
+    remove.addEventListener("click", () => {
+      saveScopes(settings.scope_hotkeys.filter((_, at) => at !== index));
+    });
+
+    const group = document.createElement("div");
+    group.className = "button-group";
+    group.append(select, chord, remove);
+    row.appendChild(group);
+    box.appendChild(row);
+  });
+}
+
+/* ── hotkey recorders ── */
+
+// Turn a button into a chord recorder. `apply(chord)` is what to do with the captured keys —
+// save the summon hotkey, or set one scope hotkey's chord. `restore()` puts the button back to
+// what it showed before, for when nothing is captured after all.
+function makeRecorder(el, apply, restore) {
+  el.addEventListener("click", () => {
+    if (recording) stopRecording();
+    recording = { el, apply, restore };
+    el.classList.add("recording");
+    showTextIn(el, t("settings.hotkey.recording"));
+    el.focus();
+  });
+  el.addEventListener("blur", () => {
+    if (recording && recording.el === el) stopRecording();
+  });
+  el.addEventListener("keydown", captureChord);
+}
+
+function captureChord(e) {
+  if (!recording) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const el = recording.el;
+  if (e.key === "Escape") {
+    stopRecording();
+    return;
+  }
+  if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
+    const held = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"]
+      .filter(Boolean)
+      .join("+");
+    // The modifiers already down, as caps, with the key still to come.
+    if (held) {
+      fillKeycaps(el, held);
+      el.append("…");
+    } else {
+      showTextIn(el, t("settings.hotkey.recording"));
+    }
+    return;
+  }
+  const key = keyName(e);
+  const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
+  if (!key || !mods.length) {
+    showTextIn(el, t("settings.hotkey.needs_modifier"));
+    return;
+  }
+  // Disarm *before* applying: `apply` saves, which repaints — and a repaint would replace the
+  // element this handler is still standing on.
+  const { apply } = recording;
+  el.classList.remove("recording");
+  recording = null;
+  apply([...mods, key].join("+"));
+}
 
 function keyName(e) {
   const c = e.code;
@@ -752,53 +1055,24 @@ function keyName(e) {
   return named[c] || null;
 }
 
+// Cancelled (Escape, or clicked away). Nothing was captured, so put the button back to what it
+// showed — and *only* that button. A full `renderAll()` here would rebuild the scope-hotkey
+// rows, and clicking straight from one recorder to the next fires this from the first one's
+// blur: the element the click is on its way to would be destroyed underneath it, leaving a
+// recorder that is armed, detached, and impossible to type into.
 function stopRecording() {
-  recording = false;
-  recorder.classList.remove("recording");
-  renderAll();
+  if (!recording) return;
+  const { el, restore } = recording;
+  el.classList.remove("recording");
+  recording = null;
+  restore();
 }
 
-recorder.addEventListener("click", () => {
-  recording = true;
-  recorder.classList.add("recording");
-  showText(t("settings.hotkey.recording"));
-  recorder.focus();
-});
-
-recorder.addEventListener("blur", () => {
-  if (recording) stopRecording();
-});
-
-recorder.addEventListener("keydown", (e) => {
-  if (!recording) return;
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.key === "Escape") {
-    stopRecording();
-    return;
-  }
-  if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
-    const held = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"]
-      .filter(Boolean)
-      .join("+");
-    // The modifiers already down, as caps, with the key still to come.
-    if (held) {
-      showChord(held);
-      recorder.append("…");
-    } else {
-      showText(t("settings.hotkey.recording"));
-    }
-    return;
-  }
-  const key = keyName(e);
-  const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
-  if (!key || !mods.length) {
-    showText(t("settings.hotkey.needs_modifier"));
-    return;
-  }
-  stopRecording();
-  save({ hotkey: [...mods, key].join("+") });
-});
+makeRecorder(
+  recorder,
+  (chord) => save({ hotkey: chord }),
+  () => showChord(settings.hotkey),
+);
 
 /* ── window chrome ── */
 
@@ -839,6 +1113,7 @@ async function init() {
     buildEngineOptions(engines);
     buildProviderRows(providers);
     buildPluginRows(plugins);
+    buildScopeChoices(providers, plugins);
     renderAll();
   } catch (err) {
     // A half-built pane the user can see and close beats a window that silently never

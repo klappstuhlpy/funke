@@ -1,7 +1,11 @@
 //! The string catalogue: everything the user reads that Funke itself wrote.
 //!
-//! Two rules keep localization from quietly breaking the launcher, and both are load-bearing
-//! enough to be tested:
+//! The strings themselves live in **`crates/funke-core/locales/<tag>.json`**, one flat file per
+//! language, and are compiled in with `include_str!` — nothing is read from disk at runtime, so
+//! a shipped Funke cannot be broken by a missing or edited locale file. Adding a language is
+//! four small things, and `docs/TRANSLATING.md` walks through them.
+//!
+//! This module owns the *rules*, and two of them are load-bearing enough to be tested:
 //!
 //! 1. **A `ResultItem`'s id is never localized.** Ids key the frecency store and the recents
 //!    file, which outlive a language change — build one out of a title and switching to
@@ -14,7 +18,9 @@
 //! Formatting is `{name}` placeholders and [`tf`] — no `format!` on translated strings, or
 //! the argument order becomes part of the translation.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Locale {
@@ -23,11 +29,23 @@ pub enum Locale {
 }
 
 impl Locale {
-    /// The tag as settings and the frontend spell it.
+    /// Every language Funke speaks, in the order their catalogues are indexed. English first:
+    /// it is the source of truth every other file is checked against.
+    const ALL: &'static [Locale] = &[Locale::En, Locale::De];
+
+    /// The tag as settings, the frontend, and the locale file's name all spell it.
     pub fn tag(self) -> &'static str {
         match self {
             Locale::En => "en",
             Locale::De => "de",
+        }
+    }
+
+    /// This language's catalogue, embedded at compile time.
+    fn source(self) -> &'static str {
+        match self {
+            Locale::En => include_str!("../locales/en.json"),
+            Locale::De => include_str!("../locales/de.json"),
         }
     }
 
@@ -40,10 +58,11 @@ impl Locale {
             .unwrap_or_default()
             .trim()
             .to_ascii_lowercase();
-        match language.as_str() {
-            "de" => Locale::De,
-            _ => Locale::En,
-        }
+        Locale::ALL
+            .iter()
+            .copied()
+            .find(|locale| locale.tag() == language)
+            .unwrap_or(Locale::En)
     }
 }
 
@@ -56,22 +75,16 @@ pub fn set_locale(locale: Locale) {
 }
 
 pub fn locale() -> Locale {
-    match CURRENT.load(Ordering::Relaxed) {
-        1 => Locale::De,
-        _ => Locale::En,
-    }
+    let current = CURRENT.load(Ordering::Relaxed) as usize;
+    Locale::ALL.get(current).copied().unwrap_or(Locale::En)
 }
 
 /// Translate. An unknown key falls back to English and then to the key itself — a missing
 /// string shows up as `action.oops` in the UI, which is ugly on purpose: silence would hide it.
 pub fn t(key: &str) -> &'static str {
-    let catalog = match locale() {
-        Locale::En => EN,
-        Locale::De => DE,
-    };
-    lookup(catalog, key)
-        .or_else(|| lookup(EN, key))
-        .unwrap_or_else(|| leak_key(key))
+    lookup(locale(), key)
+        .or_else(|| lookup(Locale::En, key))
+        .unwrap_or_else(|| leak(key.to_string()))
 }
 
 /// Translate and fill `{name}` placeholders.
@@ -83,355 +96,42 @@ pub fn tf(key: &str, args: &[(&str, &str)]) -> String {
     text
 }
 
-fn lookup(catalog: &[(&str, &'static str)], key: &str) -> Option<&'static str> {
-    catalog
-        .iter()
-        .find(|(candidate, _)| *candidate == key)
-        .map(|(_, value)| *value)
+fn lookup(locale: Locale, key: &str) -> Option<&'static str> {
+    catalogs()[locale as usize].get(key).copied()
 }
 
-/// Only ever reached by a key that is in neither catalog — i.e. a bug, once, at development
-/// time. Leaking it buys the `&'static str` that `ProviderMeta` needs.
-fn leak_key(key: &str) -> &'static str {
-    Box::leak(key.to_string().into_boxed_str())
+/// The parsed catalogues, one per [`Locale::ALL`], built once on first use.
+///
+/// Their strings are leaked on purpose. `ProviderMeta` needs `&'static str`, the catalogue is
+/// alive for as long as the process is, and the alternative — handing out borrows of a lazily
+/// initialized map — buys nothing for a few kilobytes that are never freed anyway.
+fn catalogs() -> &'static [HashMap<&'static str, &'static str>] {
+    static CATALOGS: OnceLock<Vec<HashMap<&'static str, &'static str>>> = OnceLock::new();
+    CATALOGS.get_or_init(|| Locale::ALL.iter().map(|locale| parse(locale.source())).collect())
 }
 
-/// English is the source of truth: every other catalog is checked against these keys.
-const EN: &[(&str, &str)] = &[
-    // Section headers — the provider names as the overlay groups them.
-    ("provider.apps", "Applications"),
-    ("provider.files", "Files"),
-    ("provider.windows", "Windows"),
-    ("provider.commands", "Commands"),
-    ("provider.calculator", "Calculator"),
-    ("provider.web", "Web"),
-    ("provider.vault", "Vault"),
-    ("provider.clipboard", "Clipboard"),
-    ("provider.snippets", "Snippets"),
-    // Actions.
-    ("action.open", "Open"),
-    ("action.run", "Run"),
-    ("action.search", "Search"),
-    ("action.reveal", "Reveal in Explorer"),
-    ("action.copy_path", "Copy path"),
-    ("action.copy_result", "Copy result"),
-    ("action.switch_to", "Switch to"),
-    ("action.end_process", "End process"),
-    ("action.paste_into_last_window", "Paste into last window"),
-    ("action.copy_to_clipboard", "Copy to clipboard"),
-    ("action.remove_from_history", "Remove from history"),
-    ("action.autotype", "Autotype into last window"),
-    ("action.autotype_open", "Open website & autofill"),
-    ("action.autotype_anyway", "Type it anyway"),
-    ("action.copy_password", "Copy password"),
-    ("action.copy_username", "Copy username"),
-    ("action.copy_totp", "Copy TOTP"),
-    ("action.unlock_hello", "Unlock with Windows Hello"),
-    ("action.unlock_master", "Unlock with master password"),
-    // Applications.
-    ("apps.subtitle", "Application"),
-    // Calculator.
-    ("calc.subtitle", "{expression} — Enter copies the result"),
-    // System commands.
-    ("system.lock.title", "Lock"),
-    ("system.lock.subtitle", "Lock this PC"),
-    ("system.sleep.title", "Sleep"),
-    ("system.sleep.subtitle", "Put the PC to sleep"),
-    ("system.shutdown.title", "Shut down"),
-    ("system.shutdown.subtitle", "Shut down this PC"),
-    ("system.restart.title", "Restart"),
-    ("system.restart.subtitle", "Restart this PC"),
-    ("system.recycle.title", "Empty Recycle Bin"),
-    ("system.recycle.subtitle", "Delete the recycle bin contents"),
-    // Tray menu.
-    ("tray.show", "Show ({hotkey})"),
-    ("tray.settings", "Settings"),
-    ("tray.quit", "Quit"),
-    // Launcher control.
-    ("control.settings.title", "Open Settings"),
-    ("control.settings.subtitle", "Appearance, hotkey, commands"),
-    ("control.quit.title", "Quit Funke"),
-    ("control.quit.subtitle", "Exit the launcher"),
-    // Web search.
-    ("web.search_for", "Search the web for “{query}”"),
-    // Clipboard.
-    ("clipboard.clear.title", "Clear clipboard history"),
-    (
-        "clipboard.clear.subtitle",
-        "Forgets every clip — press Enter again to confirm",
-    ),
-    ("clipboard.empty.title", "Clipboard history is empty"),
-    (
-        "clipboard.empty.subtitle",
-        "Copy something — history is kept in memory only, so it starts empty each launch",
-    ),
-    // Vault.
-    ("vault.starting", "Starting the vault backend…"),
-    (
-        "vault.starting.subtitle",
-        "bw serve is coming up — try again in a second",
-    ),
-    ("vault.cli_missing", "Bitwarden CLI not found"),
-    (
-        "vault.cli_missing.subtitle",
-        "Install bw.exe and put it on PATH — Enter opens the setup guide",
-    ),
-    ("vault.cli_unverified", "Bitwarden CLI not signature-verified"),
-    (
-        "vault.cli_unverified.subtitle",
-        "The bw on this machine isn't signed by Bitwarden, and you asked Funke to refuse those — Enter opens the setup guide",
-    ),
-    ("vault.cli.unsigned", "the CLI carries no valid signature"),
-    ("vault.cli.other_signer", "the CLI is signed, but not by Bitwarden"),
-    ("vault.cli.shim", "the CLI is an unsigned script wrapper"),
-    ("vault.not_logged_in", "Vault not logged in"),
-    (
-        "vault.not_logged_in.subtitle",
-        "Run `bw login` in a terminal once — Enter opens the guide",
-    ),
-    ("vault.unlock", "Unlock vault"),
-    ("vault.unlock_for", "Unlock vault to autofill {app}"),
-    ("vault.unlock.subtitle", "Bitwarden — {how}"),
-    (
-        "vault.how.hello",
-        "Enter uses Windows Hello, ⇧Enter the master password",
-    ),
-    // Reads on from "Bitwarden — ", so it is a clause, not a label.
-    ("vault.how.master", "prompts for your master password"),
-    // Why a Windows Hello unlock didn't happen. Each of these lands in the masked
-    // master-password prompt, so each has to say what the user does *now*.
-    (
-        "vault.hello.not_ready",
-        "Windows Hello unlock isn't set up — unlock with your master password once",
-    ),
-    (
-        "vault.hello.unsupported",
-        "Windows Hello isn't set up on this device — use your master password",
-    ),
-    ("vault.hello.cancelled", "Windows Hello was cancelled"),
-    (
-        "vault.hello.reset",
-        "Windows Hello has changed since the vault session was saved — unlock with your master password once",
-    ),
-    // Not the user's doing: their stored session predates the stronger scheme, so it was
-    // discarded rather than trusted. Say that, instead of blaming their Hello setup.
-    (
-        "vault.hello.outdated",
-        "Windows Hello unlock is now protected by your Hello key — unlock with your master password once to upgrade",
-    ),
-    ("vault.hello.failed", "Windows Hello failed: {error}"),
-    (
-        "vault.hello.expired",
-        "The saved session has expired — unlock with your master password to refresh it",
-    ),
-    // A refused autotype (see funke-shell's `form` module). The row names the credential;
-    // these say why nothing was typed, and its Enter offers to type it anyway.
-    ("vault.blocked", "Autotype blocked"),
-    ("vault.blocked.window", "the focused window"),
-    (
-        "vault.blocked.no_form",
-        "No login form in {app} — nothing was typed, in case that's a chat box",
-    ),
-    (
-        "vault.blocked.no_field",
-        "Couldn't put the caret in {app}'s login form — nothing was typed",
-    ),
-    (
-        "vault.blocked.no_site",
-        "No login form appeared on {app} — nothing was typed",
-    ),
-    ("vault.blocked.no_url", "This entry has no website to open"),
-    // What the app itself answers the settings window with. The section fallback is only
-    // reached by a provider the registry cannot name — a bug, but a visible one.
-    ("results.fallback", "Results"),
-    ("hotkey.rejected", "Couldn't bind “{hotkey}”: {error}"),
-    ("update.none", "You're on the latest version."),
-    (
-        "update.unconfigured",
-        "Auto-updates aren't set up yet (no update endpoint configured).",
-    ),
-    // The Windows notification raised once, the first time a new release is seen. It says
-    // what is available and where to go — it never offers to install anything, because a
-    // notification is a thing you glance at, not a thing you consent with.
-    ("update.notify.title", "Funke {version} is available"),
-    (
-        "update.notify.body",
-        "You're on {current}. Open Settings → General to see what's new and install it.",
-    ),
-];
+/// A locale file is compiled into the binary, so it cannot be malformed in the field without
+/// having been malformed in CI first — where the tests below parse both of them. Panicking is
+/// the honest response to a file that shipped broken; degrading to an empty catalogue would
+/// only mean every string in the app silently becomes its own key.
+fn parse(source: &'static str) -> HashMap<&'static str, &'static str> {
+    let entries: HashMap<String, String> = serde_json::from_str(source).expect("locale file is not valid JSON");
+    entries
+        .into_iter()
+        .map(|(key, value)| (leak(key), leak(value)))
+        .collect()
+}
 
-/// German. Written, not translated: du-form, short, and using the words a German user
-/// actually says — Snippet, Hotkey, App, TOTP stay as they are, because "Textbaustein" and
-/// "Zusatztaste" would be correct and nobody would type them. Bitwarden's own German says
-/// "Tresor", so an entry lives in one here too.
-const DE: &[(&str, &str)] = &[
-    ("provider.apps", "Apps"),
-    ("provider.files", "Dateien"),
-    ("provider.windows", "Fenster"),
-    ("provider.commands", "Befehle"),
-    ("provider.calculator", "Rechner"),
-    ("provider.web", "Web"),
-    ("provider.vault", "Tresor"),
-    ("provider.clipboard", "Zwischenablage"),
-    ("provider.snippets", "Snippets"),
-
-    ("action.open", "Öffnen"),
-    ("action.run", "Ausführen"),
-    ("action.search", "Suchen"),
-    ("action.reveal", "Im Explorer öffnen"),
-    ("action.copy_path", "Pfad kopieren"),
-    ("action.copy_result", "Ergebnis kopieren"),
-    ("action.switch_to", "Zu Fenster wechseln"),
-    ("action.end_process", "Prozess beenden"),
-    ("action.paste_into_last_window", "Im vorherigen Fenster einfügen"),
-    ("action.copy_to_clipboard", "In Zwischenablage kopieren"),
-    ("action.remove_from_history", "Aus Verlauf entfernen"),
-    ("action.autotype", "Automatisch ausfüllen"),
-    ("action.autotype_open", "Website öffnen & ausfüllen"),
-    ("action.autotype_anyway", "Trotzdem tippen"),
-    ("action.copy_password", "Passwort kopieren"),
-    ("action.copy_username", "Benutzernamen kopieren"),
-    ("action.copy_totp", "TOTP-Code kopieren"),
-    ("action.unlock_hello", "Mit Windows Hello entsperren"),
-    ("action.unlock_master", "Mit Master-Passwort entsperren"),
-
-    ("apps.subtitle", "App"),
-    ("calc.subtitle", "{expression} — Enter kopiert das Ergebnis"),
-
-    ("system.lock.title", "PC sperren"),
-    ("system.lock.subtitle", "Windows sofort sperren"),
-
-    ("system.sleep.title", "Energiesparmodus"),
-    ("system.sleep.subtitle", "PC in den Energiesparmodus versetzen"),
-
-    ("system.shutdown.title", "Herunterfahren"),
-    ("system.shutdown.subtitle", "PC ausschalten"),
-
-    ("system.restart.title", "Neu starten"),
-    ("system.restart.subtitle", "PC neu starten"),
-
-    ("system.recycle.title", "Papierkorb leeren"),
-    ("system.recycle.subtitle", "Alle Dateien im Papierkorb löschen"),
-
-    ("tray.show", "Öffnen ({hotkey})"),
-    ("tray.settings", "Einstellungen"),
-    ("tray.quit", "Beenden"),
-
-    ("control.settings.title", "Einstellungen öffnen"),
-    ("control.settings.subtitle", "Allgemein, Darstellung, Hotkey und mehr"),
-
-    ("control.quit.title", "Funke beenden"),
-    ("control.quit.subtitle", "Launcher schließen"),
-
-    ("web.search_for", "Im Web nach „{query}“ suchen"),
-
-    ("clipboard.clear.title", "Zwischenablage leeren"),
-    (
-        "clipboard.clear.subtitle",
-        "Löscht den gesamten Verlauf — zum Bestätigen Enter erneut drücken",
-    ),
-
-    ("clipboard.empty.title", "Noch nichts kopiert"),
-    (
-        "clipboard.empty.subtitle",
-        "Kopier etwas, dann findest du es hier wieder. Der Verlauf liegt nur im Arbeitsspeicher und ist nach jedem Neustart leer.",
-    ),
-
-    ("vault.starting", "Tresor wird gestartet…"),
-    (
-        "vault.starting.subtitle",
-        "Bitwarden wird gerade gestartet. Versuch es gleich noch einmal.",
-    ),
-
-    ("vault.cli_missing", "Bitwarden CLI nicht gefunden"),
-    (
-        "vault.cli_missing.subtitle",
-        "Installiere bw.exe und füge sie zum PATH hinzu. Enter öffnet die Anleitung.",
-    ),
-
-    ("vault.cli_unverified", "Signatur der Bitwarden-CLI nicht bestätigt"),
-    (
-        "vault.cli_unverified.subtitle",
-        "Die bw auf diesem Rechner ist nicht von Bitwarden signiert, und du hast Funke gebeten, solche abzulehnen. Enter öffnet die Anleitung.",
-    ),
-    ("vault.cli.unsigned", "CLI ohne gültige Signatur"),
-    ("vault.cli.other_signer", "CLI signiert, aber nicht von Bitwarden"),
-    ("vault.cli.shim", "CLI ist ein unsignierter Skript-Wrapper"),
-    ("vault.not_logged_in", "Nicht bei Bitwarden angemeldet"),
-    (
-        "vault.not_logged_in.subtitle",
-        "Führe einmalig `bw login` im Terminal aus. Enter öffnet die Anleitung.",
-    ),
-
-    ("vault.unlock", "Tresor entsperren"),
-    ("vault.unlock_for", "Tresor entsperren und bei {app} anmelden"),
-    ("vault.unlock.subtitle", "Bitwarden — {how}"),
-
-    (
-        "vault.how.hello",
-        "Enter nutzt Windows Hello, ⇧Enter das Master-Passwort",
-    ),
-    ("vault.how.master", "fragt nach dem Master-Passwort"),
-
-    (
-        "vault.hello.not_ready",
-        "Windows Hello ist nicht eingerichtet — einmal mit dem Master-Passwort entsperren",
-    ),
-    (
-        "vault.hello.unsupported",
-        "Windows Hello ist auf diesem Gerät nicht eingerichtet — bitte das Master-Passwort verwenden",
-    ),
-    ("vault.hello.cancelled", "Windows Hello wurde abgebrochen"),
-    (
-        "vault.hello.reset",
-        "Windows Hello hat sich seit dem Speichern der Sitzung geändert — einmal mit dem Master-Passwort entsperren",
-    ),
-    (
-        "vault.hello.outdated",
-        "Windows Hello schützt die Sitzung jetzt mit deinem Hello-Schlüssel — zum Aktualisieren einmal mit dem Master-Passwort entsperren",
-    ),
-    ("vault.hello.failed", "Windows Hello fehlgeschlagen: {error}"),
-    (
-        "vault.hello.expired",
-        "Die gespeicherte Sitzung ist abgelaufen — zum Erneuern bitte mit dem Master-Passwort entsperren",
-    ),
-
-    ("vault.blocked", "Autotype blockiert"),
-    ("vault.blocked.window", "dem aktiven Fenster"),
-    (
-        "vault.blocked.no_form",
-        "Kein Login-Formular in {app} — nichts getippt, es könnte ein Chatfenster sein",
-    ),
-    (
-        "vault.blocked.no_field",
-        "Cursor ließ sich nicht ins Login-Formular von {app} setzen — nichts getippt",
-    ),
-    (
-        "vault.blocked.no_site",
-        "Auf {app} ist kein Login-Formular erschienen — nichts getippt",
-    ),
-    ("vault.blocked.no_url", "Dieser Eintrag hat keine Website zum Öffnen"),
-
-    ("results.fallback", "Treffer"),
-    ("hotkey.rejected", "„{hotkey}“ ließ sich nicht belegen: {error}"),
-    ("update.none", "Du hast die neueste Version."),
-    (
-        "update.unconfigured",
-        "Automatische Updates sind noch nicht eingerichtet (keine Update-Adresse konfiguriert).",
-    ),
-    ("update.notify.title", "Funke {version} ist da"),
-    (
-        "update.notify.body",
-        "Du hast {current}. Unter Einstellungen → Allgemein siehst du, was neu ist, und kannst es installieren.",
-    ),
-];
+fn leak(text: String) -> &'static str {
+    Box::leak(text.into_boxed_str())
+}
 
 /// Score a candidate against both the localized string and its English original, keeping the
 /// better of the two: a German UI must still answer to `settings`, and an English one to a
 /// string a translator has since reworded. Muscle memory is not a language.
 pub fn alias_score(matcher: &crate::FuzzyMatcher, key: &str) -> Option<i64> {
     let localized = matcher.score(t(key));
-    let Some(english) = lookup(EN, key) else {
+    let Some(english) = lookup(Locale::En, key) else {
         return localized;
     };
     let english = matcher.score(english);
@@ -442,27 +142,48 @@ pub fn alias_score(matcher: &crate::FuzzyMatcher, key: &str) -> Option<i64> {
 mod tests {
     use super::*;
 
+    /// The file's keys, in the order they are written — so a duplicate key, which `serde_json`
+    /// would silently collapse into one, is still visible to the test below.
+    fn keys_in_file(source: &str) -> Vec<String> {
+        source
+            .lines()
+            .filter_map(|line| {
+                let rest = line.trim_start().strip_prefix('"')?;
+                let (key, after) = rest.split_once('"')?;
+                after.trim_start().starts_with(':').then(|| key.to_string())
+            })
+            .collect()
+    }
+
     /// The catalogues must not drift. A key present in one language and missing from the
     /// other is a string that silently shows up in the wrong language.
     #[test]
-    fn every_english_key_has_a_german_one_and_nothing_is_orphaned_or_duplicated() {
-        for (key, _) in EN {
-            assert!(lookup(DE, key).is_some(), "German is missing `{key}`");
-        }
-        for (key, _) in DE {
-            assert!(lookup(EN, key).is_some(), "German has `{key}`, which English does not");
-        }
-        for (index, (key, _)) in EN.iter().enumerate() {
-            assert!(
-                !EN[index + 1..].iter().any(|(other, _)| other == key),
-                "`{key}` appears twice"
+    fn every_language_has_exactly_englishs_keys_and_no_duplicates() {
+        let english = &catalogs()[Locale::En as usize];
+        for locale in Locale::ALL {
+            let catalog = &catalogs()[*locale as usize];
+            let tag = locale.tag();
+            for key in english.keys() {
+                assert!(catalog.contains_key(key), "{tag} is missing `{key}`");
+            }
+            for key in catalog.keys() {
+                assert!(english.contains_key(key), "{tag} has `{key}`, which English does not");
+            }
+
+            // `serde_json` keeps the last of two identical keys without a word, so the raw file
+            // is what has to be checked — a duplicate is a translation nobody can find.
+            let written = keys_in_file(locale.source());
+            assert_eq!(
+                written.len(),
+                catalog.len(),
+                "locales/{tag}.json has a duplicate key — the file has {} keys, the catalogue {}",
+                written.len(),
+                catalog.len()
             );
         }
     }
 
-    /// A translated string that drops a placeholder produces a sentence with a hole in it,
-    /// and one that invents a placeholder prints a literal `{app}` at the user.
-    /// Every `{placeholder}` in the English string, in any order.
+    /// Every `{placeholder}` in a string, in any order.
     fn placeholders(text: &str) -> Vec<&str> {
         let mut found: Vec<&str> = text
             .match_indices('{')
@@ -475,16 +196,31 @@ mod tests {
         found
     }
 
+    /// A translated string that drops a placeholder produces a sentence with a hole in it,
+    /// and one that invents a placeholder prints a literal `{app}` at the user.
     #[test]
     fn placeholders_survive_translation() {
-        for (key, english) in EN {
-            let german = lookup(DE, key).unwrap();
-            assert_eq!(
-                placeholders(english),
-                placeholders(german),
-                "`{key}`: a dropped placeholder leaves a hole in the sentence, an invented one \
-                 prints `{{…}}` at the user"
-            );
+        let english = &catalogs()[Locale::En as usize];
+        for locale in Locale::ALL {
+            for (key, translated) in &catalogs()[*locale as usize] {
+                assert_eq!(
+                    placeholders(english[key]),
+                    placeholders(translated),
+                    "{}: `{key}`: a dropped placeholder leaves a hole in the sentence, an invented \
+                     one prints `{{…}}` at the user",
+                    locale.tag()
+                );
+            }
+        }
+    }
+
+    /// `set_locale` stores the discriminant and `catalogs()` indexes by it, so the two orders
+    /// have to be the same one. A new language appended to `ALL` but declared in the middle of
+    /// the enum would hand every string to the wrong file.
+    #[test]
+    fn the_enum_and_the_catalogue_list_agree_on_the_order() {
+        for (index, locale) in Locale::ALL.iter().enumerate() {
+            assert_eq!(*locale as usize, index, "{} is out of order", locale.tag());
         }
     }
 

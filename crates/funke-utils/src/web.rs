@@ -2,9 +2,11 @@
 //! row when scoped with the `g` prefix. The engine comes from settings ([`ENGINES`]);
 //! the row wears the default browser's icon — that's where Enter lands.
 
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 
 use funke_core::{Action, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider, Settings};
+
+use crate::browser;
 
 /// `(id, display name, query URL with a `{}` placeholder)`. The first entry is the
 /// default and the fallback for unknown ids (e.g. from a hand-edited settings file).
@@ -17,9 +19,6 @@ pub const ENGINES: &[(&str, &str, &str)] = &[
 
 pub struct WebSearchProvider {
     settings: Arc<RwLock<Settings>>,
-    /// Default-browser icon, resolved once on a background thread (registry + COM stay
-    /// off the query path). Rows render icon-less for the instant until it lands.
-    browser_icon: Arc<OnceLock<Option<String>>>,
 }
 
 const MIN_QUERY_CHARS: usize = 3;
@@ -36,12 +35,8 @@ fn engine(id: &str) -> (&'static str, &'static str, &'static str) {
 
 impl WebSearchProvider {
     pub fn spawn(settings: Arc<RwLock<Settings>>) -> Self {
-        let browser_icon = Arc::new(OnceLock::new());
-        let slot = Arc::clone(&browser_icon);
-        std::thread::spawn(move || {
-            let _ = slot.set(funke_shell::default_browser_icon());
-        });
-        Self { settings, browser_icon }
+        browser::resolve();
+        Self { settings }
     }
 }
 
@@ -66,7 +61,7 @@ impl SearchProvider for WebSearchProvider {
             provider: "web".into(),
             title: funke_core::tf("web.search_for", &[("query", text)]),
             subtitle: Some(name.into()),
-            icon: self.browser_icon.get().cloned().flatten(),
+            icon: browser::icon(),
             score: WEB_SCORE,
             actions: vec![NamedAction::new(
                 funke_core::t("action.search"),

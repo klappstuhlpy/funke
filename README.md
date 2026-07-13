@@ -34,6 +34,10 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
 - **Files** (`f`) — background filename index of your chosen folders, watcher-refreshed. If
   you run [Everything](https://www.voidtools.com/), Funke uses its live index instead — no
   waiting for a walk, results current to the second. Detected automatically; nothing to set up.
+- **File contents** (`ff`) — find a document by what is *written* in it, not what it is called.
+  Funke never reads your files to do this: it asks the Windows Search index, the one Explorer's
+  own search box uses. No crawler, nothing new on disk — and nothing found that Windows hasn't
+  indexed.
 - **Windows** (`w`) — switch to any open window (Enter focuses, restores minimized) or end its process.
 - **Vault** (`v`) — Bitwarden/Vaultwarden via the official `bw` CLI: unlock in the overlay
   (or via **Windows Hello** after the first unlock, opt-in), autotype into the previous
@@ -59,8 +63,13 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   (`{DATE}`, `{CLIPBOARD}`, `{CURSOR}`, …).
 - **English and German** — results, menus and both windows follow your Windows language, or
   whichever you pick in Settings. Typing the English word still works either way.
+- **Quicklinks** (`l`) — pages you open often, under the name you know them by. Put `{query}`
+  in the URL and an abbreviation turns it into a search: `yt lofi beats` goes straight to the
+  results. Found by name in an ordinary search, so there's no keyword to remember.
 - **Web search** (`g`) — configurable engine, wearing your default browser's icon.
-- **Calculator** — `2+2*3` inline; Enter copies the result.
+- **Calculator & unit conversion** — `2+2*3` inline, and `100 mb in gb`, `72 f in c`, `5 km in
+  miles`: length, mass, temperature, data, time, speed, area, volume. Offline, and it declines
+  rather than guesses. Enter copies the number, ⇧Enter copies it with the unit.
 - **System commands** — lock, sleep, shut down, restart, empty recycle bin; destructive ones ask to confirm.
 - **Plugins** — separate executables in any language speaking JSON-RPC over stdio. Install
   from the **catalog** in Settings → Plugins (every entry is pinned to a checksum), or drop a
@@ -71,6 +80,8 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   that also works straight from the result list.
 - **Overview** — the empty overlay shows the credential for the app you came from, recent
   picks (removable with a click), a greeting/date/uptime line, and first-run tips.
+- **Scoped shortcuts** — a second hotkey that opens Funke *already inside* one source:
+  `Ctrl+Shift+V` straight into the clipboard history, without a general search on the way.
 - **Settings window** (tray → Settings, or search "settings") — summon hotkey, accent color,
   overlay width, web engine, provider toggles, file-index folders, plugins, launch-at-startup —
   all applied live.
@@ -193,7 +204,7 @@ crates/
 ├── funke-apps/      # installed-apps provider: Get-StartApps (AUMIDs) + PATH executables
 ├── funke-files/     # filename index of chosen roots: walkdir + notify refresh, `f` prefix
 ├── funke-everything/ # Everything's WM_COPYDATA IPC — used by funke-files when it is running
-├── funke-utils/     # utility providers: calculator, web search (`g`, engine from settings), system commands
+├── funke-utils/     # utility providers: calculator + unit conversion, quicklinks (`l`), web search (`g`), system commands
 ├── funke-windows/   # window switcher (`w`): switch to or kill open top-level windows
 ├── funke-clipboard/ # clipboard history (`c`): in-memory ring, secret-aware, never persisted
 ├── funke-snippets/  # saved snippets (`s`): placeholders resolved at paste time

@@ -52,8 +52,8 @@ trait SearchProvider {
 
 `Registry` fans a query out to every enabled provider, merges best-score-first, and caps the
 list. A leading keyword (`f report`) scopes the query to one provider with the keyword
-stripped; a provider marked `prefix_only` (vault, clipboard) answers *only* behind its keyword
-and never appears in a global search. `Query::scoped` lets a provider tell "you asked for me"
+stripped; a provider marked `prefix_only` (vault, clipboard, content search) answers *only*
+behind its keyword and never appears in a global search. `Query::scoped` lets a provider tell "you asked for me"
 from "I overheard the query" — snippets match their bodies only in the first case.
 
 **Ranking** is fuzzy score (nucleo; the pattern is parsed once per keystroke, each candidate
@@ -120,6 +120,17 @@ None of that is a sandbox, and the pane says so out loud: **a plugin is a proces
 user's full rights.** The hash pin is what makes "reviewed" mean something; it is not a
 substitute for trust.
 
+**Updates ride the same rails.** Browse compares the catalog's version against the installed
+`plugin.json` and offers an update where it is newer; an update is an *uninstall plus install*
+through the verified path, never a patch, because the archive is what the catalog pinned and
+there is no smaller unit whose bytes were reviewed. The comparison is a lenient numeric one
+(`catalog::is_newer`, ~20 lines, no `semver` dependency) — a plugin's version is whatever its
+author wrote, and refusing to compare `1.2` with `1.2.0` would make the check work only for
+people who already got it right. Pre-release tags are ignored, and that is written down where
+the function is. There is **no background check**: the catalog is fetched when the user presses
+Browse and at no other time, which is what keeps SECURITY.md's enumeration of network requests
+true.
+
 ## 4. File search
 
 **What runs today (Phase A):** a background walk of the user's chosen roots (empty = home) into
@@ -152,8 +163,35 @@ it). It needs elevation, therefore an optional Windows service. Everything's IPC
 urgency out of it without cancelling it — that only helps people who already installed
 Everything.
 
-**Not built — Phase C:** content search. If it ever happens it will *query the existing Windows
-Search index*. Building a content indexer is not a thing this project will do.
+**Phase C — content search (`ff`), and it kept its promise:** it *queries the existing Windows
+Search index* and builds nothing. `funke-content` asks the index (`ISearchQueryHelper` writes
+the SQL, the `Search.CollatorDSO` OLE DB provider runs it) and ranks nothing itself — the index
+has read the documents, and it knows how often a term occurs and where, which we do not.
+Building a content indexer remains a thing this project will not do: it would mean a background
+process reading every file the user owns, which is a large thing to ask of a launcher.
+
+Four decisions inside it:
+
+- **Contents only, not names.** The index would happily match the query against the path and
+  filename too — its default — but that makes `ff` a slower `f` that buries real hits under
+  every file in a folder whose *name* matched. `f` owns names; `ff` owns what is written in the
+  file, which is exactly what its section header promises.
+- **`System.ItemUrl`, never `System.ItemPathDisplay`.** The latter is *display* text and Windows
+  localizes it: on a German machine it returns `C:\Benutzer\…` for a file that lives at
+  `C:\Users\…`. Explorer paints that name; the filesystem has never heard of it. Every row would
+  have opened nothing — caught by the live-index test, which is the only reason it is written
+  down here.
+- **Same `index_roots` as `f`.** A `SCOPE` clause, resolved by the same code
+  (`funke_core::resolve_index_roots`) — otherwise the settings pane's account of what is
+  searched would be a fiction for one of the two providers.
+- **`prefix_only`, and allowed to be late.** The answer comes from another process and costs
+  tens to hundreds of milliseconds, so it may not ride a global keystroke, and it is the first
+  provider that genuinely needs the search orchestrator (§2): its rows arrive after the ones
+  that came from memory instead of holding them up.
+
+The service being stopped, a folder outside the indexed locations, a file type with no filter
+installed — all mean no rows, logged once. There is nothing to fall back *to*, and an empty
+answer is the honest one.
 
 ## 5. Vault (Bitwarden / Vaultwarden)
 
@@ -268,7 +306,7 @@ overlay excluded from screen capture while it shows vault content; no telemetry;
 `SECURITY.md` with a disclosure contact. It is kept in sync with behavior, and it lists the accepted
 limitations instead of pretending there are none.
 
-## 6. Clipboard and snippets
+## 6. Clipboard, snippets and quicklinks
 
 **Clipboard history lives in memory and never on disk.** Every other launcher persists it;
 here that would be the wrong default, and the decision *is* the feature. The clipboard catches
@@ -300,6 +338,31 @@ It needs a low-level keyboard hook (`WH_KEYBOARD_LL`) reading every keystroke in
 application — a keylogger's exact shape, in an app that also holds vault secrets. Whether that
 trade is worth making is a decision for the maintainer, not a detail of the snippets feature.
 
+**Quicklinks** are the same shape as snippets one layer up: a name, an optional abbreviation, and
+a URL, kept in `Settings` for the same reason (they are preferences, and they should travel with
+the rest). `{query}` in the URL is an argument slot — `yt lofi beats` becomes a YouTube search —
+and it is the *only* token, filled percent-encoded; anything else in braces is left standing,
+because a quicklink is the user's URL and a launcher that rewrites it is one you cannot predict.
+Three decisions worth the ink:
+
+- **The abbreviation trigger is exact, never fuzzy.** `yt ` fires; `y ` does not. A trigger that
+  fires on something merely *like* what you typed is a trigger you stop trusting, and it would
+  let a fuzzily-matched link steal the argument meant for another one.
+- **Not `prefix_only`.** Unlike the vault and the clipboard, a quicklink *should* surface in a
+  global search: its name is the word you were going to type anyway. Only name and abbreviation
+  are matching surface, though — never the URL, or searching for "search" would hit every link
+  with a `search_query` in it.
+- **`http(s)` only, checked on save.** A quicklink ends in `Action::OpenUrl`, which hands its
+  string to the shell — and the shell honours `file:`, `javascript:`, and every registered
+  protocol handler. Without the check, a text field in the settings window is a way to launch
+  programs, which is not what the person filling it in thinks they are doing.
+
+**Not built: importing browser bookmarks.** Reading Chrome's `Bookmarks` JSON and Firefox's
+`places.sqlite` is easy; deciding what a *bookmark bar* means as a launcher row is not, and the
+answer for most people is several hundred rows they did not choose. If it lands it will
+materialize a copy into `Settings::quicklinks` — one the user owns and can prune — and never be
+a live sync.
+
 ## 7. The interface
 
 The overlay is **native glass**: acrylic backdrop, DWM shadow, Win11 rounded corners, all
@@ -317,17 +380,35 @@ action index back; it never interprets what an action *does*. Action labels and 
 flag are data. New behavior is a new `Action` variant in core plus one arm in `run_action` —
 the match is exhaustive on purpose, so the compiler asks for the arm.
 
-**Nothing the user reads is a literal.** Every visible string comes from a catalogue —
-`funke_core::i18n` for what providers produce, `ui/i18n.js` for what the UI writes itself —
-with English and German halves kept at parity by a test. Two rules protect the launcher from
-its own translations: **ids are never localized** (they key frecency and recents, which outlive
-a language change), and **the English word keeps matching** (a German UI still answers to
-`settings`, because the matcher scores both and keeps the better — muscle memory is not a
-language).
+**Nothing the user reads is a literal.** Every visible string comes from a catalogue, and the
+strings live in **files, not in code**: `crates/funke-core/locales/<tag>.json` for what providers
+produce (compiled in with `include_str!`, so nothing is read from disk at runtime) and
+`crates/funke-app/ui/locales/<tag>.js` for what the UI writes itself (a plain `<script>` tag —
+JSON would have to be `fetch`ed, and a catalogue that arrives asynchronously is one the first
+paint renders without). Both halves are parity-tested against English: a missing key, a duplicate
+key, or a translation that drops a `{placeholder}` fails the build. Two rules protect the
+launcher from its own translations: **ids are never localized** (they key frecency and recents,
+which outlive a language change), and **the English word keeps matching** (a German UI still
+answers to `settings`, because the matcher scores both and keeps the better — muscle memory is
+not a language). Adding a language is four small edits; `docs/TRANSLATING.md` lists them.
+
+**Scope hotkeys** open the overlay with a provider's keyword already typed — `Ctrl+Shift+V` into
+the clipboard's browse view. They add no search path: the emitted text is `c ` and the trailing
+space is what commits the keyword to its provider, exactly as it does when the user types it. Two
+decisions, both about what a *second* hotkey means:
+
+- **It does not toggle.** The summon hotkey toggles because it means "show me Funke", so pressing
+  it again means "go away". A scope hotkey means "show me the clipboard" — pressed while the
+  overlay is up on something else it *switches*, rather than dismissing the launcher and leaving
+  the user wondering what they hit.
+- **A chord bound twice is refused at save time**, not discovered later. Windows gives a
+  combination to one registrant, and the loser does not fail — it simply never fires. A setting
+  that silently does nothing is worse than one that says no.
 
 **Graceful degradation over hard failure**, everywhere: a hotkey that fails to register logs a
 warning and the app keeps running (PowerToys Run also wants Ctrl+Space); a corrupt frecency
-file loads as empty; a failed app index yields an empty provider.
+file loads as empty; a failed app index yields an empty provider. One refused hotkey costs its
+own binding and nothing else — the rest of the set still registers.
 
 ## 8. Distribution
 
@@ -368,7 +449,14 @@ Nothing here is scheduled. It is what is knowingly missing, with the reason it i
 - **Phase B file indexing** (USN Journal + MFT, elevated service). Wanted for the ~200 MB RSS
   and the minute-wide staleness window of the built-in index. Deprioritized, not cancelled:
   Everything's IPC delivers the same result for the people who have it.
-- **Content search**, by querying the Windows Search index — never by building an indexer.
+- **Content snippets in the row** — the line the match was found on, via
+  `System.Search.AutoSummary`. `ff` shows which file says the word; it cannot yet show *where*.
+- **Currency conversion.** The calculator converts units (length, mass, temperature, data, time,
+  speed, area, volume) because a kilometre was a kilometre yesterday too: it is a table and some
+  arithmetic, offline, with no dependency. A currency rate is none of those things. It has to be
+  fetched, which makes it a **fifth kind of network request** in a document that enumerates four,
+  and it makes Funke answer a question about money with a number somebody else chose. If it ever
+  lands it is opt-in-off, with its own line in SECURITY.md naming the source.
 - **A certificate**, so releases stop being greeted by SmartScreen.
 - **The name.**
 - Decided against, and unlikely to change: in-browser DOM autofill (§5), native passkey

@@ -32,7 +32,10 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use funke_core::{t, Action, FuzzyMatcher, NamedAction, ProviderMeta, Query, ResultItem, SearchProvider, Settings};
+use funke_core::{
+    denied_dir_name, is_junk_path, resolve_index_roots, t, Action, FuzzyMatcher, NamedAction, ProviderMeta, Query,
+    ResultItem, SearchProvider, Settings,
+};
 use notify::{RecursiveMode, Watcher};
 use walkdir::WalkDir;
 
@@ -50,16 +53,6 @@ const GLOBAL_SCORE_PENALTY: i64 = 8;
 /// for the watcher's dirty flag. Two atomic loads per tick — effectively free.
 const REBUILD_POLL: Duration = Duration::from_secs(2);
 const REBUILD_MIN_INTERVAL: Duration = Duration::from_secs(60);
-
-/// Directory names (lowercase) that are never worth indexing.
-const DIR_DENYLIST: &[&str] = &[
-    "appdata",
-    "node_modules",
-    "target",
-    "__pycache__",
-    "venv",
-    "$recycle.bin",
-];
 
 /// Extensions whose icon is per-file rather than per-type, so the per-extension cache
 /// must not be used for them.
@@ -107,14 +100,14 @@ impl FilesProvider {
     fn query_everything(&self, text: &str, matcher: &FuzzyMatcher) -> Vec<ResultItem> {
         // The same roots the walk would have used — Everything changes how the index is
         // built, not which files the user asked to search.
-        let roots = resolve_roots(&self.settings.read().unwrap().index_roots);
+        let roots = resolve_index_roots(&self.settings.read().unwrap().index_roots);
         let hits = self
             .everything
             .search(&everything_search(text, &roots), EVERYTHING_CANDIDATES);
 
         let mut scored: Vec<(i64, funke_everything::Hit)> = hits
             .into_iter()
-            .filter(|hit| !junk_path(&hit.path))
+            .filter(|hit| !is_junk_path(&hit.path))
             .filter_map(|hit| {
                 matcher
                     .score(&hit.name)
@@ -264,13 +257,6 @@ pub fn everything_is_indexing() -> bool {
     funke_everything::is_running()
 }
 
-/// The walk skips junk directories; Everything doesn't know to, so its hits are filtered
-/// the same way. Whole-disk search is only a gift if it isn't three screens of
-/// `node_modules`.
-fn junk_path(path: &str) -> bool {
-    path.split('\\').any(|segment| denied_dir_name(&segment.to_lowercase()))
-}
-
 fn index_loop(handle: Arc<RwLock<Vec<FileEntry>>>, settings: Arc<RwLock<Settings>>) {
     let fs_dirty = Arc::new(AtomicBool::new(false));
     // Held for its Drop: replacing it un-watches the previous roots.
@@ -298,7 +284,7 @@ fn index_loop(handle: Arc<RwLock<Vec<FileEntry>>>, settings: Arc<RwLock<Settings
             continue;
         }
 
-        let roots = resolve_roots(&settings.read().unwrap().index_roots);
+        let roots = resolve_index_roots(&settings.read().unwrap().index_roots);
         if first || roots != watched {
             // New roots (or startup): rebuild immediately and move the watcher over.
             *handle.write().unwrap() = build_index(&roots);
@@ -327,36 +313,6 @@ fn index_loop(handle: Arc<RwLock<Vec<FileEntry>>>, settings: Arc<RwLock<Settings
         }
         thread::sleep(REBUILD_POLL);
     }
-}
-
-/// Settings roots → walkable roots: existing directories only, nested roots pruned
-/// (walking a parent already covers its children); an empty result falls back to the
-/// user's home directory.
-fn resolve_roots(configured: &[String]) -> Vec<PathBuf> {
-    let existing: Vec<PathBuf> = configured
-        .iter()
-        .map(PathBuf::from)
-        .filter(|path| path.is_dir())
-        .collect();
-    let roots = prune_nested(existing);
-    if roots.is_empty() {
-        dirs::home_dir().into_iter().collect()
-    } else {
-        roots
-    }
-}
-
-/// Drop roots that live inside another root, so no subtree is walked twice.
-fn prune_nested(mut roots: Vec<PathBuf>) -> Vec<PathBuf> {
-    roots.sort();
-    roots.dedup();
-    let mut kept: Vec<PathBuf> = Vec::new();
-    for root in roots {
-        if !kept.iter().any(|parent| root.starts_with(parent)) {
-            kept.push(root);
-        }
-    }
-    kept
 }
 
 fn build_index(roots: &[PathBuf]) -> Vec<FileEntry> {
@@ -389,11 +345,6 @@ fn excluded_dir(entry: &walkdir::DirEntry) -> bool {
     entry.file_type().is_dir() && denied_dir_name(&entry.file_name().to_string_lossy().to_lowercase())
 }
 
-/// Expects a lowercase name.
-fn denied_dir_name(name: &str) -> bool {
-    name.starts_with('.') || DIR_DENYLIST.contains(&name)
-}
-
 /// Cheap prefilter before nucleo scoring: every needle byte must appear in the haystack
 /// in order. Both sides are pre-lowercased; entries whose match relies on nucleo's
 /// unicode normalization may be rejected here — an accepted trade-off for Phase A.
@@ -416,27 +367,6 @@ mod tests {
     }
 
     #[test]
-    fn nested_and_duplicate_roots_are_pruned() {
-        let pruned = prune_nested(vec![
-            PathBuf::from(r"C:\Users\me\Documents"),
-            PathBuf::from(r"C:\Users\me"),
-            PathBuf::from(r"C:\Users\me"),
-            PathBuf::from(r"D:\Media"),
-        ]);
-        assert_eq!(pruned, vec![PathBuf::from(r"C:\Users\me"), PathBuf::from(r"D:\Media")]);
-
-        // Sibling with a shared name prefix is NOT nested.
-        let pruned = prune_nested(vec![PathBuf::from(r"C:\data"), PathBuf::from(r"C:\database")]);
-        assert_eq!(pruned.len(), 2);
-    }
-
-    #[test]
-    fn missing_roots_fall_back_to_home() {
-        let roots = resolve_roots(&["Z:\\does\\not\\exist".to_string()]);
-        assert_eq!(roots, dirs::home_dir().into_iter().collect::<Vec<_>>());
-    }
-
-    #[test]
     fn an_everything_query_is_scoped_to_the_roots_the_walk_would_have_used() {
         assert_eq!(
             everything_search("report", &[PathBuf::from(r"C:\Users\me\Documents")]),
@@ -454,26 +384,5 @@ mod tests {
         // home directory), and deliberately not special-cased into a whole-disk search: an
         // unscoped query is what an empty root list *means*, not what the user gets.
         assert_eq!(everything_search("report", &[]), "report");
-    }
-
-    #[test]
-    fn everythings_hits_are_filtered_like_the_walk_is() {
-        assert!(junk_path(r"C:\dev\app\node_modules\left-pad\index.js"));
-        assert!(junk_path(r"C:\Users\me\AppData\Local\cache.db"));
-        assert!(junk_path(r"C:\Users\me\.git\config"));
-        assert!(junk_path(r"C:\$Recycle.Bin\S-1-5-21\deleted.docx"));
-
-        assert!(!junk_path(r"C:\Users\me\Documents\report.xlsx"));
-        assert!(!junk_path(r"C:\Windows\explorer.exe"));
-    }
-
-    #[test]
-    fn junk_directories_are_denied() {
-        assert!(denied_dir_name("node_modules"));
-        assert!(denied_dir_name("appdata"));
-        assert!(denied_dir_name(".git"));
-        assert!(denied_dir_name("$recycle.bin"));
-        assert!(!denied_dir_name("documents"));
-        assert!(!denied_dir_name("projects"));
     }
 }

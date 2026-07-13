@@ -1228,12 +1228,13 @@ dependencies = [
 
 [[package]]
 name = "funke-app"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "arboard",
  "dirs 6.0.0",
  "funke-apps",
  "funke-clipboard",
+ "funke-content",
  "funke-core",
  "funke-files",
  "funke-plugin",
@@ -1277,9 +1278,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "funke-core"
-version = "0.4.3"
+name = "funke-content"
+version = "0.1.0"
 dependencies = [
+ "funke-core",
+ "funke-shell",
+ "windows",
+]
+
+[[package]]
+name = "funke-core"
+version = "0.5.0"
+dependencies = [
+ "dirs 6.0.0",
  "nucleo-matcher",
  "serde",
  "serde_json",
@@ -1294,9 +1305,8 @@ dependencies = [
 
 [[package]]
 name = "funke-files"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
- "dirs 6.0.0",
  "funke-core",
  "funke-everything",
  "funke-shell",
@@ -1355,7 +1365,7 @@ dependencies = [
 
 [[package]]
 name = "funke-utils"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fasteval",
  "funke-core",
