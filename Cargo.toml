@@ -21,6 +21,12 @@ members = [
 license = "MIT"
 
 [profile.release]
+# Fat LTO stays, and it was measured rather than assumed. Switching to `lto = "thin"` +
+# `codegen-units = 16` links ~32% faster (116s → 79s here) but grows funke.exe from 14.5 MB
+# to 17.0 MB — **+17.6%**, on a binary every user downloads, and downloads again on every
+# auto-update. A minute of CI is not worth that; the CI time was won back by not building the
+# app twice in the release workflow instead. Don't "optimize" this without re-measuring both
+# numbers.
 lto = true
 codegen-units = 1
 strip = true

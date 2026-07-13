@@ -55,7 +55,14 @@ jobs:
           fetch-depth: 0 # full history + tags, so we can diff plugins against the previous tag
 
       - uses: dtolnay/rust-toolchain@stable
+      # `shared-key` (not the default per-job key) so the release job can restore the cache
+      # CI just warmed on the same commit, and vice versa — the two compile the same
+      # dependency graph and were each paying for it alone. `cache-on-failure` keeps a failed
+      # run's work from being thrown away, which matters most when a release is being retried.
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-workspace
+          cache-on-failure: true
       - uses: taiki-e/install-action@v2
         with:
           tool: tauri-cli
@@ -63,9 +70,12 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
-      # Builds the launcher AND every plugin exe (tauri build only compiles the app crate).
-      - name: Build (release)
-        run: cargo build --release --workspace
+      # Only the plugin exes. `cargo tauri build` below compiles funke-app itself — with its
+      # own `--config`, which invalidates tauri-build's script and forces a rebuild — so
+      # building the app *here* too means paying for a whole-program LTO link of the Tauri
+      # dependency graph twice (it cost ~4 minutes of the v0.5.0 release, for nothing).
+      - name: Build plugins (release)
+        run: cargo build --release --workspace --exclude funke-app
 
       # trusted-signing-cli is what `signCommand` shells out to; it reads the Azure
       # credentials from the environment. Only needed on a signing run.

@@ -13,7 +13,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      # Same key as the release workflow: both compile the same dependency graph on the same
+      # runner, so whichever runs first warms the other. Without it each job kept its own
+      # cache and paid the full dependency build alone.
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-workspace
+          cache-on-failure: true
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
