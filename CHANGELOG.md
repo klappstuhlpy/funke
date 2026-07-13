@@ -21,6 +21,14 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   unlocking, autotype, suggestions, and privacy & trust. Descriptions throughout the settings
   read as sentences rather than labels, and the German ones were rewritten where they still
   read like translations.
+- **Secrets stay out of crash dumps and (where they rest) out of the pagefile.** Funke
+  excludes itself from Windows Error Reporting at startup — a WER dump of a crashed
+  launcher would have carried whatever secret was in flight — and the decrypted Windows
+  Hello session key now lives in page-locked memory (`VirtualLock`) from DPAPI decrypt to
+  `bw serve` boot, so it cannot be swapped to disk while it waits. Both are hardening
+  layers with documented limits (SECURITY.md), not vaults.
+- **Translation Update.** Updated and fixed some translations for German and English in `i18n.js` for better 
+  readability and consistency.
 
 ### Added
 - **The Windows Hello prompt is now the lock, not a doorbell beside it.** Unlocking with
@@ -78,14 +86,6 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   indefinitely. Every serve process is now assigned to a kill-on-close Windows job
   object, so the kernel terminates it the moment Funke's process ends, however it ends.
   Where the job can't be created the old behavior remains, with a logged warning.
-
-### Changed
-- **Secrets stay out of crash dumps and (where they rest) out of the pagefile.** Funke
-  excludes itself from Windows Error Reporting at startup — a WER dump of a crashed
-  launcher would have carried whatever secret was in flight — and the decrypted Windows
-  Hello session key now lives in page-locked memory (`VirtualLock`) from DPAPI decrypt to
-  `bw serve` boot, so it cannot be swapped to disk while it waits. Both are hardening
-  layers with documented limits (SECURITY.md), not vaults.
 
 ## [0.5.0] - 2026-07-12
 

@@ -213,10 +213,10 @@ const STRINGS = {
     "settings.about.lead": "What this is, and where the rest of it lives. :)",
     "settings.about.tagline":
       "A keyboard launcher for Windows: apps, files, windows, snippets, the clipboard, and your vault — one hotkey away.",
-    "settings.about.built": "Free software, and quiet about it",
+    "settings.about.built": "Free software, developed for Windows.",
     "settings.about.built.desc":
       "Written in Rust on Tauri, MIT-licensed. No account, no telemetry, no analytics: nothing you type is sent anywhere, and the only things Funke fetches are the plugin catalog and update checks — both only when you ask.",
-    "settings.about.fineprint": "Funke is a working name. Made in the open — issues and pull requests welcome.",
+    "settings.about.fineprint": "Funke the project title. Issues and pull requests welcome.",
     "settings.about.source": "Source code",
     "settings.about.issues": "Report an issue",
     "settings.about.releases": "Releases",
@@ -241,7 +241,7 @@ const STRINGS = {
     "overlay.actions": "Aktionen",
     "overlay.no_results": "Nichts gefunden",
     "overlay.forget": "Aus „Zuletzt genutzt“ entfernen",
-    "overlay.confirm": "Zum Bestätigen noch mal Enter — Esc bricht ab",
+    "overlay.confirm": "Zum Bestätigen erneut Enter — Esc bricht ab",
     "overlay.vault.prompt": "Enter entsperrt den Tresor — Esc bricht ab",
     "overlay.vault.unlocking": "Wird entsperrt…",
     "overlay.result": "1 Treffer",
@@ -280,17 +280,17 @@ const STRINGS = {
     "settings.section.inside": "Im Overlay",
     "settings.section.providers": "Quellen",
     "settings.section.providers.note":
-      "Alles, womit Funke antworten kann. Schaltest du eine Quelle ab, ist sie still — ihre Treffer verschwinden, ihr Kürzel auch.",
+      "Alles, womit Funke antworten kann. Deaktivierst du eine Quelle, ist sie in der Suche nicht mehr verwendbar.",
     "settings.section.web": "Websuche",
     "settings.section.files": "Dateisuche",
     "settings.section.vault_unlock": "Entsperren",
-    "settings.section.vault_unlock.note": "Wie du den Tresor aufmachst — und wann er sich von allein wieder schließt.",
+    "settings.section.vault_unlock.note": "Verwalte wie du den Tresor entsperrst — und wann er sich wieder schließt.",
     "settings.section.vault_autotype": "Autotype",
     "settings.section.vault_autotype.note":
-      "Was in das Fenster getippt wird, aus dem du kamst — und die Sperre, die entscheidet, ob überhaupt getippt wird.",
+      "Verwalte Autotype für den Tresor und wie du damit interagieren kannst.",
     "settings.section.vault_suggest": "Vorschläge",
     "settings.section.vault_suggest.note":
-      "Der einzige Fall, in dem ein Tresor-Eintrag auftaucht, ohne dass du v tippst.",
+      "Der einzige Fall, in dem ein Tresor-Eintrag auftaucht, ohne dass du mit v suchst.",
     "settings.section.vault_privacy": "Privatsphäre & Vertrauen",
     "settings.section.vault_privacy.note":
       "Wer den Tresor sonst noch auf deinem Bildschirm zu sehen bekommt — und welcher bw Funke dein Master-Passwort überhaupt anvertraut.",
@@ -317,7 +317,7 @@ const STRINGS = {
     "settings.accent": "Akzentfarbe",
     "settings.accent.desc": "Für Auswahl, Cursor und Tastenhinweise.",
     "settings.width": "Breite des Overlays",
-    "settings.width.desc": "Wie breit die Suchleiste ist — in jedem Modus.",
+    "settings.width.desc": "Wie breit die Suchleiste ist.",
 
     "settings.hotkey.lead": "Das Tastenkürzel, das Funke von überall aufruft.",
     "settings.hotkey.label": "Funke öffnen",
@@ -334,15 +334,15 @@ const STRINGS = {
     "settings.shortcuts.dismiss": "Overlay schließen oder eine Bestätigung abbrechen",
 
     "settings.commands.heading": "Befehle",
-    "settings.commands.lead": "Wo Funke überall nachschaut — und wie sich die einzelnen Quellen verhalten.",
+    "settings.commands.lead": "Die Befehle die du in der Spotlight Suche verwenden kannst um nach Inhalten zu filtern.",
     "settings.engine": "Suchmaschine",
-    "settings.engine.desc": "Wohin „Im Web nach … suchen“ dich schickt.",
+    "settings.engine.desc": "Wo „Im Web nach … suchen“ öffnet.",
 
     "settings.vault.lead":
-      "Dein Bitwarden- oder Vaultwarden-Tresor, erreichbar über <kbd>v</kbd>. Funke entschlüsselt nichts selbst — das macht die offizielle <code>bw</code>-CLI, Funke redet nur mit ihr.",
+      "Dein Bitwarden- oder Vaultwarden-Tresor, erreichbar über <kbd>v</kbd>. Funke entschlüsselt nichts selbst — das macht die offizielle <code>bw</code>-CLI, Funke kommuniziert nur mit ihr.",
     "settings.vault.hello": "Mit Windows Hello entsperren",
     "settings.vault.hello.desc":
-      "Einmal mit dem Master-Passwort entsperren, danach reicht Windows Hello. Die gespeicherte Sitzung ist mit einem Schlüssel versiegelt, den dein TPM erst herausrückt, wenn Hello dich erkannt hat — an der Abfrage vorbei kommt also niemand. Was das bringt und was nicht, steht in SECURITY.md.",
+      "Einmal mit dem Master-Passwort entsperren, danach immer mit Windows Hello. Die gespeicherte Sitzung ist mit einem Schlüssel versiegelt, den dein TPM erst herausrückt, wenn Hello dich erkannt hat — an der Abfrage vorbei kommt also niemand. Was das bringt und was nicht, steht in SECURITY.md.",
     "settings.vault.icons": "Website-Symbole",
     "settings.vault.icons.desc":
       "Zeigt Favicons auf den Tresor-Einträgen. Die kommen vom Icon-Dienst deines Bitwarden-Servers — der erfährt damit, nach welchen Seiten du suchst.",
@@ -358,16 +358,16 @@ const STRINGS = {
     "settings.vault.sequence": "Autotype-Sequenz",
     "settings.vault.sequence.desc":
       "Was Autotype tippen soll, wenn nicht das übliche „Benutzername ⇥ Passwort“. Platzhalter: <code>{USERNAME}</code> <code>{PASSWORD}</code> <code>{TOTP}</code> <code>{TAB}</code> <code>{ENTER}</code> <code>{DELAY=500}</code>. Ein einzelner Eintrag kann das mit einem <code>autotype</code>-Feld in Bitwarden überschreiben.",
-    "settings.vault.lock_screen": "Beim Weggehen sperren",
+    "settings.vault.lock_screen": "Mit Windows sperren",
     "settings.vault.lock_screen.desc":
       "Sperrt den Tresor, sobald Windows gesperrt wird (Win+L), der Rechner in den Ruhezustand geht oder eine Remote-Sitzung getrennt wird.",
     "settings.vault.capture_shield": "Tresorinhalte vor Bildschirmaufnahmen verbergen",
     "settings.vault.capture_shield.desc":
       "Screenshots, Aufnahmen und geteilte Bildschirme sehen das Overlay nicht, solange es die Master-Passwort-Abfrage oder Tresoreinträge zeigt. Alles andere bleibt aufnehmbar.",
-    "settings.vault.signed_cli": "Nur eine von Bitwarden signierte CLI ausführen",
+    "settings.vault.signed_cli": "Nur Bitwarden signierte CLI erlauben",
     "settings.vault.signed_cli.desc":
       "Funke gibt dein Master-Passwort an die bw-Datei weiter — deshalb merkt es sich beim Start genau eine und prüft, ob Bitwarden sie signiert hat. Normalerweise läuft eine unbestätigte bw trotzdem, mit dem Grund auf der Tresorzeile: Eine npm-Installation ist ein unsignierter Skript-Wrapper und eine völlig normale Art, sie zu installieren. Schalte das hier ein, wenn Funke sie stattdessen ablehnen soll.",
-    "settings.vault.idle": "Bei Untätigkeit sperren",
+    "settings.vault.idle": "Automatisches Sperren bei Untätigkeit",
     "settings.vault.idle.desc": "Sperrt den Tresor wieder, wenn du ihn so lange nicht benutzt hast.",
     "settings.idle.minutes": "{count} Minuten",
     "settings.idle.minute": "1 Minute",
@@ -380,15 +380,15 @@ const STRINGS = {
     "settings.roots.add": "Ordner hinzufügen",
     "settings.roots.default": "Es wird dein Benutzerordner durchsucht (Standard).",
     "settings.roots.remove": "Ordner entfernen",
-    "settings.everything": "Everything übernimmt die Indizierung",
+    "settings.everything": "Indizierung durch Everything",
     "settings.everything.detected": "erkannt",
     "settings.everything.desc":
-      "Everything hat deine Laufwerke ohnehin im Index — also fragt Funke einfach dort nach, statt selbst die Platte zu durchsuchen. Die Treffer sind sekundenaktuell, und nichts wird doppelt indiziert. Die Ordner oben grenzen die Suche weiterhin ein; für alle Laufwerke einfach <code>C:\\</code> hinzufügen. Schließt du Everything, nutzt Funke wieder seinen eigenen Index.",
+      "Everything wird verwendet, statt selbst zu indizieren. Die Treffer sind sekundenaktuell, und nichts wird doppelt indiziert. Die Ordner oben grenzen die Suche weiterhin ein; für alle Laufwerke einfach <code>C:\\</code> hinzufügen. Schließt du Everything, nutzt Funke wieder seinen eigenen Index.",
 
     "settings.snippets.lead":
       "Text, den du ständig brauchst — Signatur, Adresse, ein Standardabsatz. Mit <kbd>s</kbd> finden, Enter tippt ihn dort ein, wo du herkamst.",
     "settings.snippets.manage": "Deine Snippets",
-    "settings.snippets.manage.desc": "Alles, was du gespeichert hast. Bearbeite eins — oder schreib noch eins.",
+    "settings.snippets.manage.desc": "Alles, was du gespeichert hast. Bearbeite oder fünge Einträge hinzu.",
     "settings.snippets.placeholders": "Was reinpasst",
     "settings.snippets.placeholders.desc":
       "Werden beim Einfügen aufgelöst, nicht beim Speichern: <code>{DATE}</code>, <code>{TIME}</code>, <code>{DATETIME}</code> (oder dein eigenes Format, <code>{DATE:%d.%m.%Y}</code>), <code>{CLIPBOARD}</code> für das zuletzt Kopierte und <code>{CURSOR}</code> für die Stelle, an der der Cursor landen soll. Alles andere in geschweiften Klammern wird genau so getippt, wie es dasteht.",
@@ -404,20 +404,20 @@ const STRINGS = {
     "settings.snippets.delete": "Snippet löschen",
     "settings.snippets.incomplete": "Ein Snippet braucht einen Namen und einen Inhalt.",
     "settings.snippets.empty":
-      "Noch keine Snippets. Leg oben eines an und hol es dir mit <kbd>s</kbd> — oder direkt über seinen Namen aus der Suche.",
+      "Noch keine Snippets. Leg oben eines an und verwende es mit <kbd>s</kbd> oder direkt über den Namen/Kürzel.",
 
     "settings.plugins.lead":
-      "Eigene Programme, die mitsuchen — geschrieben in jeder Sprache. Ordner mit einer <code>plugin.json</code> ins Plugin-Verzeichnis legen, dann Aktualisieren.",
+      "Eigene Programme für die Spotlight Suche — geschrieben in jeder Sprache. Ordner mit einer <code>plugin.json</code> ins Plugin-Verzeichnis legen, dann Aktualisieren.",
     "settings.plugins.folder": "Plugin-Ordner",
     "settings.plugins.folder.desc":
-      "Plugin hineinlegen, dann Aktualisieren — ganz ohne Neustart. Wie man eins schreibt, steht in docs/PLUGINS.md.",
+      "Plugin hineinlegen, dann Aktualisieren — ganz ohne Neustart. Für Entwicklung, siehe docs/PLUGINS.md.",
     "settings.plugins.refresh": "Aktualisieren",
     "settings.plugins.open": "Ordner öffnen",
     "settings.plugins.empty":
-      "Noch keine Plugins installiert. Schau unten in den Katalog — oder schreib dir selbst eins (<code>docs/PLUGINS.md</code>). Im Repo liegen Vorlagen (<code>funke-plugins/template</code> in Rust, <code>funke-plugins/template-python</code> in Python): bauen, samt <code>plugin.json</code> in den Ordner oben legen, Aktualisieren drücken und <kbd>tp hello</kbd> probieren.",
+      "Noch keine Plugins installiert. Schau unten in den Katalog — oder schreib selbst eins (<code>docs/PLUGINS.md</code>). Im Repo liegen Vorlagen (<code>funke-plugins/template</code> in Rust, <code>funke-plugins/template-python</code> in Python): bauen, samt <code>plugin.json</code> in den Ordner oben legen, Aktualisieren drücken und <kbd>tp hello</kbd> probieren.",
     "settings.plugins.suggested": "Empfohlene Plugins",
     "settings.plugins.suggested.desc":
-      "Ein kuratierter Katalog aus dem Funke-Repo. Jeder Eintrag hängt an einer Prüfsumme — installiert wird also genau das, was auch geprüft wurde. Trotzdem bleibt ein Plugin ein Programm mit deinen Rechten, keine Sandbox: installier nur, was du kennst.",
+      "Katalog aus dem Funke-Repo. Jeder Eintrag hängt an einer Prüfsumme — installiert wird also genau das, was auch geprüft wurde. Trotzdem bleibt ein Plugin ein Programm mit deinen Rechten, keine Sandbox: installier nur das, dem du vertraust.",
     "settings.plugins.browse": "Katalog ansehen",
     "settings.plugins.loading": "Wird geladen…",
     "settings.plugins.install": "Installieren",
@@ -427,16 +427,15 @@ const STRINGS = {
     "settings.plugins.remove_confirm": "Entfernen?",
     "settings.plugins.removing": "Wird entfernt…",
     "settings.plugins.catalog_empty": "Noch nichts da",
-    "settings.plugins.catalog_empty.desc": "Der Katalog ist noch leer — schreib das erste!",
+    "settings.plugins.catalog_empty.desc": "Der Katalog ist noch leer, füge ein Plugin hinzu um es zu verwenden.",
 
-    "settings.about.lead": "Was Funke ist — und wo der Rest davon liegt. :)",
+    "settings.about.lead": "Was ist Funke?",
     "settings.about.tagline":
       "Ein Launcher für Windows, ganz per Tastatur: Apps, Dateien, Fenster, Snippets, Zwischenablage und dein Tresor — einen Hotkey entfernt.",
-    "settings.about.built": "Freie Software, ganz ohne Trara",
+    "settings.about.built": "Freie Software, entwickelt für Windows.",
     "settings.about.built.desc":
       "Geschrieben in Rust auf Tauri, unter MIT-Lizenz. Kein Konto, keine Telemetrie, keine Analyse: Nichts von dem, was du tippst, verlässt deinen Rechner. Funke holt sich nur den Plugin-Katalog und die Update-Prüfung — und beides nur, wenn du danach fragst.",
-    "settings.about.fineprint":
-      "„Funke“ ist nur ein Arbeitstitel. Entwickelt wird offen — Issues und Pull Requests sind willkommen.",
+    "settings.about.fineprint": "„Funke“ ist der Projektname. Issues und Pull Requests sind willkommen.",
     "settings.about.source": "Quellcode",
     "settings.about.issues": "Fehler melden",
     "settings.about.releases": "Releases",
