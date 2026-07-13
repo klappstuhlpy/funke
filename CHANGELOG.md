@@ -7,7 +7,11 @@ All notable changes to Funke are documented here. The format is based on
 The launcher version is the single source of truth in `crates/funke-app/Cargo.toml`
 (`tauri.conf.json` omits it and inherits from there); keep the git tag in step with it.
 
-## [Unreleased]
+## [0.6.0] - 2026-07-13
+
+The vault's Windows Hello prompt stops being a formality, Funke learns which `bw` it is
+talking to, search stops being as slow as its slowest source, and updates ask before they
+install. Also carries the hardening that was staged for 0.5.1 and never tagged.
 
 ### Changed
 - **"Check for updates" no longer installs the update.** It used to do both in one click:
@@ -549,7 +553,8 @@ plugin foundation.
 - Repo went public with `LICENSE` (MIT), `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and
   `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/klappstuhlpy/funke/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/klappstuhlpy/funke/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/klappstuhlpy/funke/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/klappstuhlpy/funke/compare/v0.4.0...v0.4.1
