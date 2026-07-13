@@ -9,6 +9,19 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+### Changed
+- **No terminal window at sign-in.** Funke is now a windowed binary in every build, not only
+  release ones, so nothing can flash a console at startup — and the tray line that used to
+  appear in it is gone from view. Run Funke from a shell and its output still lands in *that*
+  shell, redirects and pipes included; started any other way, it opens no window and writes
+  nowhere.
+- **The vault has its own settings page.** Its eight switches used to live at the bottom of
+  Commands, which made that page half launcher and half password manager and buried the ones
+  that matter. They now sit under Vault, in four groups that each say what the group is for:
+  unlocking, autotype, suggestions, and privacy & trust. Descriptions throughout the settings
+  read as sentences rather than labels, and the German ones were rewritten where they still
+  read like translations.
+
 ### Added
 - **The Windows Hello prompt is now the lock, not a doorbell beside it.** Unlocking with
   Hello used to work like this: Funke showed a Hello dialog, Windows said "yes, that was

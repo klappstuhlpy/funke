@@ -229,7 +229,7 @@ h1 {
    under one of these, so a row says "Autotype sequence" and the heading above it says which
    thing's autotype we are talking about — no row has to repeat its own subject. */
 h2.section {
-  margin: 22px 0 8px;
+  margin: 26px 0 8px;
   color: var(--text-faint);
   font-size: 10.5px;
   font-weight: 600;
@@ -238,6 +238,20 @@ h2.section {
 }
 
 .lead + .section {
+  margin-top: 0;
+}
+
+/* One line under a category heading, saying what the group as a whole is for. The rows below
+   can then explain themselves rather than re-establishing the subject every time — which is
+   what made a wall of switches read as a wall of switches. */
+.note {
+  margin: -2px 0 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.section + .note {
   margin-top: 0;
 }
 
@@ -270,16 +284,29 @@ h2.section {
   margin-top: var(--gap);
 }
 
+/* Top-aligned, not centred: a row's description can run to three or four lines, and a switch
+   floating at the vertical middle of a paragraph reads as if it belongs to the sentence it
+   happens to sit beside. Pinned to the top, it belongs to the label. */
 .row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: var(--gap);
+  gap: calc(var(--gap) * 1.5);
   padding: var(--pad);
 }
 
 .row + .row {
   border-top: 1px solid var(--stroke);
+}
+
+/* The controls stay optically level with the label they belong to, not with the first line
+   of prose underneath it. */
+.row > .toggle,
+.row > select,
+.row > .button,
+.row > .button-group,
+.row > .recorder {
+  margin-top: 1px;
 }
 
 .what {
@@ -288,12 +315,17 @@ h2.section {
 
 .label {
   font-size: 13.5px;
+  font-weight: 500;
 }
 
+/* These carry real paragraphs — the vault's especially. Set solid: 11.5px with default
+   leading is a wall, and a wall is what people stop reading. */
 .desc {
-  margin-top: 2px;
+  margin-top: 3px;
+  max-width: 46em;
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 /* ── controls ── */

@@ -33,7 +33,7 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
 - **Prefix-only search.** Vault entries only appear for `v <query>` searches — account
   names never surface while typing an ordinary search, and vault items are excluded
   from the recents list on the empty overlay.
-- **Context suggestions are the one exception** (Settings → Commands, on by default).
+- **Context suggestions are the one exception** (Settings → Vault, on by default).
   With an unlocked vault, summoning Funke over an app offers *that app's* credential in
   the empty overlay — so a name can appear on screen without you typing it. It is only
   ever the credential for the window already in front of you, it is never persisted, and
@@ -74,7 +74,7 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   for the accident nobody marked (API keys, PATs, JWTs, PEM blocks), and the cap. It is
   `prefix_only`, so clips never surface in an ordinary search, and clips are recorded into
   neither the recents file nor frecency.
-- **Windows Hello unlock is opt-in** (Settings → Commands), and the Hello prompt is the
+- **Windows Hello unlock is opt-in** (Settings → Vault), and the Hello prompt is the
   lock itself. When enabled, a successful master-password unlock mints a `bw` session key
   and seals it under a key that **only a Hello prompt can reproduce**: `KeyCredentialManager`
   holds a key pair whose private half lives in the TPM and signs only after Hello verifies
@@ -92,7 +92,7 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
 - **Website icons are fetched from your server's icon service** (the Bitwarden cloud
   icon CDN, or your self-hosted server's `/icons` endpoint) and cached in memory only —
   nothing icon-related is written to disk. This tells that service which domains you
-  search; disable it in Settings → Commands if that matters to you.
+  search; disable it in Settings → Vault if that matters to you.
 - **No telemetry.** Funke never phones home. It makes exactly four kinds of network
   request, all of them either yours or explicitly asked for: the optional vault favicon
   fetches above; loopback to `bw serve` (which syncs with your configured server); the

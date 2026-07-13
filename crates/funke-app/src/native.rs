@@ -10,6 +10,69 @@ extern "system" {
 extern "system" {
     fn GetTickCount64() -> u64;
     fn GetUserDefaultLocaleName(name: *mut u16, size: i32) -> i32;
+    fn AttachConsole(process_id: u32) -> i32;
+    fn GetStdHandle(id: u32) -> isize;
+    fn SetStdHandle(id: u32, handle: isize) -> i32;
+    fn CreateFileW(
+        name: *const u16,
+        access: u32,
+        share: u32,
+        security: *const core::ffi::c_void,
+        disposition: u32,
+        flags: u32,
+        template: isize,
+    ) -> isize;
+}
+
+const ATTACH_PARENT_PROCESS: u32 = 0xFFFF_FFFF;
+const STD_OUTPUT_HANDLE: u32 = 0xFFFF_FFF5; // (DWORD)-11
+const STD_ERROR_HANDLE: u32 = 0xFFFF_FFF4; // (DWORD)-12
+const GENERIC_WRITE: u32 = 0x4000_0000;
+const FILE_SHARE_WRITE: u32 = 0x0000_0002;
+const OPEN_EXISTING: u32 = 3;
+const INVALID_HANDLE_VALUE: isize = -1;
+
+/// Borrow the console we were *launched from*, if there is one — and never conjure one.
+///
+/// Funke is a windows-subsystem binary, so Windows gives it no console: starting it from
+/// the Start menu, a shortcut, or the autostart entry opens no black rectangle, which is
+/// the entire point (a tray app that flashes a terminal at sign-in looks broken). The cost
+/// is that a `cargo run` or a `funke.exe` typed into a shell would print into the void.
+/// `AttachConsole(ATTACH_PARENT_PROCESS)` buys it back: joined to the parent's console, the
+/// process's warnings land in the terminal the user is looking at.
+pub fn attach_parent_console() {
+    unsafe {
+        // No parent console (Explorer, the Run key, the tray) — nothing to attach to, and
+        // deliberately nothing to allocate.
+        if AttachConsole(ATTACH_PARENT_PROCESS) == 0 {
+            return;
+        }
+        adopt(STD_OUTPUT_HANDLE);
+        adopt(STD_ERROR_HANDLE);
+    }
+}
+
+/// Point one standard handle at the console we just joined — unless it already points
+/// somewhere, which means the shell redirected it (`funke > log.txt`, a pipe). Overwriting
+/// that would quietly break the redirect, so an existing handle always wins.
+unsafe fn adopt(id: u32) {
+    let current = GetStdHandle(id);
+    if current != 0 && current != INVALID_HANDLE_VALUE {
+        return;
+    }
+    let name: Vec<u16> = "CONOUT$".encode_utf16().chain(std::iter::once(0)).collect();
+    let console = CreateFileW(
+        name.as_ptr(),
+        GENERIC_WRITE,
+        FILE_SHARE_WRITE,
+        std::ptr::null(),
+        OPEN_EXISTING,
+        0,
+        0,
+    );
+    if console != INVALID_HANDLE_VALUE {
+        let _ = SetStdHandle(id, console);
+    }
 }
 
 #[link(name = "user32")]

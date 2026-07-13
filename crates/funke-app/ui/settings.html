@@ -40,6 +40,14 @@
             <svg viewBox="0 0 24 24"><path d="M5 6.5l5 5.5-5 5.5" /><path d="M12.5 17.5H19" /></svg>
             <span data-i18n="settings.nav.commands"></span>
           </button>
+          <button class="nav" data-pane="vault">
+            <svg viewBox="0 0 24 24">
+              <rect x="4" y="10.5" width="16" height="10" rx="2" />
+              <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
+              <path d="M12 14v3" />
+            </svg>
+            <span data-i18n="settings.nav.vault"></span>
+          </button>
           <button class="nav" data-pane="snippets">
             <svg viewBox="0 0 24 24"><path d="M6 3.5h7l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z" /><path d="M13 3.5v5h5" /></svg>
             <span data-i18n="settings.nav.snippets"></span>
@@ -141,6 +149,7 @@
             <p class="lead" data-i18n="settings.commands.lead"></p>
 
             <h2 class="section" data-i18n="settings.section.providers"></h2>
+            <p class="note" data-i18n="settings.section.providers.note"></p>
             <div class="card" id="providers"></div>
 
             <h2 class="section" data-i18n="settings.section.web"></h2>
@@ -175,7 +184,14 @@
               </div>
             </div>
 
+          </div>
+
+          <div class="pane" id="pane-vault">
+            <h1 data-i18n="settings.nav.vault"></h1>
+            <p class="lead" data-i18n-html="settings.vault.lead"></p>
+
             <h2 class="section" data-i18n="settings.section.vault_unlock"></h2>
+            <p class="note" data-i18n="settings.section.vault_unlock.note"></p>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -193,20 +209,6 @@
               </div>
               <div class="row">
                 <div class="what">
-                  <div class="label" data-i18n="settings.vault.capture_shield"></div>
-                  <div class="desc" data-i18n="settings.vault.capture_shield.desc"></div>
-                </div>
-                <button class="toggle" id="vault-capture-shield" role="switch" aria-checked="true"></button>
-              </div>
-              <div class="row">
-                <div class="what">
-                  <div class="label" data-i18n="settings.vault.signed_cli"></div>
-                  <div class="desc" data-i18n="settings.vault.signed_cli.desc"></div>
-                </div>
-                <button class="toggle" id="vault-signed-cli" role="switch" aria-checked="false"></button>
-              </div>
-              <div class="row">
-                <div class="what">
                   <div class="label" data-i18n="settings.vault.idle"></div>
                   <div class="desc" data-i18n="settings.vault.idle.desc"></div>
                 </div>
@@ -215,6 +217,7 @@
             </div>
 
             <h2 class="section" data-i18n="settings.section.vault_autotype"></h2>
+            <p class="note" data-i18n="settings.section.vault_autotype.note"></p>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -246,6 +249,7 @@
             </div>
 
             <h2 class="section" data-i18n="settings.section.vault_suggest"></h2>
+            <p class="note" data-i18n="settings.section.vault_suggest.note"></p>
             <div class="card">
               <div class="row">
                 <div class="what">
@@ -254,12 +258,31 @@
                 </div>
                 <button class="toggle" id="vault-context" role="switch" aria-checked="true"></button>
               </div>
+            </div>
+
+            <h2 class="section" data-i18n="settings.section.vault_privacy"></h2>
+            <p class="note" data-i18n="settings.section.vault_privacy.note"></p>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.vault.capture_shield"></div>
+                  <div class="desc" data-i18n="settings.vault.capture_shield.desc"></div>
+                </div>
+                <button class="toggle" id="vault-capture-shield" role="switch" aria-checked="true"></button>
+              </div>
               <div class="row">
                 <div class="what">
                   <div class="label" data-i18n="settings.vault.icons"></div>
                   <div class="desc" data-i18n="settings.vault.icons.desc"></div>
                 </div>
                 <button class="toggle" id="vault-icons" role="switch" aria-checked="true"></button>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.vault.signed_cli"></div>
+                  <div class="desc" data-i18n="settings.vault.signed_cli.desc"></div>
+                </div>
+                <button class="toggle" id="vault-signed-cli" role="switch" aria-checked="false"></button>
               </div>
             </div>
           </div>

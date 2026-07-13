@@ -1,4 +1,8 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Windows subsystem in *every* build, debug included. A console-subsystem binary gets a
+// console window whether or not it prints anything, and a tray app that is launched by the
+// autostart entry would flash a black terminal at every sign-in. `native::attach_parent_console`
+// gives the output back to whoever ran Funke from a shell; nothing else ever sees a console.
+#![windows_subsystem = "windows"]
 
 mod autofill;
 mod autotype;
@@ -1218,6 +1222,9 @@ fn consume_autostart_request(settings: &RwLock<Settings>, settings_path: &Path) 
 }
 
 fn main() {
+    // Before the first eprintln: if a shell started us, print into that shell. If nothing
+    // did (the tray, the autostart entry), print nowhere and open no window for it.
+    native::attach_parent_console();
     // Before anything can hold a secret: crash dumps of this process must not be
     // collected (a WER dump would carry whatever was in flight when it died).
     native::exclude_from_error_reporting();

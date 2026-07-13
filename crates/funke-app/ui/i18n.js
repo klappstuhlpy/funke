@@ -47,24 +47,35 @@ const STRINGS = {
     "settings.nav.appearance": "Appearance",
     "settings.nav.hotkey": "Hotkey",
     "settings.nav.commands": "Commands",
+    "settings.nav.vault": "Vault",
     "settings.nav.snippets": "Snippets",
     "settings.nav.plugins": "Plugins",
     "settings.nav.about": "About",
     "settings.load_failed": "Settings didn't load fully: {error}",
 
-    // Category headings. Each one names the subject its cards are about, so the rows
-    // underneath can drop the prefix they used to carry ("Vault: autotype sequence").
+    // Category headings, and the one line under each that says what the whole group is for.
+    // A heading names the subject so no row has to repeat it; the note says why the group
+    // exists, so the rows underneath can get straight to what they do.
     "settings.section.startup": "Startup",
     "settings.section.updates": "Updates",
     "settings.section.overlay": "Overlay",
     "settings.section.summon": "Summon",
     "settings.section.inside": "Inside the overlay",
-    "settings.section.providers": "Providers",
+    "settings.section.providers": "Sources",
+    "settings.section.providers.note":
+      "Everything Funke can answer with. Turn one off and it goes quiet — its results disappear, and so does its keyword.",
     "settings.section.web": "Web search",
     "settings.section.files": "File search",
-    "settings.section.vault_unlock": "Vault · unlocking",
-    "settings.section.vault_autotype": "Vault · autotype",
-    "settings.section.vault_suggest": "Vault · suggestions",
+    "settings.section.vault_unlock": "Unlocking",
+    "settings.section.vault_unlock.note": "How you open the vault — and when it closes itself again.",
+    "settings.section.vault_autotype": "Autotype",
+    "settings.section.vault_autotype.note":
+      "What gets typed into the window you came from, and the guard that decides whether anything is typed at all.",
+    "settings.section.vault_suggest": "Suggestions",
+    "settings.section.vault_suggest.note": "The one time a vault entry appears without you typing v.",
+    "settings.section.vault_privacy": "Privacy & trust",
+    "settings.section.vault_privacy.note":
+      "Who else can see the vault on your screen, and which bw Funke is willing to hand your master password to.",
     "settings.section.your_snippets": "Your snippets",
     "settings.section.placeholders": "Placeholders",
     "settings.section.installed": "Installed",
@@ -105,15 +116,18 @@ const STRINGS = {
     "settings.shortcuts.dismiss": "Close the overlay, or cancel a confirmation",
 
     "settings.commands.heading": "Commands",
-    "settings.commands.lead": "What Funke can answer with, and how each part behaves.",
+    "settings.commands.lead": "Where Funke looks, and how each source behaves.",
     "settings.engine": "Web search engine",
     "settings.engine.desc": "Where “Search the web for …” sends you.",
+
+    "settings.vault.lead":
+      "Your Bitwarden or Vaultwarden vault, behind <kbd>v</kbd>. Funke decrypts nothing itself — the official <code>bw</code> CLI does that, and Funke only talks to it.",
     "settings.vault.hello": "Unlock with Windows Hello",
     "settings.vault.hello.desc":
-      "After one master-password unlock, later unlocks are a Hello prompt. Stores a session key protected by Windows — tradeoff in SECURITY.md.",
+      "Unlock with your master password once; after that a Hello prompt is enough. The saved session is sealed with a key your TPM hands over only once Hello has recognised you, so there is no way to it that goes around the prompt. What that does and doesn't buy you is spelled out in SECURITY.md.",
     "settings.vault.icons": "Website icons",
     "settings.vault.icons.desc":
-      "Show site favicons on vault entries, fetched from your Bitwarden server's icon service (it learns the sites you search).",
+      "Show site favicons on vault entries. They come from your Bitwarden server's icon service, which therefore learns which sites you search for.",
     "settings.vault.context": "Suggest for the focused app",
     "settings.vault.context.desc":
       "When you summon Funke over an app (or a website in your browser), offer that credential in the empty overlay — matched by process, window title, and the browser's address bar. Off means vault entries only ever appear behind <code>v</code>.",
@@ -134,9 +148,9 @@ const STRINGS = {
       "Screenshots, recordings and screen shares can't see the overlay while it shows the master-password prompt or vault entries. Everything else stays capturable.",
     "settings.vault.signed_cli": "Only run a Bitwarden-signed CLI",
     "settings.vault.signed_cli.desc":
-      "Funke hands your master password to the bw executable, so it pins the one it found at startup and checks who signed it. Normally an unverified bw is used anyway with a note on the vault row — an npm install is an unsigned script wrapper, and that is a legitimate install. Turn this on to refuse instead.",
-    "settings.vault.idle": "Auto-lock after idle",
-    "settings.vault.idle.desc": "Lock the vault after this long without using it.",
+      "Funke hands your master password to the bw executable, so it pins the one it found at startup and checks that Bitwarden signed it. An unverified bw normally still runs, with the reason shown on the vault row — an npm install is an unsigned script wrapper, and that is a perfectly good way to install it. Turn this on to refuse it instead.",
+    "settings.vault.idle": "Auto-lock when idle",
+    "settings.vault.idle.desc": "Lock the vault again after this long without using it.",
     "settings.idle.minutes": "{count} minutes",
     "settings.idle.minute": "1 minute",
     "settings.idle.hour": "1 hour",
@@ -253,6 +267,7 @@ const STRINGS = {
     "settings.nav.appearance": "Darstellung",
     "settings.nav.hotkey": "Hotkey",
     "settings.nav.commands": "Befehle",
+    "settings.nav.vault": "Tresor",
     "settings.nav.snippets": "Snippets",
     "settings.nav.plugins": "Plugins",
     "settings.nav.about": "Über Funke",
@@ -263,12 +278,22 @@ const STRINGS = {
     "settings.section.overlay": "Overlay",
     "settings.section.summon": "Aufrufen",
     "settings.section.inside": "Im Overlay",
-    "settings.section.providers": "Funktionen",
+    "settings.section.providers": "Quellen",
+    "settings.section.providers.note":
+      "Alles, womit Funke antworten kann. Schaltest du eine Quelle ab, ist sie still — ihre Treffer verschwinden, ihr Kürzel auch.",
     "settings.section.web": "Websuche",
     "settings.section.files": "Dateisuche",
-    "settings.section.vault_unlock": "Tresor · Entsperren",
-    "settings.section.vault_autotype": "Tresor · Autotype",
-    "settings.section.vault_suggest": "Tresor · Vorschläge",
+    "settings.section.vault_unlock": "Entsperren",
+    "settings.section.vault_unlock.note": "Wie du den Tresor aufmachst — und wann er sich von allein wieder schließt.",
+    "settings.section.vault_autotype": "Autotype",
+    "settings.section.vault_autotype.note":
+      "Was in das Fenster getippt wird, aus dem du kamst — und die Sperre, die entscheidet, ob überhaupt getippt wird.",
+    "settings.section.vault_suggest": "Vorschläge",
+    "settings.section.vault_suggest.note":
+      "Der einzige Fall, in dem ein Tresor-Eintrag auftaucht, ohne dass du v tippst.",
+    "settings.section.vault_privacy": "Privatsphäre & Vertrauen",
+    "settings.section.vault_privacy.note":
+      "Wer den Tresor sonst noch auf deinem Bildschirm zu sehen bekommt — und welcher bw Funke dein Master-Passwort überhaupt anvertraut.",
     "settings.section.your_snippets": "Deine Snippets",
     "settings.section.placeholders": "Platzhalter",
     "settings.section.installed": "Installiert",
@@ -292,13 +317,13 @@ const STRINGS = {
     "settings.accent": "Akzentfarbe",
     "settings.accent.desc": "Für Auswahl, Cursor und Tastenhinweise.",
     "settings.width": "Breite des Overlays",
-    "settings.width.desc": "Wie breit die Suchleiste ist.",
+    "settings.width.desc": "Wie breit die Suchleiste ist — in jedem Modus.",
 
     "settings.hotkey.lead": "Das Tastenkürzel, das Funke von überall aufruft.",
     "settings.hotkey.label": "Funke öffnen",
     "settings.hotkey.desc": "Klicken, dann die gewünschte Kombination drücken. Gilt sofort.",
     "settings.hotkey.fineprint":
-      "Ist der HotKey schon von einer anderen App belegt (PowerToys Run mag <kbd>Strg</kbd>+<kbd>Leertaste</kbd> auch), klappt es nicht und der bisherige Hotkey bleibt.",
+      "Ist die Kombination schon von einer anderen App belegt (PowerToys Run mag <kbd>Strg</kbd>+<kbd>Leertaste</kbd> auch), klappt es nicht — und der bisherige Hotkey bleibt aktiv.",
     "settings.hotkey.recording": "Tasten drücken…",
     "settings.hotkey.needs_modifier": "Noch Strg, Alt oder Win dazu…",
     "settings.shortcuts.navigate": "Durch die Treffer navigieren",
@@ -309,12 +334,15 @@ const STRINGS = {
     "settings.shortcuts.dismiss": "Overlay schließen oder eine Bestätigung abbrechen",
 
     "settings.commands.heading": "Befehle",
-    "settings.commands.lead": "Womit Funke antworten kann — und wie sich die einzelnen Teile verhalten.",
+    "settings.commands.lead": "Wo Funke überall nachschaut — und wie sich die einzelnen Quellen verhalten.",
     "settings.engine": "Suchmaschine",
     "settings.engine.desc": "Wohin „Im Web nach … suchen“ dich schickt.",
+
+    "settings.vault.lead":
+      "Dein Bitwarden- oder Vaultwarden-Tresor, erreichbar über <kbd>v</kbd>. Funke entschlüsselt nichts selbst — das macht die offizielle <code>bw</code>-CLI, Funke redet nur mit ihr.",
     "settings.vault.hello": "Mit Windows Hello entsperren",
     "settings.vault.hello.desc":
-      "Einmal mit dem Master-Passwort entsperren — danach reicht Windows Hello. Dafür liegt ein Sitzungsschlüssel auf der Platte, den Windows schützt. Was das bedeutet, steht in SECURITY.md.",
+      "Einmal mit dem Master-Passwort entsperren, danach reicht Windows Hello. Die gespeicherte Sitzung ist mit einem Schlüssel versiegelt, den dein TPM erst herausrückt, wenn Hello dich erkannt hat — an der Abfrage vorbei kommt also niemand. Was das bringt und was nicht, steht in SECURITY.md.",
     "settings.vault.icons": "Website-Symbole",
     "settings.vault.icons.desc":
       "Zeigt Favicons auf den Tresor-Einträgen. Die kommen vom Icon-Dienst deines Bitwarden-Servers — der erfährt damit, nach welchen Seiten du suchst.",
@@ -338,9 +366,9 @@ const STRINGS = {
       "Screenshots, Aufnahmen und geteilte Bildschirme sehen das Overlay nicht, solange es die Master-Passwort-Abfrage oder Tresoreinträge zeigt. Alles andere bleibt aufnehmbar.",
     "settings.vault.signed_cli": "Nur eine von Bitwarden signierte CLI ausführen",
     "settings.vault.signed_cli.desc":
-      "Funke übergibt dein Master-Passwort an die bw-Datei und merkt sich deshalb die beim Start gefundene und prüft, wer sie signiert hat. Normalerweise wird eine nicht verifizierte bw trotzdem benutzt, mit einem Hinweis auf der Tresorzeile — eine npm-Installation ist ein unsignierter Skript-Wrapper und völlig legitim. Aktiviere dies, um sie stattdessen abzulehnen.",
-    "settings.vault.idle": "Nach Inaktivität sperren",
-    "settings.vault.idle.desc": "Sperrt den Tresor, wenn er so lange nicht benutzt wurde.",
+      "Funke gibt dein Master-Passwort an die bw-Datei weiter — deshalb merkt es sich beim Start genau eine und prüft, ob Bitwarden sie signiert hat. Normalerweise läuft eine unbestätigte bw trotzdem, mit dem Grund auf der Tresorzeile: Eine npm-Installation ist ein unsignierter Skript-Wrapper und eine völlig normale Art, sie zu installieren. Schalte das hier ein, wenn Funke sie stattdessen ablehnen soll.",
+    "settings.vault.idle": "Bei Untätigkeit sperren",
+    "settings.vault.idle.desc": "Sperrt den Tresor wieder, wenn du ihn so lange nicht benutzt hast.",
     "settings.idle.minutes": "{count} Minuten",
     "settings.idle.minute": "1 Minute",
     "settings.idle.hour": "1 Stunde",
@@ -399,22 +427,22 @@ const STRINGS = {
     "settings.plugins.remove_confirm": "Entfernen?",
     "settings.plugins.removing": "Wird entfernt…",
     "settings.plugins.catalog_empty": "Noch nichts da",
-    "settings.plugins.catalog_empty.desc": "Der Katalog ist leer — füge Plugins hinzu!",
+    "settings.plugins.catalog_empty.desc": "Der Katalog ist noch leer — schreib das erste!",
 
-    "settings.about.lead": "Das ist der Vorgeschmack – und hier findest du um was es dabei geht :)",
+    "settings.about.lead": "Was Funke ist — und wo der Rest davon liegt. :)",
     "settings.about.tagline":
       "Ein Launcher für Windows, ganz per Tastatur: Apps, Dateien, Fenster, Snippets, Zwischenablage und dein Tresor — einen Hotkey entfernt.",
-    "settings.about.built": "Gratis Software, kostenlos und unkompliziert.",
+    "settings.about.built": "Freie Software, ganz ohne Trara",
     "settings.about.built.desc":
-      "Geschrieben in Rust auf Tauri, unter MIT-Lizenz. Kein Konto, keine Auswertung, keine Analyse: Nichts von dem, was du tippst, wird gesammelt. Funke holt nur den Plugin-Katalog und die Update-Prüfung — und beides nur, wenn du fragst.",
+      "Geschrieben in Rust auf Tauri, unter MIT-Lizenz. Kein Konto, keine Telemetrie, keine Analyse: Nichts von dem, was du tippst, verlässt deinen Rechner. Funke holt sich nur den Plugin-Katalog und die Update-Prüfung — und beides nur, wenn du danach fragst.",
     "settings.about.fineprint":
-      "„Funke“ ist ein öffentliches Projekt. Offen — Issues und Pull Requests sind willkommen.",
-    "settings.about.source": "Source Code",
+      "„Funke“ ist nur ein Arbeitstitel. Entwickelt wird offen — Issues und Pull Requests sind willkommen.",
+    "settings.about.source": "Quellcode",
     "settings.about.issues": "Fehler melden",
     "settings.about.releases": "Releases",
     "settings.about.changelog": "Changelog",
     "settings.about.design": "Design & Entscheidungen",
-    "settings.about.plugins": "Plugins",
+    "settings.about.plugins": "Ein Plugin schreiben",
     "settings.about.security": "Sicherheit",
     "settings.about.license": "Lizenz (MIT)",
   },
