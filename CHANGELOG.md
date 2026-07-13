@@ -10,6 +10,12 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 ## [Unreleased]
 
 ### Changed
+- **"Check for updates" no longer installs the update.** It used to do both in one click:
+  press check, and the new version was downloaded and staged — you never saw which version,
+  and there was nothing to say no to. Now the check tells you what is available and what
+  changed in it, and installing is a second button you press once you've read that. An update
+  is a new program on your machine; that is a decision, not a side effect of asking a
+  question.
 - **No terminal window at sign-in.** Funke is now a windowed binary in every build, not only
   release ones, so nothing can flash a console at startup — and the tray line that used to
   appear in it is gone from view. Run Funke from a shell and its output still lands in *that*
@@ -86,6 +92,12 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
   indefinitely. Every serve process is now assigned to a kill-on-close Windows job
   object, so the kernel terminates it the moment Funke's process ends, however it ends.
   Where the job can't be created the old behavior remains, with a logged warning.
+- **Funke tells you when there's a new version — once.** Shortly after startup it checks
+  GitHub for a newer release and, the first time it sees one, raises a Windows notification.
+  Only the first time: the announced version is remembered, so the same release never knocks
+  again however often you restart. A newer one will. It only ever tells you — nothing is
+  downloaded or installed by a notification. Turn it off under General → *Tell me about new
+  versions*; the check is then only ever the button.
 
 ## [0.5.0] - 2026-07-12
 

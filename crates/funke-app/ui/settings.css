@@ -328,6 +328,23 @@ h2.section {
   line-height: 1.55;
 }
 
+/* Release notes: text from a GitHub release, so it is somebody else's prose and arrives as
+   plain text (never markup). Scrolls rather than growing the pane — a chatty changelog
+   should not push the Install button off the screen. */
+.notes {
+  margin-top: 8px;
+  max-height: 132px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken, rgba(0, 0, 0, 0.14));
+  color: var(--text-dim);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 /* ── controls ── */
 
 .toggle {

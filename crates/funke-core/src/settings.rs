@@ -29,6 +29,11 @@ pub struct Settings {
     pub index_roots: Vec<String>,
     /// Start Funke with Windows.
     pub autostart: bool,
+    /// Look for a new release in the background at startup and raise a Windows notification
+    /// the first time a given version is seen. Never installs anything — that stays a
+    /// button the user presses. This is the only network request Funke makes without being
+    /// asked, which is why it is a setting at all (see SECURITY.md).
+    pub update_check: bool,
     /// Unlock the vault with Windows Hello instead of the master password on repeat
     /// unlocks (persists a DPAPI-protected `bw` session key — see SECURITY.md).
     pub vault_hello: bool,
@@ -97,6 +102,7 @@ impl Default for Settings {
             disabled_providers: Vec::new(),
             index_roots: Vec::new(),
             autostart: false,
+            update_check: true,
             vault_hello: false,
             vault_icons: true,
             vault_idle_lock_minutes: 10,

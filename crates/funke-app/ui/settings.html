@@ -95,8 +95,19 @@
                 <div class="what">
                   <div class="label" data-i18n="settings.updates"></div>
                   <div class="desc" id="update-status" data-i18n="settings.updates.desc"></div>
+                  <div class="notes" id="update-notes" hidden></div>
                 </div>
-                <button class="button" id="check-update" data-i18n="settings.updates.check"></button>
+                <div class="button-group">
+                  <button class="button" id="check-update" data-i18n="settings.updates.check"></button>
+                  <button class="button primary" id="install-update" data-i18n="settings.updates.install" hidden></button>
+                </div>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.updates.auto"></div>
+                  <div class="desc" data-i18n="settings.updates.auto.desc"></div>
+                </div>
+                <button class="toggle" id="update-auto" role="switch" aria-checked="true"></button>
               </div>
             </div>
           </div>

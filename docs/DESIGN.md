@@ -341,6 +341,14 @@ file loads as empty; a failed app index yields an empty provider.
 - **Auto-update** is live: `tauri-plugin-updater` against GitHub releases, signed with a keypair
   whose public half sits in `tauri.conf.json` and whose private half is a repo secret, backed up
   outside the repo (GitHub secrets are write-only — that backup is the only recoverable copy).
+  **Checking and installing are deliberately two acts** (`update.rs`). The check reports the
+  version and its release notes and stops; installing is a second press. The first cut of this
+  did both on one click, which meant a button labelled "Check for updates" silently replaced the
+  program — the user never saw the version and had nothing to decline. A background check at
+  startup (`Settings::update_check`, on) raises **one** Windows notification per version, with
+  the announced version written to `update.seen` so the same release cannot knock twice; the
+  notification only ever tells, never installs. It is the sole request Funke makes unbidden,
+  which is why it is a setting and why it is in SECURITY.md.
 - **Code signing** is wired but dormant: it happens *during* bundling via
   `bundle.windows.signCommand`, injected by the workflow only when the `AZURE_*` secrets exist,
   so one switch covers the portable exe, the copy inside the installer, and the installer

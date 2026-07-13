@@ -246,10 +246,17 @@ const EN: &[(&str, &str)] = &[
     ("results.fallback", "Results"),
     ("hotkey.rejected", "Couldn't bind “{hotkey}”: {error}"),
     ("update.none", "You're on the latest version."),
-    ("update.installed", "Updated to {version} — restart Funke to finish."),
     (
         "update.unconfigured",
         "Auto-updates aren't set up yet (no update endpoint configured).",
+    ),
+    // The Windows notification raised once, the first time a new release is seen. It says
+    // what is available and where to go — it never offers to install anything, because a
+    // notification is a thing you glance at, not a thing you consent with.
+    ("update.notify.title", "Funke {version} is available"),
+    (
+        "update.notify.body",
+        "You're on {current}. Open Settings → General to see what's new and install it.",
     ),
 ];
 
@@ -408,10 +415,14 @@ const DE: &[(&str, &str)] = &[
     ("results.fallback", "Treffer"),
     ("hotkey.rejected", "„{hotkey}“ ließ sich nicht belegen: {error}"),
     ("update.none", "Du hast die neueste Version."),
-    ("update.installed", "Auf {version} aktualisiert — starte Funke neu, um fertig zu werden."),
     (
         "update.unconfigured",
         "Automatische Updates sind noch nicht eingerichtet (keine Update-Adresse konfiguriert).",
+    ),
+    ("update.notify.title", "Funke {version} ist da"),
+    (
+        "update.notify.body",
+        "Du hast {current}. Unter Einstellungen → Allgemein siehst du, was neu ist, und kannst es installieren.",
     ),
 ];
 

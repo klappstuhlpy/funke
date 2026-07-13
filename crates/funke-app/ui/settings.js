@@ -144,6 +144,7 @@ function renderAll() {
 
   const autostart = document.getElementById("autostart");
   autostart.setAttribute("aria-checked", String(settings.autostart));
+  document.getElementById("update-auto").setAttribute("aria-checked", String(settings.update_check));
 
   document.getElementById("vault-hello").setAttribute("aria-checked", String(settings.vault_hello));
   document.getElementById("vault-icons").setAttribute("aria-checked", String(settings.vault_icons));
@@ -261,19 +262,54 @@ function buildStaticControls() {
 
   document.getElementById("autostart").addEventListener("click", () => save({ autostart: !settings.autostart }));
 
+  // Checking and installing are two presses, not one. The first tells you what is out
+  // there and what changed in it; the second is you saying yes to a new program on your
+  // machine. Collapsing them, as this used to, meant the "check" button silently installed.
   const checkUpdate = document.getElementById("check-update");
+  const installUpdate = document.getElementById("install-update");
+  const updateStatus = document.getElementById("update-status");
+  const updateNotes = document.getElementById("update-notes");
+
   checkUpdate.addEventListener("click", async () => {
-    const status = document.getElementById("update-status");
     checkUpdate.disabled = true;
-    status.textContent = t("settings.updates.checking");
+    installUpdate.hidden = true;
+    updateNotes.hidden = true;
+    updateStatus.textContent = t("settings.updates.checking");
     try {
-      status.textContent = await invoke("check_update");
+      const update = await invoke("check_update");
+      if (update) {
+        updateStatus.textContent = t("settings.updates.available", { version: update.version });
+        // Release notes are somebody else's text, so they go in as text, never as markup.
+        if (update.notes.trim()) {
+          updateNotes.textContent = update.notes.trim();
+          updateNotes.hidden = false;
+        }
+        installUpdate.hidden = false;
+      } else {
+        updateStatus.textContent = t("settings.updates.none");
+      }
     } catch (err) {
-      status.textContent = String(err);
+      updateStatus.textContent = String(err);
     } finally {
       checkUpdate.disabled = false;
     }
   });
+
+  installUpdate.addEventListener("click", async () => {
+    installUpdate.disabled = true;
+    checkUpdate.disabled = true;
+    updateStatus.textContent = t("settings.updates.installing");
+    try {
+      // On success Funke is replaced and restarts, so there is no "done" to render here.
+      await invoke("install_update");
+    } catch (err) {
+      updateStatus.textContent = String(err);
+      installUpdate.disabled = false;
+      checkUpdate.disabled = false;
+    }
+  });
+
+  document.getElementById("update-auto").addEventListener("click", () => save({ update_check: !settings.update_check }));
   document.getElementById("vault-hello").addEventListener("click", () => save({ vault_hello: !settings.vault_hello }));
   document.getElementById("vault-icons").addEventListener("click", () => save({ vault_icons: !settings.vault_icons }));
   document

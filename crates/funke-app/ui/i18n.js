@@ -93,6 +93,13 @@ const STRINGS = {
     "settings.updates.desc": "Check GitHub for a newer release.",
     "settings.updates.check": "Check for updates",
     "settings.updates.checking": "Checking…",
+    "settings.updates.none": "You're on the latest version.",
+    "settings.updates.available": "Version {version} is available — here's what changed.",
+    "settings.updates.install": "Install and restart",
+    "settings.updates.installing": "Downloading… Funke will restart when it's done.",
+    "settings.updates.auto": "Tell me about new versions",
+    "settings.updates.auto.desc":
+      "Look for a new release shortly after startup and show a Windows notification the first time there is one — once per version, never again for the same one. It only ever tells you; installing stays a button you press.",
 
     "settings.appearance.heading": "Appearance",
     "settings.appearance.lead": "The overlay stays native glass — these tune its character.",
@@ -311,6 +318,13 @@ const STRINGS = {
     "settings.updates.desc": "Auf GitHub nach neuen Versionen suchen.",
     "settings.updates.check": "Nach Updates suchen",
     "settings.updates.checking": "Wird geprüft…",
+    "settings.updates.none": "Du hast die neueste Version.",
+    "settings.updates.available": "Version {version} ist da — das hat sich geändert:",
+    "settings.updates.install": "Installieren und neu starten",
+    "settings.updates.installing": "Wird geladen… Funke startet danach neu.",
+    "settings.updates.auto": "Über neue Versionen Bescheid geben",
+    "settings.updates.auto.desc":
+      "Kurz nach dem Start nach einer neuen Version schauen und beim ersten Mal eine Windows-Benachrichtigung zeigen — einmal pro Version, dieselbe nie wieder. Es sagt dir nur Bescheid; installiert wird erst, wenn du darauf drückst.",
 
     "settings.appearance.heading": "Darstellung",
     "settings.appearance.lead": "Das Overlay bleibt echtes Glas — Farbe und Breite bestimmst du.",

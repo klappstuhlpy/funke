@@ -9,6 +9,7 @@ mod autotype;
 mod focus;
 mod native;
 mod providers;
+mod update;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
@@ -907,27 +908,21 @@ fn pick_index_root(app: AppHandle) -> Option<String> {
     app.dialog().file().blocking_pick_folder().map(|path| path.to_string())
 }
 
-/// Check GitHub Releases for a newer version and, if found, download + stage the update
-/// (applied on next launch). **Dormant until configured**: returns a friendly message
-/// when `plugins.updater` (endpoints + a signing `pubkey`) isn't set in tauri.conf.json —
-/// see docs/DESIGN.md §8 for the one-time keypair setup.
+/// What's out there — nothing more. Returns `None` when the running version is current.
+/// **Dormant until configured**: errors with a friendly message when `plugins.updater`
+/// (endpoints + a signing `pubkey`) isn't set in tauri.conf.json — see docs/DESIGN.md §8
+/// for the one-time keypair setup.
 #[tauri::command]
-async fn check_update(app: AppHandle) -> Result<String, String> {
-    use tauri_plugin_updater::UpdaterExt;
-    let updater = app
-        .updater()
-        .map_err(|_| funke_core::i18n::t("update.unconfigured").to_string())?;
-    match updater.check().await.map_err(|e| e.to_string())? {
-        Some(update) => {
-            let version = update.version.clone();
-            update
-                .download_and_install(|_, _| {}, || {})
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(funke_core::i18n::tf("update.installed", &[("version", &version)]))
-        }
-        None => Ok(funke_core::i18n::t("update.none").to_string()),
-    }
+async fn check_update(app: AppHandle) -> Result<Option<update::Available>, String> {
+    update::check(&app).await
+}
+
+/// Install what the check found. Separate from the check on purpose: an update is a new
+/// program on the user's machine, and that is their decision to make once they've seen the
+/// version. The app restarts into it.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    update::install(&app).await
 }
 
 /// The settings window starts hidden and calls this once its DOM is styled, so it
@@ -1249,6 +1244,7 @@ fn main() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState {
             registry: RwLock::new(build_registry(
                 Arc::clone(&settings),
@@ -1300,7 +1296,8 @@ fn main() {
             browse_plugins,
             install_plugin,
             remove_plugin,
-            check_update
+            check_update,
+            install_update
         ])
         .setup(|app| {
             // Native glass: acrylic backdrop + DWM rounded corners; the window shadow
@@ -1352,6 +1349,12 @@ fn main() {
                 if let Err(e) = app.autolaunch().enable() {
                     eprintln!("failed to enable autostart: {e}");
                 }
+            }
+
+            // The one request Funke makes without being asked — hence the setting, and hence
+            // its line in SECURITY.md. It notifies once per version and never installs.
+            if settings.update_check {
+                update::notify_if_new(app.handle(), data_path("update.seen"));
             }
 
             // The tray menu is built once, so it wears the language chosen at startup; a

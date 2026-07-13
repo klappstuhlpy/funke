@@ -93,10 +93,21 @@ hosted publicly, GitHub private vulnerability reporting will be enabled and pref
   icon CDN, or your self-hosted server's `/icons` endpoint) and cached in memory only —
   nothing icon-related is written to disk. This tells that service which domains you
   search; disable it in Settings → Vault if that matters to you.
-- **No telemetry.** Funke never phones home. It makes exactly four kinds of network
-  request, all of them either yours or explicitly asked for: the optional vault favicon
-  fetches above; loopback to `bw serve` (which syncs with your configured server); the
-  update check and the plugin catalog, both only when you press the button.
+- **No telemetry.** Funke never phones home: nothing you type, search, or open is sent
+  anywhere, and there is no account, no analytics, and no identifier. It makes exactly four
+  kinds of network request: the optional vault favicon fetches above; loopback to
+  `bw serve` (which syncs with your configured server); the plugin catalog, only when you
+  press Browse; and the update check.
+- **The update check is the one request Funke makes without being asked** — so it is a
+  setting (General → *Tell me about new versions*, on by default), and this is what it
+  does. Shortly after startup it fetches the release manifest from GitHub and compares
+  version numbers. If a newer release exists you get one Windows notification, once: the
+  version it announced is written to `%APPDATA%\funke\update.seen`, so the same release
+  never notifies twice however often Funke restarts. It **never installs anything** —
+  downloading and installing is a separate button you press in Settings, after you have
+  seen the version and its release notes. The request carries nothing but an HTTP GET; it
+  tells GitHub only what any download would. Turn the setting off and Funke checks only
+  when you press *Check for updates*.
 
 ## Plugins and the catalog
 
