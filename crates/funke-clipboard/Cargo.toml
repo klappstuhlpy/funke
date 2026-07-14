@@ -7,6 +7,10 @@ description = "Clipboard history provider: in-memory ring of what you copied, se
 
 [dependencies]
 funke-core = { path = "../funke-core" }
+# The shape heuristic that used to be src/secret.rs, now published as its own crate
+# (same author). default-features = false keeps it dependency-free — no regex engine
+# on the clipboard hot path.
+secretshape = { version = "0.1", default-features = false }
 windows = { version = "0.61", features = [
     "Win32_Foundation",
     # WNDCLASSW carries an HBRUSH, so the message-only window needs the GDI types.

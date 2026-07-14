@@ -12,8 +12,12 @@
 //! 1. **The exclusion markers** (exact). Funke's own vault copies set them
 //!    ([`win::write_secret`]) and so do other password managers, so those copies never
 //!    reach us at all — [`win::read_text`] returns `None` for them.
-//! 2. **The shape heuristic** ([`secret::looks_like_secret`], guesswork). Catches the
-//!    accident nobody marked: an API key out of a dashboard, a token out of a terminal.
+//! 2. **The shape heuristic** ([`secretshape::is_probably_secret`], guesswork). Catches
+//!    the accident nobody marked: an API key out of a dashboard, a token out of a
+//!    terminal. This used to live here as `secret.rs`; it is now the `secretshape`
+//!    crate (same author, same code, same thresholds), which errs toward dropping —
+//!    a history that quietly keeps an API key is worse than one that quietly forgets
+//!    a hash.
 //! 3. **The cap.** [`MAX_CLIPS`] entries, oldest evicted, each zeroized on the way out.
 //!
 //! The provider is `prefix_only` for the same reason the vault is: what you copied is
@@ -21,7 +25,6 @@
 //! ordinary search.
 
 mod provider;
-mod secret;
 mod win;
 
 use std::collections::VecDeque;
@@ -119,7 +122,7 @@ impl ClipboardHistory {
         if text.trim().is_empty() || text.len() > MAX_CLIP_BYTES {
             return false;
         }
-        if secret::looks_like_secret(&text) {
+        if secretshape::is_probably_secret(&text) {
             return false;
         }
         let mut clips = self.clips.lock().unwrap();
