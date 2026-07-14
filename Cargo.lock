@@ -1273,6 +1273,7 @@ name = "funke-clipboard"
 version = "0.1.0"
 dependencies = [
  "funke-core",
+ "secretshape",
  "windows",
  "zeroize",
 ]
@@ -3735,6 +3736,12 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "secretshape"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71b33e25522be02445301b91b3b4fcf9ece8817e8d0bd6b0c5fa36a1e79b2019"
 
 [[package]]
 name = "security-framework"
