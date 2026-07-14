@@ -7,6 +7,21 @@ All notable changes to Funke are documented here. The format is based on
 The launcher version is the single source of truth in `crates/funke-app/Cargo.toml`
 (`tauri.conf.json` omits it and inherits from there); keep the git tag in step with it.
 
+## [0.7.1] - 2026-07-14
+
+Maintenance release: the clipboard's secret detector becomes its own published crate.
+
+### Changed
+- **The clipboard's secret-shape heuristic now lives in its own crate,
+  [`secretshape`](https://github.com/klappstuhlpy/secretshape)** — the same code, the same
+  thresholds, and the same author as the `secret.rs` module it replaces, published separately so
+  it can be reviewed and reused on its own. Nothing changes in behavior: unmarked secrets (API
+  keys, PATs, JWTs, PEM blocks) are still dropped from the history by their shape, ordinary
+  copies are still kept, and the crate is pulled in without its optional features so the
+  clipboard hot path stays dependency-free. A pin test in Funke keeps the product's expectations
+  — what must be caught, what must be kept, the documented short-password blind spot — enforced
+  against the dependency for one release as insurance.
+
 ## [0.7.0] - 2026-07-13
 
 The feature wave the async orchestrator was built for. Funke looks inside your files, remembers
