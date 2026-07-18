@@ -175,6 +175,9 @@ window.FUNKE_STRINGS.de = {
   "settings.roots.add": "Ordner hinzufügen",
   "settings.roots.default": "Es wird dein Benutzerordner durchsucht (Standard).",
   "settings.roots.remove": "Ordner entfernen",
+  "settings.index_hidden": "Ausgeblendete Ordner anzeigen",
+  "settings.index_hidden.desc":
+    "Auch in versteckten und Systemordnern suchen. Standardmäßig aus — ohne sie bleiben die Ergebnisse übersichtlicher.",
   "settings.everything": "Indizierung durch Everything",
   "settings.everything.detected": "erkannt",
   "settings.everything.desc":

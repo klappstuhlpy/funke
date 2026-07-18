@@ -165,6 +165,7 @@ function renderAll() {
     .getElementById("vault-signed-cli")
     .setAttribute("aria-checked", String(settings.vault_require_signed_cli));
   document.getElementById("vault-context").setAttribute("aria-checked", String(settings.vault_context_suggest));
+  document.getElementById("index-hidden").setAttribute("aria-checked", String(settings.index_hidden));
 
   const sequence = document.getElementById("vault-sequence");
   if (document.activeElement !== sequence) sequence.value = settings.vault_autotype_sequence;
@@ -369,6 +370,7 @@ function buildStaticControls() {
       save({ index_roots: [...settings.index_roots, picked] });
     }
   });
+  document.getElementById("index-hidden").addEventListener("click", () => save({ index_hidden: !settings.index_hidden }));
   document.getElementById("open-plugins").addEventListener("click", () => invoke("open_plugins_folder"));
   document.getElementById("refresh-plugins").addEventListener("click", async () => {
     try {

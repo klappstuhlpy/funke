@@ -7,6 +7,23 @@ All notable changes to Funke are documented here. The format is based on
 The launcher version is the single source of truth in `crates/funke-app/Cargo.toml`
 (`tauri.conf.json` omits it and inherits from there); keep the git tag in step with it.
 
+## [0.8.0] - 2026-07-18
+
+File search gets smarter about paths, fresher about its index, and honest about what it hides.
+
+### Added
+- **Path-aware file search.** A query containing `/` or `\` now matches against the full path
+  instead of just the filename. `f /Roaming` finds files under a Roaming directory;
+  `f kls-admin/admin.db` finds that specific file in that specific parent. Works with both the
+  built-in walk index and Everything.
+- **Hidden folders toggle** (Settings → Commands → File search). A new "Include hidden folders"
+  switch lets you opt into indexing dot-directories and AppData. Off by default — the results stay
+  cleaner without them. Truly junk directories (node_modules, target, __pycache__, venv,
+  $recycle.bin) remain blocked regardless.
+- **Periodic index rebuild.** The built-in file index now forces a full rebuild every five minutes
+  even when no filesystem watcher event fires, catching missed events on network drives or after
+  watcher overflows.
+
 ## [0.7.1] - 2026-07-14
 
 Maintenance release: the clipboard's secret detector becomes its own published crate.

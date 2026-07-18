@@ -132,7 +132,11 @@ impl SearchProvider for ContentProvider {
         if text.chars().count() < MIN_QUERY_CHARS {
             return Vec::new();
         }
-        let roots = resolve_index_roots(&self.settings.read().unwrap().index_roots);
+        let s = self.settings.read().unwrap();
+        let roots = resolve_index_roots(&s.index_roots);
+        let include_hidden = s.index_hidden;
+        drop(s);
+
         let Ok(hits) = self.search.query(text, &roots, CANDIDATES) else {
             return Vec::new();
         };
@@ -142,7 +146,7 @@ impl SearchProvider for ContentProvider {
         // against the filename with the fuzzy matcher would be worse than useless: the words
         // the user typed are, by construction, the ones that are *not* in the name.
         hits.iter()
-            .filter(|path| !is_junk_path(&path.to_string_lossy()))
+            .filter(|path| !is_junk_path(&path.to_string_lossy(), include_hidden))
             .take(MAX_RESULTS)
             .enumerate()
             .map(|(rank, path)| self.item(TOP_SCORE - rank as i64, path))

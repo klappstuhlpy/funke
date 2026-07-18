@@ -53,6 +53,10 @@ const GLOBAL_SCORE_PENALTY: i64 = 8;
 /// for the watcher's dirty flag. Two atomic loads per tick — effectively free.
 const REBUILD_POLL: Duration = Duration::from_secs(2);
 const REBUILD_MIN_INTERVAL: Duration = Duration::from_secs(60);
+/// Maximum staleness: rebuild the index at this interval even when no watcher event has fired.
+/// Network drives, user-unreadable volumes, and watcher overflows can all silently lose events;
+/// a periodic forced rebuild is the backstop.
+const REBUILD_MAX_INTERVAL: Duration = Duration::from_secs(300);
 
 /// Extensions whose icon is per-file rather than per-type, so the per-extension cache
 /// must not be used for them.
@@ -64,6 +68,8 @@ struct FileEntry {
     /// Pre-lowered for the prefilter, so the hot loop never allocates.
     name_lower: String,
     path: String,
+    /// Pre-lowered full path for path-query prefiltering.
+    path_lower: String,
     is_dir: bool,
 }
 
@@ -98,20 +104,22 @@ impl FilesProvider {
     /// candidates; we decide the order they appear in, so an `f` search feels the same
     /// whichever index is behind it.
     fn query_everything(&self, text: &str, matcher: &FuzzyMatcher) -> Vec<ResultItem> {
-        // The same roots the walk would have used — Everything changes how the index is
-        // built, not which files the user asked to search.
-        let roots = resolve_index_roots(&self.settings.read().unwrap().index_roots);
+        let settings = self.settings.read().unwrap();
+        let include_hidden = settings.index_hidden;
+        let roots = resolve_index_roots(&settings.index_roots);
+        drop(settings);
+
+        let path_mode = is_path_query(text);
         let hits = self
             .everything
             .search(&everything_search(text, &roots), EVERYTHING_CANDIDATES);
 
         let mut scored: Vec<(i64, funke_everything::Hit)> = hits
             .into_iter()
-            .filter(|hit| !is_junk_path(&hit.path))
+            .filter(|hit| !is_junk_path(&hit.path, include_hidden))
             .filter_map(|hit| {
-                matcher
-                    .score(&hit.name)
-                    .map(|score| (score - GLOBAL_SCORE_PENALTY, hit))
+                let haystack = if path_mode { &hit.path } else { &hit.name };
+                matcher.score(haystack).map(|score| (score - GLOBAL_SCORE_PENALTY, hit))
             })
             .collect();
         scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
@@ -122,6 +130,7 @@ impl FilesProvider {
             .map(|(score, hit)| {
                 let entry = FileEntry {
                     name_lower: hit.name.to_lowercase(),
+                    path_lower: hit.path.to_lowercase(),
                     name: hit.name,
                     path: hit.path,
                     is_dir: hit.is_dir,
@@ -208,14 +217,22 @@ impl SearchProvider for FilesProvider {
         }
 
         let needle_lower = text.to_lowercase();
+        let path_mode = is_path_query(text);
 
         let entries = self.entries.read().unwrap();
         let mut scored: Vec<(i64, &FileEntry)> = entries
             .iter()
-            .filter(|entry| is_subsequence(&entry.name_lower, &needle_lower))
+            .filter(|entry| {
+                if path_mode {
+                    is_subsequence(&entry.path_lower, &needle_lower)
+                } else {
+                    is_subsequence(&entry.name_lower, &needle_lower)
+                }
+            })
             .filter_map(|entry| {
+                let haystack = if path_mode { &entry.path } else { &entry.name };
                 matcher
-                    .score(&entry.name)
+                    .score(haystack)
                     .map(|score| (score - GLOBAL_SCORE_PENALTY, entry))
             })
             .collect();
@@ -284,10 +301,14 @@ fn index_loop(handle: Arc<RwLock<Vec<FileEntry>>>, settings: Arc<RwLock<Settings
             continue;
         }
 
-        let roots = resolve_index_roots(&settings.read().unwrap().index_roots);
+        let s = settings.read().unwrap();
+        let roots = resolve_index_roots(&s.index_roots);
+        let include_hidden = s.index_hidden;
+        drop(s);
+
         if first || roots != watched {
             // New roots (or startup): rebuild immediately and move the watcher over.
-            *handle.write().unwrap() = build_index(&roots);
+            *handle.write().unwrap() = build_index(&roots, include_hidden);
             last_build = Instant::now();
             fs_dirty.store(false, Ordering::Relaxed);
 
@@ -306,32 +327,36 @@ fn index_loop(handle: Arc<RwLock<Vec<FileEntry>>>, settings: Arc<RwLock<Settings
             _watcher = watcher;
             watched = roots;
             first = false;
-        } else if fs_dirty.load(Ordering::Relaxed) && last_build.elapsed() >= REBUILD_MIN_INTERVAL {
+        } else if (fs_dirty.load(Ordering::Relaxed) && last_build.elapsed() >= REBUILD_MIN_INTERVAL)
+            || last_build.elapsed() >= REBUILD_MAX_INTERVAL
+        {
             fs_dirty.store(false, Ordering::Relaxed);
-            *handle.write().unwrap() = build_index(&watched);
+            *handle.write().unwrap() = build_index(&watched, include_hidden);
             last_build = Instant::now();
         }
         thread::sleep(REBUILD_POLL);
     }
 }
 
-fn build_index(roots: &[PathBuf]) -> Vec<FileEntry> {
+fn build_index(roots: &[PathBuf], include_hidden: bool) -> Vec<FileEntry> {
     let mut out = Vec::new();
     for root in roots {
         let walker = WalkDir::new(root)
             .follow_links(false)
             .into_iter()
-            .filter_entry(|entry| entry.depth() == 0 || !excluded_dir(entry));
+            .filter_entry(|entry| entry.depth() == 0 || !excluded_dir(entry, include_hidden));
         for entry in walker.flatten() {
             if entry.depth() == 0 {
                 continue;
             }
             let name = entry.file_name().to_string_lossy().into_owned();
+            let path = entry.path().to_string_lossy().into_owned();
             out.push(FileEntry {
                 name_lower: name.to_lowercase(),
-                path: entry.path().to_string_lossy().into_owned(),
+                path_lower: path.to_lowercase(),
                 is_dir: entry.file_type().is_dir(),
                 name,
+                path,
             });
             if out.len() >= MAX_ENTRIES {
                 return out;
@@ -341,8 +366,14 @@ fn build_index(roots: &[PathBuf]) -> Vec<FileEntry> {
     out
 }
 
-fn excluded_dir(entry: &walkdir::DirEntry) -> bool {
-    entry.file_type().is_dir() && denied_dir_name(&entry.file_name().to_string_lossy().to_lowercase())
+fn excluded_dir(entry: &walkdir::DirEntry, include_hidden: bool) -> bool {
+    entry.file_type().is_dir() && denied_dir_name(&entry.file_name().to_string_lossy().to_lowercase(), include_hidden)
+}
+
+/// Does the query contain a path separator, indicating the user wants to match against
+/// the full path rather than just the filename?
+fn is_path_query(text: &str) -> bool {
+    text.contains('/') || text.contains('\\')
 }
 
 /// Cheap prefilter before nucleo scoring: every needle byte must appear in the haystack
@@ -356,6 +387,15 @@ fn is_subsequence(haystack: &str, needle: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn path_query_is_detected_when_separators_are_present() {
+        assert!(is_path_query("folder/file.txt"));
+        assert!(is_path_query(r"Documents\report"));
+        assert!(is_path_query("/Roaming"));
+        assert!(!is_path_query("report"));
+        assert!(!is_path_query("readme.md"));
+    }
 
     #[test]
     fn subsequence_prefilter_accepts_in_order_and_rejects_out_of_order() {

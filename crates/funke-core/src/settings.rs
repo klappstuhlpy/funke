@@ -29,6 +29,9 @@ pub struct Settings {
     pub disabled_providers: Vec<String>,
     /// Folders the file search indexes; empty means the user's home directory.
     pub index_roots: Vec<String>,
+    /// Index hidden directories (dot-dirs and AppData). Off by default: enabling
+    /// exposes caches, config files, and browser profiles in search results.
+    pub index_hidden: bool,
     /// Start Funke with Windows.
     pub autostart: bool,
     /// Look for a new release in the background at startup and raise a Windows notification
@@ -143,6 +146,7 @@ impl Default for Settings {
             web_engine: "duckduckgo".into(),
             disabled_providers: Vec::new(),
             index_roots: Vec::new(),
+            index_hidden: false,
             autostart: false,
             update_check: true,
             vault_hello: false,

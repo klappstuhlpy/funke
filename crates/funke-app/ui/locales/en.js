@@ -183,6 +183,9 @@ window.FUNKE_STRINGS.en = {
   "settings.roots.add": "Add folder",
   "settings.roots.default": "Searching your home folder (default).",
   "settings.roots.remove": "Remove folder",
+  "settings.index_hidden": "Include hidden folders",
+  "settings.index_hidden.desc":
+    "Also search inside hidden and system folders. Off by default — results stay cleaner without them.",
   "settings.everything": "Everything is doing the indexing",
   "settings.everything.detected": "detected",
   "settings.everything.desc":
