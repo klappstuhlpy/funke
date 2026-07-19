@@ -7,6 +7,18 @@ All notable changes to Funke are documented here. The format is based on
 The launcher version is the single source of truth in `crates/funke-app/Cargo.toml`
 (`tauri.conf.json` omits it and inherits from there); keep the git tag in step with it.
 
+## [0.8.1] - 2026-07-19
+
+Two polish fixes: the release-notes pane breathes, and folder search accepts either slash.
+
+### Fixed
+- **Release notes no longer cramped into a square box.** The notes panel in Settings → Updates now
+  spans the full card width (moved out of the button row) and shows ~12 lines before scrolling
+  instead of ~7, with slightly larger text.
+- **Forward-slash folder search.** Typing `/Documents` in file search now works identically to
+  `\Documents` — forward slashes are normalized to backslashes before the prefilter and scorer,
+  matching Windows-native paths regardless of which separator the user typed.
+
 ## [0.8.0] - 2026-07-18
 
 File search gets smarter about paths, fresher about its index, and honest about what it hides.

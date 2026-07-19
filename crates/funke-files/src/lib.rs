@@ -206,6 +206,18 @@ impl SearchProvider for FilesProvider {
         if text.chars().count() < MIN_QUERY_CHARS {
             return Vec::new();
         }
+
+        let path_mode = is_path_query(text);
+        // Normalize forward slashes to backslashes so the prefilter and scorer match
+        // against Windows-native paths regardless of which separator the user typed.
+        let normalized;
+        let text = if path_mode && text.contains('/') {
+            normalized = normalize_separators(text);
+            &normalized
+        } else {
+            text
+        };
+
         let Some(matcher) = FuzzyMatcher::new(text) else {
             return Vec::new();
         };
@@ -217,7 +229,6 @@ impl SearchProvider for FilesProvider {
         }
 
         let needle_lower = text.to_lowercase();
-        let path_mode = is_path_query(text);
 
         let entries = self.entries.read().unwrap();
         let mut scored: Vec<(i64, &FileEntry)> = entries
@@ -376,6 +387,12 @@ fn is_path_query(text: &str) -> bool {
     text.contains('/') || text.contains('\\')
 }
 
+/// Replace forward slashes with backslashes so both `/folder` and `\folder` match
+/// Windows-native paths in the prefilter and scorer.
+fn normalize_separators(text: &str) -> String {
+    text.replace('/', "\\")
+}
+
 /// Cheap prefilter before nucleo scoring: every needle byte must appear in the haystack
 /// in order. Both sides are pre-lowercased; entries whose match relies on nucleo's
 /// unicode normalization may be rejected here — an accepted trade-off for Phase A.
@@ -404,6 +421,20 @@ mod tests {
         assert!(!is_subsequence("readme.md", "xyz"));
         assert!(!is_subsequence("abc", "cba"));
         assert!(is_subsequence("anything", ""));
+    }
+
+    #[test]
+    fn forward_slash_normalized_to_backslash_for_path_queries() {
+        let normalized = normalize_separators("/Documents/report");
+        assert_eq!(normalized, r"\Documents\report");
+        // A path with only backslashes stays unchanged.
+        assert_eq!(normalize_separators(r"\folder"), r"\folder");
+        // The normalized needle passes the prefilter against a Windows-native path.
+        let path = r"c:\users\me\documents\report.txt";
+        assert!(is_subsequence(
+            path,
+            &normalize_separators("/documents/report").to_lowercase()
+        ));
     }
 
     #[test]
