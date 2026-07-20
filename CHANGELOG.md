@@ -7,6 +7,21 @@ All notable changes to Funke are documented here. The format is based on
 The launcher version is the single source of truth in `crates/funke-app/Cargo.toml`
 (`tauri.conf.json` omits it and inherits from there); keep the git tag in step with it.
 
+## [0.8.2] - 2026-07-20
+
+Autotype stops outrunning the window it types into.
+
+### Fixed
+- **Autotype no longer races the target's focus.** Keystrokes went out as fast as `SendInput`
+  would queue them, but the focus changes they depend on belong to the *target* app and land
+  asynchronously — so in browser-engine apps (CEF, Electron) the credential arrived before anything
+  was listening. Two symptoms, one cause: nothing typed at all (the window had the foreground but
+  its renderer had not yet taken keyboard focus — the field showed its focus ring and dropped every
+  character), and username plus password piling into the same field (the password overtook the
+  `{TAB}` meant to leave it). The target is now polled for the foreground rather than slept at,
+  given a beat to become ready, and each `{TAB}` is given time to actually move the caret.
+  Reported against Ubisoft Connect, whose fields are invisible to accessibility clients entirely.
+
 ## [0.8.1] - 2026-07-19
 
 Two polish fixes: the release-notes pane breathes, and folder search accepts either slash.

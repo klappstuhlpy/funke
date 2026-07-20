@@ -50,7 +50,22 @@ const SITE_POLL_INTERVAL: Duration = Duration::from_millis(400);
 const SIGN_IN_SETTLE: Duration = Duration::from_millis(1_200);
 
 /// Let the foreground change land before keystrokes chase it.
-const FOCUS_SETTLE: Duration = Duration::from_millis(150);
+///
+/// `SetForegroundWindow` returns before the switch has happened, so the target is *polled*
+/// for the foreground rather than slept at — a window that never gets it would otherwise
+/// have its secret typed into whoever did.
+const FOCUS_TIMEOUT: Duration = Duration::from_millis(1_500);
+const FOCUS_POLL: Duration = Duration::from_millis(30);
+
+/// And then a beat more, because owning the foreground is not the same as being ready to
+/// read: a browser-engine app (CEF, Electron) restores its window first and hands keyboard
+/// focus to the renderer afterwards. In between the login field is drawn with its focus
+/// ring and drops every character sent to it.
+///
+/// ponytail: fixed delay — the in-page focus of another process's renderer is not
+/// observable (those apps expose no accessibility tree at all). Raise it if a target still
+/// eats the first field.
+const FOCUS_SETTLE: Duration = Duration::from_millis(250);
 
 /// Autotype an entry into the window the overlay was summoned from (`target`).
 ///
@@ -84,7 +99,7 @@ pub fn autotype(app: AppHandle, id: String, target: Option<isize>, force: bool) 
 
     hide(&app, false);
     focus::focus_window(hwnd);
-    std::thread::sleep(FOCUS_SETTLE);
+    await_focus(hwnd);
     type_into(&app, &vault, &id, hwnd, guarded);
 }
 
@@ -127,7 +142,7 @@ pub fn open_and_autotype(app: AppHandle, id: String, target: Option<isize>) {
     match await_login_page(&vault, &id) {
         Some(hwnd) => {
             focus::focus_window(hwnd);
-            std::thread::sleep(FOCUS_SETTLE);
+            await_focus(hwnd);
             // Guarded even though we just watched the form appear: between the poll and
             // the keystrokes the page can navigate, and `prepare` is also what puts the
             // caret *in* the form — a freshly loaded page rarely focuses it for us.
@@ -141,6 +156,23 @@ pub fn open_and_autotype(app: AppHandle, id: String, target: Option<isize>) {
             Blocked::Resummon,
         ),
     }
+}
+
+/// Wait for `hwnd` to actually own the foreground, then let its fields become ready.
+///
+/// Both halves are load-bearing. The poll is correctness: `focus_window` only *asks*, and
+/// typing before the switch lands sends the credential to whatever window is still in
+/// front. The settle afterwards is the browser-engine case above — foreground restored,
+/// renderer not yet listening, characters silently dropped.
+///
+/// Timing out is not a refusal: `prepare` still has to find a field in this window before
+/// anything is typed, and it is the one that reports a window it cannot aim at.
+fn await_focus(hwnd: isize) {
+    let deadline = Instant::now() + FOCUS_TIMEOUT;
+    while Instant::now() < deadline && focus::foreground_window() != Some(hwnd) {
+        std::thread::sleep(FOCUS_POLL);
+    }
+    std::thread::sleep(FOCUS_SETTLE);
 }
 
 /// The shared tail of both flows: aim, then type. `hwnd` is focused and settled.

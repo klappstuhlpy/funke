@@ -52,6 +52,20 @@ const KEYEVENTF_UNICODE: u32 = 0x0004;
 const VK_TAB: u16 = 0x09;
 const VK_RETURN: u16 = 0x0D;
 
+/// How long a `{TAB}` is given to actually move the focus before the next characters go
+/// out. `SendInput` returns as soon as the events are queued, and the focus change they
+/// trigger is the *target's* work, not ours — a browser-engine app (CEF, Electron) hands
+/// it to its renderer asynchronously, so characters sent immediately behind a Tab land in
+/// the field the Tab was meant to leave. That is a password typed into a username box.
+///
+/// A human's inter-key gap, roughly. There is no signal to poll instead: the focused
+/// *element* inside another process's renderer is invisible to us — the apps this exists
+/// for are precisely the ones that expose no accessibility tree at all.
+///
+/// ponytail: fixed delay, the only lever available; `{DELAY=n}` in an entry's own sequence
+/// overrides it for a target that needs longer.
+const TAB_SETTLE: std::time::Duration = std::time::Duration::from_millis(80);
+
 #[link(name = "user32")]
 extern "system" {
     fn SendInput(count: u32, inputs: *const Input, size: i32) -> u32;
@@ -106,7 +120,10 @@ pub fn run(steps: &[Step], credentials: &Credentials, totp: Option<&str>) {
                     type_text(totp);
                 }
             }
-            Step::Tab => press(VK_TAB),
+            Step::Tab => {
+                press(VK_TAB);
+                std::thread::sleep(TAB_SETTLE);
+            }
             Step::Enter => press(VK_RETURN),
             Step::Delay(ms) => std::thread::sleep(std::time::Duration::from_millis(*ms)),
         }
