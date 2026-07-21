@@ -187,8 +187,11 @@ function actionRow(item, named, index) {
 
 function render() {
   list.innerHTML = "";
-  // Pins live only on the empty-input overview; loadOverview()/loadPins() own showing them.
-  if (mode !== "overview") document.getElementById("pins").hidden = true;
+  // Pins live only on the plain empty-input overview; loadOverview()/loadPins() own showing
+  // them. Hide whenever we're not there, including states that keep mode === "overview"
+  // (the actions menu, a blocked-autotype warning) — the vault prompt bypasses render()
+  // entirely and hides #pins itself in renderVaultPrompt().
+  if (mode !== "overview" || actionsFor || vaultPrompt || blocked) document.getElementById("pins").hidden = true;
 
   if (actionsFor) {
     // Actions menu: the item pinned for context, then one row per action.
@@ -297,6 +300,7 @@ function exitVaultPrompt(restoreQuery) {
 
 function renderVaultPrompt(error) {
   list.innerHTML = "";
+  document.getElementById("pins").hidden = true; // this path bypasses render(), which owns #pins otherwise
   context.hidden = true;
   footer.hidden = false;
   count.textContent = t("overlay.vault");
