@@ -34,6 +34,8 @@ window.FUNKE_STRINGS.de = {
   "overlay.tip.clipboard": "c zeigt, was du kopiert hast — Enter fügt es dort ein, wo du herkamst",
   "overlay.tip.actions": "Tab zeigt alle Aktionen zum ausgewählten Treffer",
   "overlay.tip.content": "ff <Suche> sucht im Text deiner Dateien — nicht im Namen, sondern im Inhalt",
+  "overlay.pins.toggle": "Favoriten",
+  "overlay.pins.unpin": "Lösen",
 
   "settings.title": "Einstellungen",
   "settings.close": "Schließen (Esc)",
