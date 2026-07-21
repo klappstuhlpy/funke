@@ -32,6 +32,8 @@
   "action.copy_totp": "TOTP-Code kopieren",
   "action.unlock_hello": "Mit Windows Hello entsperren",
   "action.unlock_master": "Mit Master-Passwort entsperren",
+  "action.pin": "Zu Favoriten anheften",
+  "action.unpin": "Lösen",
 
   "apps.subtitle": "App",
 

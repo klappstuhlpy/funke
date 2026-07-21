@@ -20,10 +20,13 @@ pub use i18n::{alias_score, t, tf, Locale};
 pub use orchestrator::DEFAULT_DEADLINE;
 pub use recents::RecentsStore;
 pub use roots::{denied_dir_name, is_junk_path, resolve_index_roots};
-pub use settings::{Quicklink, ScopeHotkey, Settings, Snippet};
+pub use settings::{PinnedItem, Quicklink, ScopeHotkey, Settings, Snippet};
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+/// The overlay shows at most this many pinned favourites (two rows of four).
+pub const MAX_PINS: usize = 8;
 
 /// A single keystroke-driven search request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +66,7 @@ impl Query {
 
 /// What happens when the user confirms a result. Serialized to the UI and sent back
 /// verbatim on Enter, so the frontend never needs to understand action semantics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Action {
     /// Open a file or folder with the shell default handler.
@@ -124,6 +127,9 @@ pub enum Action {
     },
     /// Internal launcher commands (quit, reload, ...).
     AppControl { command: String },
+    /// Pin or unpin the result to the overlay's favourites. Provider-agnostic: the app
+    /// resolves pin-vs-unpin by whether `item.id` is already in `Settings::pinned`.
+    TogglePin,
 }
 
 /// One user-invocable action on a result, with the label the actions menu shows.

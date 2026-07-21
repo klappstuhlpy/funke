@@ -9,6 +9,8 @@ use std::{fs, io};
 
 use serde::{Deserialize, Serialize};
 
+use crate::Action;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -80,6 +82,10 @@ pub struct Settings {
     pub snippets: Vec<Snippet>,
     /// Saved quicklinks, in the order the settings pane shows them.
     pub quicklinks: Vec<Quicklink>,
+    /// Pinned favourites shown as icon tiles on the empty-input overview.
+    pub pinned: Vec<PinnedItem>,
+    /// Whether the favourites grid is collapsed (chevron toggle). Persists across restarts.
+    pub pins_collapsed: bool,
 }
 
 /// A second hotkey that opens the overlay already scoped to one source.
@@ -135,6 +141,22 @@ pub struct Snippet {
     pub content: String,
 }
 
+/// One pinned favourite: an icon tile the overlay shows below results. Stores the primary
+/// action captured at pin time, so clicking the tile launches without re-querying. Lives in
+/// [`Settings`] because that is where it is persisted; core does not interpret the action.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PinnedItem {
+    /// Matches the source `ResultItem::id` — keyed so a re-pin toggles rather than duplicates.
+    pub id: String,
+    pub title: String,
+    /// `data:image/png;base64,…` or an inline SVG data URL, captured at pin time.
+    pub icon: Option<String>,
+    /// Matches `ResultItem::provider` (the display provider field, not any `provider_id`).
+    pub provider: String,
+    /// The row's primary action, stored at pin time and replayed when the tile is clicked.
+    pub action: Action,
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -161,6 +183,8 @@ impl Default for Settings {
             vault_context_suggest: true,
             snippets: Vec::new(),
             quicklinks: Vec::new(),
+            pinned: Vec::new(),
+            pins_collapsed: false,
         }
     }
 }
