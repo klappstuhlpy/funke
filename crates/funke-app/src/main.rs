@@ -519,7 +519,12 @@ fn run_action(
                 let mut settings = state.settings.write().unwrap();
                 if let Some(i) = settings.pinned.iter().position(|p| p.id == item.id) {
                     settings.pinned.remove(i);
-                } else if settings.pinned.len() < funke_core::MAX_PINS {
+                } else if settings.pinned.len() < funke_core::MAX_PINS && !UNPINNABLE.contains(&item.provider.as_str())
+                {
+                    // Enforce the privacy gate at the write boundary too, not only where the
+                    // Pin action is offered: a clip's text, a vault account name, or a stale
+                    // window handle must never reach settings.json (DESIGN §6), even if a
+                    // TogglePin action arrived on an unpinnable row.
                     let primary = item.primary_action().cloned().unwrap_or(Action::CopyText {
                         text: item.title.clone(),
                     });

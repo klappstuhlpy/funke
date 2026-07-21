@@ -381,6 +381,13 @@ async function loadPins() {
 function renderPins(pins, collapsed) {
   const container = document.getElementById("pins");
   const grid = document.getElementById("pins-grid");
+  // loadPins awaits get_settings; the user may have typed (or opened the actions/vault
+  // views) in the meantime. Only the plain overview shows the grid — otherwise this late
+  // paint would drop it back under live search results until the next keystroke.
+  if (mode !== "overview" || actionsFor || vaultPrompt || blocked) {
+    container.hidden = true;
+    return;
+  }
   if (!pins.length) {
     container.hidden = true;
     resize();
