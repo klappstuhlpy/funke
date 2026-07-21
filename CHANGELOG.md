@@ -7,6 +7,21 @@ All notable changes to Funke are documented here. The format is based on
 The launcher version is the single source of truth in `crates/funke-app/Cargo.toml`
 (`tauri.conf.json` omits it and inherits from there); keep the git tag in step with it.
 
+## [0.9.0] - 2026-07-21
+
+Pin the apps, files, and actions you reach for most to the overlay.
+
+### Added
+- **Pinned favourites.** Any result — apps, files, web searches, snippets, quicklinks, system
+  commands, plugin rows — can be pinned via its actions menu (Tab → "Pin to favourites"). Pinned
+  items appear as a row of icon tiles on the empty-input overview, below results, and click
+  straight through to their primary action (launch, open, paste, …). Hovering a tile reveals its
+  name and a ✕ to unpin. A chevron collapses the grid, and that state — like the pins themselves
+  — survives restarts. Up to eight pins; the icon is captured at pin time, so tiles render
+  instantly with no re-query. Clipboard, vault, and window-switcher rows are deliberately not
+  pinnable: pinning stores the row's action, and a clip's text, an account name, or a stale
+  window handle has no business being written to `settings.json` (see DESIGN.md §6).
+
 ## [0.8.2] - 2026-07-20
 
 Autotype stops outrunning the window it types into.

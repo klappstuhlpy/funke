@@ -32,6 +32,8 @@
   "action.copy_totp": "Copy TOTP",
   "action.unlock_hello": "Unlock with Windows Hello",
   "action.unlock_master": "Unlock with master password",
+  "action.pin": "Pin to favourites",
+  "action.unpin": "Unpin",
 
   "apps.subtitle": "Application",
 

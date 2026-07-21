@@ -80,6 +80,9 @@ arrive in labeled sections, frequently picked ones bubble up (frecency).
   that also works straight from the result list.
 - **Overview** — the empty overlay shows the credential for the app you came from, recent
   picks (removable with a click), a greeting/date/uptime line, and first-run tips.
+- **Pinned favourites** — pin the apps, files and actions you reach for most (Tab → "Pin to
+  favourites") to a row of icon tiles on the overview; click one to run it. Collapsible, capped
+  at eight, and persisted across restarts.
 - **Scoped shortcuts** — a second hotkey that opens Funke *already inside* one source:
   `Ctrl+Shift+V` straight into the clipboard history, without a general search on the way.
 - **Settings window** (tray → Settings, or search "settings") — summon hotkey, accent color,

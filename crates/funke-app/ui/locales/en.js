@@ -40,6 +40,8 @@ window.FUNKE_STRINGS.en = {
   "overlay.tip.clipboard": "c shows what you copied — Enter pastes it back into the window you came from",
   "overlay.tip.actions": "Tab lists every action of the selected result",
   "overlay.tip.content": "ff <query> looks inside your files — the words in the document, not its name",
+  "overlay.pins.toggle": "Favourites",
+  "overlay.pins.unpin": "Unpin",
 
   "settings.title": "Settings",
   "settings.close": "Close (Esc)",

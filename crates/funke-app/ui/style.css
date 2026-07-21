@@ -377,3 +377,84 @@ body {
 #results::-webkit-scrollbar-thumb:hover {
   background-color: rgba(242, 237, 228, 0.26);
 }
+
+/* ── pinned favourites ── */
+.pins {
+  padding: 6px var(--pad-x) 4px;
+  border-top: 1px solid var(--stroke);
+}
+.pins-toggle {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px 0 4px;
+}
+.pins-toggle svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 120ms ease;
+}
+.pins.collapsed .pins-toggle svg {
+  transform: rotate(-90deg);
+}
+.pins-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pins.collapsed .pins-grid {
+  display: none;
+}
+.pin-tile {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  cursor: pointer;
+  position: relative;
+  transition: background 80ms;
+}
+.pin-tile:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-stroke);
+}
+.pin-tile img {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+}
+.pin-tile .monogram {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.pin-tile .pin-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--glass-tint);
+  border: 1px solid var(--stroke);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.pin-tile:hover .pin-remove {
+  display: flex;
+}
+.pin-remove svg {
+  width: 8px;
+  height: 8px;
+  stroke: var(--text-dim);
+}

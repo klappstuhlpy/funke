@@ -11,11 +11,12 @@ mod native;
 mod providers;
 mod update;
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use funke_core::{Action, FrecencyStore, Query, RecentsStore, Registry, ResultItem, Settings};
+use funke_core::{Action, FrecencyStore, NamedAction, PinnedItem, Query, RecentsStore, Registry, ResultItem, Settings};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
@@ -123,6 +124,7 @@ fn search(app: AppHandle, state: tauri::State<'_, AppState>, text: String) -> Se
     };
 
     let settings = state.settings.read().unwrap().clone();
+    let pinned_ids: HashSet<String> = settings.pinned.iter().map(|p| p.id.clone()).collect();
     let registry = state.registry.read().unwrap();
     let late_app = app.clone();
     let mut items = registry.search_streaming(
@@ -143,7 +145,7 @@ fn search(app: AppHandle, state: tauri::State<'_, AppState>, text: String) -> Se
         // overwrite what is on screen.
         return SearchReply {
             generation,
-            sections: sections_for(&registry, items),
+            sections: sections_for(&registry, items, &pinned_ids),
         };
     }
     items.append(&mut live.early);
@@ -153,7 +155,7 @@ fn search(app: AppHandle, state: tauri::State<'_, AppState>, text: String) -> Se
     live.armed = true;
     let reply = SearchReply {
         generation,
-        sections: sections_for(&registry, live.items.clone()),
+        sections: sections_for(&registry, live.items.clone(), &pinned_ids),
     };
     let has_vault_rows = live.items.iter().any(|item| item.provider == "vault");
     drop(live);
@@ -198,10 +200,18 @@ fn merge_late_results(app: &AppHandle, generation: u64, mut items: Vec<ResultIte
     // — and a `reload_plugins` writer queued between the two readers would deadlock both.
     drop(live);
 
+    let pinned_ids: HashSet<String> = state
+        .settings
+        .read()
+        .unwrap()
+        .pinned
+        .iter()
+        .map(|p| p.id.clone())
+        .collect();
     let registry = state.registry.read().unwrap();
     let reply = SearchReply {
         generation,
-        sections: sections_for(&registry, merged),
+        sections: sections_for(&registry, merged, &pinned_ids),
     };
     drop(registry);
 
@@ -236,9 +246,38 @@ fn boost(state: &AppState, items: &mut [ResultItem]) {
     }
 }
 
+/// Providers whose rows must never be pinnable:
+/// - clipboard: a pin stores the primary action; a clip's is `PasteText { text }`, and
+///   writing it to settings.json would persist clipboard text to disk (DESIGN §6). Ids also
+///   restart per launch.
+/// - vault: account names would land on disk in settings.json — the same privacy line that
+///   keeps vault rows out of recents.
+/// - windows: `FocusWindow { hwnd }` is dead the moment the window closes.
+const UNPINNABLE: &[&str] = &[funke_clipboard::PROVIDER_ID, "vault", "windows"];
+
+/// Append the Pin/Unpin action to a row, unless its provider is unpinnable or the pin grid is
+/// already full and the row isn't already pinned.
+fn inject_pin_action(item: &mut ResultItem, pinned_ids: &HashSet<String>) {
+    if UNPINNABLE.contains(&item.provider.as_str()) {
+        return;
+    }
+    let pinned = pinned_ids.contains(&item.id);
+    if !pinned && pinned_ids.len() >= funke_core::MAX_PINS {
+        return;
+    }
+    item.actions.push(NamedAction {
+        label: funke_core::i18n::t(if pinned { "action.unpin" } else { "action.pin" }).to_string(),
+        action: Action::TogglePin,
+        confirm: false,
+    });
+}
+
 /// Group ranked rows by section label, keeping global rank order both across sections (a
 /// section sits where its best item ranks) and within each section.
-fn sections_for(registry: &Registry, items: Vec<ResultItem>) -> Vec<Section> {
+fn sections_for(registry: &Registry, mut items: Vec<ResultItem>, pinned_ids: &HashSet<String>) -> Vec<Section> {
+    for item in items.iter_mut() {
+        inject_pin_action(item, pinned_ids);
+    }
     let mut sections: Vec<Section> = Vec::new();
     for item in items {
         let label = registry
@@ -475,6 +514,36 @@ fn run_action(
                 .spawn()
                 .map_err(|e| format!("failed to run {program}: {e}"))?;
         }
+        Action::TogglePin => {
+            let snapshot = {
+                let mut settings = state.settings.write().unwrap();
+                if let Some(i) = settings.pinned.iter().position(|p| p.id == item.id) {
+                    settings.pinned.remove(i);
+                } else if settings.pinned.len() < funke_core::MAX_PINS && !UNPINNABLE.contains(&item.provider.as_str())
+                {
+                    // Enforce the privacy gate at the write boundary too, not only where the
+                    // Pin action is offered: a clip's text, a vault account name, or a stale
+                    // window handle must never reach settings.json (DESIGN §6), even if a
+                    // TogglePin action arrived on an unpinnable row.
+                    let primary = item.primary_action().cloned().unwrap_or(Action::CopyText {
+                        text: item.title.clone(),
+                    });
+                    settings.pinned.push(PinnedItem {
+                        id: item.id.clone(),
+                        title: item.title.clone(),
+                        icon: item.icon.clone(),
+                        provider: item.provider.clone(),
+                        action: primary,
+                    });
+                }
+                if let Err(e) = settings.save(&state.settings_path) {
+                    eprintln!("failed to persist settings: {e}");
+                }
+                settings.clone()
+            }; // write lock dropped before emit
+            let _ = app.emit("settings-changed", &snapshot);
+            return Ok(());
+        }
     }
     hide(&app, restore_focus);
 
@@ -615,10 +684,22 @@ fn overview(app: AppHandle, state: tauri::State<'_, AppState>) -> Overview {
         .shield_rows
         .store(!suggestions.is_empty(), std::sync::atomic::Ordering::SeqCst);
     refresh_capture_shield(&app);
+    let pinned_ids: HashSet<String> = state
+        .settings
+        .read()
+        .unwrap()
+        .pinned
+        .iter()
+        .map(|p| p.id.clone())
+        .collect();
+    let mut recents = state.recents.lock().unwrap().top(5);
+    for item in recents.iter_mut() {
+        inject_pin_action(item, &pinned_ids);
+    }
     Overview {
         suggestion_label: (!suggestions.is_empty()).then(|| context.label()).flatten(),
         suggestions,
-        recents: state.recents.lock().unwrap().top(5),
+        recents,
         uptime_secs: native::uptime_secs(),
     }
 }
@@ -631,6 +712,59 @@ fn remove_recent(state: tauri::State<'_, AppState>, id: String) {
     if let Err(e) = recents.save(&state.recents_path) {
         eprintln!("failed to persist recents store: {e}");
     }
+}
+
+/// Run a pinned favourite's stored action by synthesizing its `ResultItem` and handing it to
+/// `run_action`, which buys the whole tail for free (hide-on-launch, focus, frecency, recents).
+#[tauri::command]
+fn run_pin(app: AppHandle, state: tauri::State<'_, AppState>, id: String) -> Result<(), String> {
+    let pin = {
+        let settings = state.settings.read().unwrap();
+        settings.pinned.iter().find(|p| p.id == id).cloned()
+    };
+    let pin = pin.ok_or("pin not found")?;
+    let item = ResultItem {
+        id: pin.id,
+        provider: pin.provider,
+        title: pin.title,
+        subtitle: None,
+        icon: pin.icon,
+        score: 0,
+        actions: vec![NamedAction {
+            label: String::new(),
+            action: pin.action,
+            confirm: false,
+        }],
+    };
+    run_action(app, state, item, 0)
+}
+
+/// Remove one pinned favourite (the ✕ on a tile).
+#[tauri::command]
+fn remove_pin(app: AppHandle, state: tauri::State<'_, AppState>, id: String) {
+    let snapshot = {
+        let mut settings = state.settings.write().unwrap();
+        settings.pinned.retain(|p| p.id != id);
+        if let Err(e) = settings.save(&state.settings_path) {
+            eprintln!("failed to persist settings: {e}");
+        }
+        settings.clone()
+    };
+    let _ = app.emit("settings-changed", &snapshot);
+}
+
+/// Toggle the favourites-grid collapsed state (chevron).
+#[tauri::command]
+fn toggle_pins_collapsed(app: AppHandle, state: tauri::State<'_, AppState>) {
+    let snapshot = {
+        let mut settings = state.settings.write().unwrap();
+        settings.pins_collapsed = !settings.pins_collapsed;
+        if let Err(e) = settings.save(&state.settings_path) {
+            eprintln!("failed to persist settings: {e}");
+        }
+        settings.clone()
+    };
+    let _ = app.emit("settings-changed", &snapshot);
 }
 
 #[tauri::command]
@@ -1391,6 +1525,9 @@ fn main() {
             set_capture_shield,
             overview,
             remove_recent,
+            run_pin,
+            remove_pin,
+            toggle_pins_collapsed,
             get_settings,
             save_settings,
             list_providers,

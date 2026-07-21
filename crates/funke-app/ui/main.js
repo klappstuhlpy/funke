@@ -187,6 +187,11 @@ function actionRow(item, named, index) {
 
 function render() {
   list.innerHTML = "";
+  // Pins live only on the plain empty-input overview; loadOverview()/loadPins() own showing
+  // them. Hide whenever we're not there, including states that keep mode === "overview"
+  // (the actions menu, a blocked-autotype warning) — the vault prompt bypasses render()
+  // entirely and hides #pins itself in renderVaultPrompt().
+  if (mode !== "overview" || actionsFor || vaultPrompt || blocked) document.getElementById("pins").hidden = true;
 
   if (actionsFor) {
     // Actions menu: the item pinned for context, then one row per action.
@@ -295,6 +300,7 @@ function exitVaultPrompt(restoreQuery) {
 
 function renderVaultPrompt(error) {
   list.innerHTML = "";
+  document.getElementById("pins").hidden = true; // this path bypasses render(), which owns #pins otherwise
   context.hidden = true;
   footer.hidden = false;
   count.textContent = t("overlay.vault");
@@ -362,7 +368,68 @@ async function loadOverview({ keepSelection = false } = {}) {
   const date = new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
   count.textContent = `${greeting()} · ${date} · ${formatUptime(data.uptime_secs)}`;
   render();
+  loadPins();
 }
+
+/* ── pinned favourites (overview only) ── */
+
+async function loadPins() {
+  const settings = await invoke("get_settings");
+  renderPins(settings.pinned || [], settings.pins_collapsed || false);
+}
+
+function renderPins(pins, collapsed) {
+  const container = document.getElementById("pins");
+  const grid = document.getElementById("pins-grid");
+  // loadPins awaits get_settings; the user may have typed (or opened the actions/vault
+  // views) in the meantime. Only the plain overview shows the grid — otherwise this late
+  // paint would drop it back under live search results until the next keystroke.
+  if (mode !== "overview" || actionsFor || vaultPrompt || blocked) {
+    container.hidden = true;
+    return;
+  }
+  if (!pins.length) {
+    container.hidden = true;
+    resize();
+    return;
+  }
+  container.hidden = false;
+  container.classList.toggle("collapsed", collapsed);
+  grid.innerHTML = "";
+  pins.forEach((pin) => {
+    const tile = document.createElement("div");
+    tile.className = "pin-tile";
+    tile.title = pin.title;
+    if (pin.icon) {
+      const img = document.createElement("img");
+      img.src = pin.icon;
+      img.alt = "";
+      tile.appendChild(img);
+    } else {
+      const m = document.createElement("span");
+      m.className = "monogram";
+      m.textContent = (pin.title[0] || "?").toUpperCase();
+      tile.appendChild(m);
+    }
+    const remove = document.createElement("button");
+    remove.className = "pin-remove";
+    remove.title = t("overlay.pins.unpin");
+    remove.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    remove.addEventListener("click", (e) => {
+      e.stopPropagation();
+      invoke("remove_pin", { id: pin.id }).then(loadPins);
+    });
+    tile.appendChild(remove);
+    tile.addEventListener("click", () => invoke("run_pin", { id: pin.id }));
+    grid.appendChild(tile);
+  });
+  resize();
+}
+
+document.getElementById("pins-toggle").addEventListener("click", () => {
+  invoke("toggle_pins_collapsed").then(loadPins);
+});
 
 async function search() {
   const text = input.value;
