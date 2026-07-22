@@ -1289,12 +1289,12 @@ fn resize_overlay(app: AppHandle, state: tauri::State<'_, AppState>, height: f64
 }
 
 /// Center horizontally, roughly a quarter down the screen — the Spotlight position.
-fn position_overlay(win: &tauri::WebviewWindow) {
+fn position_overlay(win: &tauri::WebviewWindow, fraction: f64) {
     if let (Ok(Some(monitor)), Ok(size)) = (win.current_monitor(), win.outer_size()) {
         let mpos = monitor.position();
         let msize = monitor.size();
         let x = mpos.x + ((msize.width as i32 - size.width as i32) / 2).max(0);
-        let y = mpos.y + (msize.height as f64 * 0.24) as i32;
+        let y = mpos.y + (msize.height as f64 * fraction.clamp(0.0, 0.9)) as i32;
         let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
     }
 }
@@ -1306,7 +1306,8 @@ fn show(app: &AppHandle) {
     // Stale context must never outlive its window: clear now, refill in the background.
     *state.focus_context.lock().unwrap() = funke_vault::FocusContext::default();
     if let Some(win) = app.get_webview_window(MAIN_WINDOW) {
-        position_overlay(&win);
+        let fraction = state.settings.read().unwrap().overlay_position;
+        position_overlay(&win, fraction);
         let _ = win.show();
         let _ = win.set_focus();
         let _ = win.emit("overlay-shown", ());
@@ -1645,13 +1646,13 @@ fn main() {
                 // so don't steal it back. (Unless the blur is the Windows Hello dialog
                 // taking over mid-unlock — the overlay must survive that.)
                 WindowEvent::Focused(false) => {
-                    let hello = window
-                        .app_handle()
-                        .state::<AppState>()
-                        .hello_in_flight
-                        .load(std::sync::atomic::Ordering::SeqCst);
-                    if hello {
+                    let app = window.app_handle();
+                    let st = app.state::<AppState>();
+                    if st.hello_in_flight.load(std::sync::atomic::Ordering::SeqCst) {
                         return;
+                    }
+                    if !st.settings.read().unwrap().hide_on_blur {
+                        return; // user disabled click-away dismissal
                     }
                     let _ = window.hide();
                     let _ = window.emit("overlay-hidden", ());
