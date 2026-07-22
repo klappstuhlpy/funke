@@ -68,16 +68,58 @@ function resize() {
   invoke("resize_overlay", { height: Math.ceil(panel.getBoundingClientRect().height) });
 }
 
-// The accent token family follows settings; everything else in the palette is fixed.
-function applyAccent(settings) {
-  const match = /^#([0-9a-f]{6})$/i.exec(settings.accent || "");
-  if (!match) return;
-  const n = parseInt(match[1], 16);
-  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
+// Cached settings so the reset listeners can honor behavior toggles.
+let cfg = {};
+
+// The overlay's look follows settings; the base palette (beyond accent) is fixed.
+function applyTheme(settings) {
+  cfg = settings || {};
   const root = document.documentElement.style;
-  root.setProperty("--accent", settings.accent);
-  root.setProperty("--accent-soft", `rgba(${r}, ${g}, ${b}, 0.15)`);
-  root.setProperty("--accent-stroke", `rgba(${r}, ${g}, ${b}, 0.3)`);
+
+  // accent (unchanged math)
+  const match = /^#([0-9a-f]{6})$/i.exec(settings.accent || "");
+  if (match) {
+    const n = parseInt(match[1], 16);
+    const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
+    root.setProperty("--accent", settings.accent);
+    root.setProperty("--accent-soft", `rgba(${r}, ${g}, ${b}, 0.15)`);
+    root.setProperty("--accent-stroke", `rgba(${r}, ${g}, ${b}, 0.3)`);
+  }
+
+  // font family
+  if (settings.font_family) root.setProperty("--font", settings.font_family);
+  else root.removeProperty("--font");
+
+  // text scale (clamped)
+  const scale = Math.min(1.3, Math.max(0.85, Number(settings.font_scale) || 1));
+  root.setProperty("--scale", String(scale));
+
+  // corner radius
+  const radius = Math.max(0, Number(settings.corner_radius));
+  if (Number.isFinite(radius)) {
+    root.setProperty("--radius", `${radius}px`);
+    root.setProperty("--radius-s", `${Math.max(0, radius - 2)}px`);
+  }
+
+  // row density
+  const compact = settings.row_density === "compact";
+  root.setProperty("--item-pad-y", compact ? "5px" : "8px");
+  root.setProperty("--item-gap-y", compact ? "1px" : "2px");
+
+  // panel tint opacity (multiplies the authored 0.58 alpha)
+  const op = Math.min(1, Math.max(0.5, Number(settings.panel_opacity) || 1));
+  root.setProperty("--glass-tint", `rgba(30, 27, 24, ${0.58 * op})`);
+
+  // visible rows before scroll (~52px/row comfortable; keeps 8→416)
+  const rows = Math.max(3, Number(settings.max_visible_rows) || 8);
+  root.setProperty("--results-max", `${Math.round(rows * 52)}px`);
+
+  refreshPlaceholder();
+}
+
+// The search field's placeholder: the user's custom text, else the localized default.
+function refreshPlaceholder() {
+  if (!vaultPrompt) input.placeholder = cfg.placeholder || t("overlay.placeholder");
 }
 
 function greeting() {
@@ -291,7 +333,7 @@ function exitVaultPrompt(restoreQuery) {
   invoke("set_capture_shield", { active: false });
   input.value = "";
   input.type = "text";
-  input.placeholder = t("overlay.placeholder");
+  refreshPlaceholder();
   input.value = restoreQuery ? vaultReturnQuery : "";
   vaultReturnQuery = "";
   input.focus();
@@ -500,7 +542,7 @@ function showBlocked(label, item) {
   blocked = true;
   closeActions();
   input.type = "text";
-  input.placeholder = t("overlay.placeholder");
+  refreshPlaceholder();
   input.value = "";
   mode = "results";
   groups = [];
@@ -647,8 +689,9 @@ listen("overlay-hidden", () => {
     unlocking = false;
     vaultReturnQuery = "";
     input.type = "text";
-    input.placeholder = t("overlay.placeholder");
+    refreshPlaceholder();
   }
+  if (cfg.clear_on_hide === false) return; // preserve the typed query across summons
   input.value = "";
   loadOverview();
 });
@@ -712,12 +755,16 @@ listen("overlay-shown", () => {
     unlocking = false;
     vaultReturnQuery = "";
     input.type = "text";
-    input.placeholder = t("overlay.placeholder");
+    refreshPlaceholder();
     // This reset bypasses exitVaultPrompt, so the shield it raised is dropped here.
     invoke("set_capture_shield", { active: false });
   }
-  input.value = "";
-  loadOverview(); // refreshes greeting/uptime; content is already reset
+  if (cfg.clear_on_hide === false && input.value.trim()) {
+    search(); // re-run the preserved query against the freshly-summoned state
+  } else {
+    input.value = "";
+    loadOverview(); // refreshes greeting/uptime; content is already reset
+  }
   input.focus();
   panel.classList.remove("opening");
   void panel.offsetWidth; // restart the summon animation
@@ -727,7 +774,7 @@ listen("overlay-shown", () => {
 // Re-theme, re-translate and re-measure while hidden, so changes from the settings window
 // are already in place the next time the overlay shows.
 listen("settings-changed", async (e) => {
-  applyAccent(e.payload);
+  applyTheme(e.payload);
   // Rust resolves `auto` against Windows, so ask it rather than reading the raw setting.
   setLocale(await invoke("locale"));
   applyTranslations();
@@ -741,7 +788,7 @@ listen("settings-changed", async (e) => {
   setLocale(await invoke("locale"));
   applyTranslations();
   applyKeycaps(); // the footer's key hints: markup, so they are drawn once
-  invoke("get_settings").then(applyAccent);
+  invoke("get_settings").then(applyTheme);
   await loadOverview();
   input.focus();
 })();

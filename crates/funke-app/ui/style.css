@@ -43,6 +43,13 @@
   --pad-x: 18px;
   --gap: 12px;
 
+  /* JS-driven behavior/appearance knobs (applyTheme in main.js); these are the
+     authored defaults, overridden at runtime from settings. */
+  --scale: 1;
+  --item-pad-y: 8px;
+  --item-gap-y: 2px;
+  --results-max: 416px;
+
   /* motion: one ease for the summon animation; dismissal is instant by design */
   --summon: 170ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
@@ -100,7 +107,7 @@ body {
   color: var(--text);
   caret-color: var(--accent);
   font-family: inherit;
-  font-size: 17px;
+  font-size: calc(17px * var(--scale));
 }
 
 #query::placeholder {
@@ -153,7 +160,7 @@ body {
 #results {
   list-style: none;
   overflow-y: auto;
-  max-height: 416px;
+  max-height: var(--results-max);
 }
 
 #results:not(:empty) {
@@ -165,13 +172,13 @@ body {
   display: flex;
   align-items: center;
   gap: var(--gap);
-  padding: 8px 10px;
+  padding: var(--item-pad-y) 10px;
   border-radius: var(--radius-s);
   cursor: pointer;
 }
 
 .item + .item {
-  margin-top: 2px;
+  margin-top: var(--item-gap-y);
 }
 
 .item:hover {
@@ -254,7 +261,7 @@ body {
 }
 
 .title {
-  font-size: 14px;
+  font-size: calc(14px * var(--scale));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -263,7 +270,7 @@ body {
 .subtitle {
   margin-top: 1px;
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--scale));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
