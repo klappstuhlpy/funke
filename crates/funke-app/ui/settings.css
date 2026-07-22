@@ -765,3 +765,11 @@ code {
 #content::-webkit-scrollbar-thumb:hover {
   background-color: rgba(242, 237, 228, 0.26);
 }
+
+/* ── layout & feel: position/font/scale/radius/density/opacity/rows sliders ── */
+
+.slider {
+  width: 160px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}

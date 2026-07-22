@@ -18,6 +18,22 @@ const WIDTHS = [
   ["Wide", 780],
 ];
 
+// A short curated font list (name shown, family stored). "" = system default.
+const FONTS = [
+  ["", () => t("settings.font.system")],
+  ["Segoe UI", () => "Segoe UI"],
+  ["Cascadia Code", () => "Cascadia Code"],
+  ["Consolas", () => "Consolas"],
+  ["Georgia", () => "Georgia"],
+];
+
+// Built-in looks: each fills the appearance fields; the user still Saves via save().
+const PRESETS = {
+  default: { font_family: "", font_scale: 1.0, corner_radius: 9, row_density: "comfortable", panel_opacity: 1.0 },
+  compact: { font_family: "", font_scale: 0.9, corner_radius: 6, row_density: "compact", panel_opacity: 1.0 },
+  terminal: { font_family: "Cascadia Code", font_scale: 0.95, corner_radius: 4, row_density: "compact", panel_opacity: 1.0 },
+};
+
 // Minutes, and how to say them: the label is a key so the dropdown follows the language.
 const IDLE_MINUTES = [
   [1, () => t("settings.idle.minute")],
@@ -110,6 +126,7 @@ async function retranslate() {
   applyTranslations();
   relabel(document.getElementById("vault-idle"), IDLE_MINUTES);
   relabel(document.getElementById("language"), LANGUAGES);
+  relabel(document.getElementById("font-family"), FONTS);
 }
 
 // The <option>s were filled in from the catalogue, so they need re-filling too — they are
@@ -176,13 +193,37 @@ function renderAll() {
   document.querySelectorAll(".swatch").forEach((el) => {
     el.classList.toggle("active", el.dataset.accent === settings.accent);
   });
-  document.querySelectorAll(".segment").forEach((el) => {
+  document.querySelectorAll(".segment[data-width]").forEach((el) => {
     el.classList.toggle("active", Number(el.dataset.width) === settings.overlay_width);
   });
   document.querySelectorAll(".toggle[data-provider]").forEach((el) => {
     const enabled = !settings.disabled_providers.includes(el.dataset.provider);
     el.setAttribute("aria-checked", String(enabled));
   });
+
+  const posSlider = document.getElementById("overlay-position");
+  if (document.activeElement !== posSlider) posSlider.value = String(Math.round(settings.overlay_position * 100));
+  const scaleSlider = document.getElementById("font-scale");
+  if (document.activeElement !== scaleSlider) scaleSlider.value = String(Math.round(settings.font_scale * 100));
+  const radiusSlider = document.getElementById("corner-radius");
+  if (document.activeElement !== radiusSlider) radiusSlider.value = String(Math.round(settings.corner_radius));
+  const opacitySlider = document.getElementById("panel-opacity");
+  if (document.activeElement !== opacitySlider) opacitySlider.value = String(Math.round(settings.panel_opacity * 100));
+  const rowsSlider = document.getElementById("max-rows");
+  if (document.activeElement !== rowsSlider) rowsSlider.value = String(settings.max_visible_rows);
+
+  const fontSel = document.getElementById("font-family");
+  if (fontSel.options.length) fontSel.value = settings.font_family;
+
+  const placeholderInput = document.getElementById("placeholder");
+  if (document.activeElement !== placeholderInput) placeholderInput.value = settings.placeholder;
+
+  document.querySelectorAll(".segment[data-density]").forEach((el) => {
+    el.classList.toggle("active", el.dataset.density === settings.row_density);
+  });
+
+  document.getElementById("hide-on-blur").setAttribute("aria-checked", String(settings.hide_on_blur));
+  document.getElementById("clear-on-hide").setAttribute("aria-checked", String(settings.clear_on_hide));
 
   const engine = document.getElementById("engine");
   if (engine.options.length) engine.value = settings.web_engine;
@@ -271,6 +312,56 @@ function buildStaticControls() {
     el.addEventListener("click", () => save({ overlay_width: px }));
     widths.appendChild(el);
   });
+
+  const presets = document.getElementById("presets");
+  ["default", "compact", "terminal"].forEach((name) => {
+    const el = document.createElement("button");
+    el.className = "segment";
+    el.dataset.preset = name;
+    el.setAttribute("data-i18n", `settings.presets.${name}`);
+    el.addEventListener("click", () => save(PRESETS[name]));
+    presets.appendChild(el);
+  });
+
+  const density = document.getElementById("row-density");
+  [
+    ["comfortable", "settings.density.comfortable"],
+    ["compact", "settings.density.compact"],
+  ].forEach(([val, key]) => {
+    const el = document.createElement("button");
+    el.className = "segment";
+    el.dataset.density = val;
+    el.setAttribute("data-i18n", key);
+    el.addEventListener("click", () => save({ row_density: val }));
+    density.appendChild(el);
+  });
+  // Both segmented groups above use data-i18n, filled here — the one time this runs, since
+  // retranslate() re-applies on every later language change.
+  applyTranslations();
+
+  const fontSel = document.getElementById("font-family");
+  FONTS.forEach(([value]) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    fontSel.appendChild(opt); // text filled by relabel() in renderAll/retranslate
+  });
+  fontSel.addEventListener("change", () => save({ font_family: fontSel.value }));
+  relabel(fontSel, FONTS);
+
+  // Sliders commit on release (change), not on every drag (input), to avoid a save per pixel.
+  bindSlider("overlay-position", (v) => ({ overlay_position: v / 100 }));
+  bindSlider("font-scale", (v) => ({ font_scale: v / 100 }));
+  bindSlider("corner-radius", (v) => ({ corner_radius: v }));
+  bindSlider("panel-opacity", (v) => ({ panel_opacity: v / 100 }));
+  bindSlider("max-rows", (v) => ({ max_visible_rows: v }));
+
+  const placeholderInput = document.getElementById("placeholder");
+  placeholderInput.addEventListener("change", () => save({ placeholder: placeholderInput.value }));
+
+  document.getElementById("hide-on-blur").addEventListener("click", () => save({ hide_on_blur: !settings.hide_on_blur }));
+  document
+    .getElementById("clear-on-hide")
+    .addEventListener("click", () => save({ clear_on_hide: !settings.clear_on_hide }));
 
   document.getElementById("autostart").addEventListener("click", () => save({ autostart: !settings.autostart }));
 
@@ -385,6 +476,11 @@ function buildStaticControls() {
   buildSnippetControls();
   buildQuicklinkControls();
   buildScopeControls();
+}
+
+function bindSlider(id, patchFor) {
+  const el = document.getElementById(id);
+  el.addEventListener("change", () => save(patchFor(Number(el.value))));
 }
 
 // The catalog is fetched over the network on demand, never at startup: opening Settings

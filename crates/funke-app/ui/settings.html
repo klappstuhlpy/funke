@@ -140,6 +140,91 @@
                 <div class="segmented" id="widths"></div>
               </div>
             </div>
+
+            <h2 class="section" data-i18n="settings.section.tuning"></h2>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.presets.label"></div>
+                  <div class="desc" data-i18n="settings.presets.desc"></div>
+                </div>
+                <div class="segmented" id="presets"></div>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.position.label"></div>
+                  <div class="desc" data-i18n="settings.position.desc"></div>
+                </div>
+                <input type="range" id="overlay-position" class="slider" min="5" max="60" step="1" />
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.font.label"></div>
+                  <div class="desc" data-i18n="settings.font.desc"></div>
+                </div>
+                <select id="font-family"></select>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.fontscale.label"></div>
+                  <div class="desc" data-i18n="settings.fontscale.desc"></div>
+                </div>
+                <input type="range" id="font-scale" class="slider" min="85" max="130" step="5" />
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.radius.label"></div>
+                  <div class="desc" data-i18n="settings.radius.desc"></div>
+                </div>
+                <input type="range" id="corner-radius" class="slider" min="0" max="20" step="1" />
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.density.label"></div>
+                  <div class="desc" data-i18n="settings.density.desc"></div>
+                </div>
+                <div class="segmented" id="row-density"></div>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.opacity.label"></div>
+                  <div class="desc" data-i18n="settings.opacity.desc"></div>
+                </div>
+                <input type="range" id="panel-opacity" class="slider" min="50" max="100" step="5" />
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.rows.label"></div>
+                  <div class="desc" data-i18n="settings.rows.desc"></div>
+                </div>
+                <input type="range" id="max-rows" class="slider" min="3" max="14" step="1" />
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.placeholder.label"></div>
+                  <div class="desc" data-i18n="settings.placeholder.desc"></div>
+                </div>
+                <input type="text" id="placeholder" class="text-input" maxlength="60" />
+              </div>
+            </div>
+
+            <h2 class="section" data-i18n="settings.section.behavior"></h2>
+            <div class="card">
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.behavior.hideblur.label"></div>
+                  <div class="desc" data-i18n="settings.behavior.hideblur.desc"></div>
+                </div>
+                <button class="toggle" id="hide-on-blur" role="switch" aria-checked="true"></button>
+              </div>
+              <div class="row">
+                <div class="what">
+                  <div class="label" data-i18n="settings.behavior.clearhide.label"></div>
+                  <div class="desc" data-i18n="settings.behavior.clearhide.desc"></div>
+                </div>
+                <button class="toggle" id="clear-on-hide" role="switch" aria-checked="true"></button>
+              </div>
+            </div>
           </div>
 
           <div class="pane" id="pane-hotkey">
