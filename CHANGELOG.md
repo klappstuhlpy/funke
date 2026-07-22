@@ -9,6 +9,8 @@ The launcher version is the single source of truth in `crates/funke-app/Cargo.to
 
 ## [Unreleased]
 
+## [0.10.0]  - 2026-07-22
+
 ### Added
 - **Overlay customization.** New Appearance controls tune the summon bar live, without a restart:
   vertical position, font family and text size, corner radius, row density, panel opacity, the
@@ -703,7 +705,13 @@ plugin foundation.
 - Repo went public with `LICENSE` (MIT), `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and
   `CODE_OF_CONDUCT.md`.
 
-[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/klappstuhlpy/funke/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/klappstuhlpy/funke/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/klappstuhlpy/funke/compare/v0.8.2...v0.9.0
+[0.8.2]: https://github.com/klappstuhlpy/funke/compare/v0.8.1...v0.8.2
+[0.8.1]: https://github.com/klappstuhlpy/funke/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/klappstuhlpy/funke/compare/v0.7.1...v0.8.0
+[0.7.1]: https://github.com/klappstuhlpy/funke/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/klappstuhlpy/funke/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/klappstuhlpy/funke/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/klappstuhlpy/funke/compare/v0.4.2...v0.5.0

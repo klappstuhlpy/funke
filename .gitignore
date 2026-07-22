@@ -2,6 +2,7 @@
 crates/funke-app/gen/
 /.idea
 /.claude
+/docs
 
 # Staged into the webview's asset dir by build.rs — icons/icon.png is the one copy in git.
 crates/funke-app/ui/icon.png
