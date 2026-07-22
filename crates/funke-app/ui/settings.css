@@ -559,7 +559,8 @@ option {
   color: var(--text-faint);
 }
 
-#snippet-editor .button-group {
+#snippet-editor .button-group,
+#quicklink-editor .button-group {
   padding: var(--pad);
 }
 

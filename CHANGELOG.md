@@ -7,6 +7,25 @@ All notable changes to Funke are documented here. The format is based on
 The launcher version is the single source of truth in `crates/funke-app/Cargo.toml`
 (`tauri.conf.json` omits it and inherits from there); keep the git tag in step with it.
 
+## [Unreleased]
+
+### Added
+- **Overlay customization.** New Appearance controls tune the summon bar live, without a restart:
+  vertical position, font family and text size, corner radius, row density, panel opacity, the
+  number of visible result rows, and custom placeholder text.
+- **Behavior toggles.** Hide-on-blur (keep the bar up until Esc instead of dismissing on click-away)
+  and clear-query-on-hide (preserve the typed query across summons).
+- **Appearance presets.** Default, Compact, and Terminal fill the appearance controls in one click.
+
+### Fixed
+- **Quicklink editor buttons.** The save/cancel row sat flush against the card edge, misaligned
+  with the padded fields above it — the snippet editor's padding rule now covers it too.
+
+### Changed
+- **Pinned favourites polish.** Roomier padding and grid spacing, larger tiles with a fluid
+  hover lift, and the collapse chevron repositioned to the panel's text edge with a hover
+  affordance.
+
 ## [0.9.0] - 2026-07-21
 
 Pin the apps, files, and actions you reach for most to the overlay.

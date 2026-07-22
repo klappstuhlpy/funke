@@ -387,59 +387,78 @@ body {
 
 /* ── pinned favourites ── */
 .pins {
-  padding: 6px var(--pad-x) 4px;
+  padding: 10px var(--pad-x) 13px;
   border-top: 1px solid var(--stroke);
 }
 .pins-toggle {
   all: unset;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 11px;
   color: var(--text-faint);
   cursor: pointer;
-  padding: 2px 0 4px;
+  /* Sit the chevron flush to the panel's text edge, with room to breathe above the grid. */
+  margin: 0 0 9px -6px;
+  padding: 3px 7px;
+  border-radius: var(--radius-s);
+  transition: color 120ms ease, background 120ms ease;
+}
+.pins-toggle:hover {
+  color: var(--text-dim);
+  background: var(--surface);
 }
 .pins-toggle svg {
-  width: 12px;
-  height: 12px;
-  transition: transform 120ms ease;
+  width: 13px;
+  height: 13px;
+  transition: transform var(--summon);
 }
 .pins.collapsed .pins-toggle svg {
   transform: rotate(-90deg);
 }
+/* Collapsed: no grid to sit above, so drop the breathing room below the chevron. */
+.pins.collapsed {
+  padding-bottom: 8px;
+}
+.pins.collapsed .pins-toggle {
+  margin-bottom: 0;
+}
 .pins-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 .pins.collapsed .pins-grid {
   display: none;
 }
 .pin-tile {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--stroke);
   cursor: pointer;
   position: relative;
-  transition: background 80ms;
+  transition: transform var(--summon), background 120ms ease, border-color 120ms ease;
 }
 .pin-tile:hover {
   background: var(--accent-soft);
   border-color: var(--accent-stroke);
+  transform: translateY(-2px);
+}
+.pin-tile:active {
+  transform: translateY(0);
 }
 .pin-tile img {
-  width: 22px;
-  height: 22px;
-  border-radius: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
 }
 .pin-tile .monogram {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text);
 }
