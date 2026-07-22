@@ -11,6 +11,28 @@ use serde::{Deserialize, Serialize};
 
 use crate::Action;
 
+fn default_overlay_position() -> f64 {
+    0.24
+}
+fn default_font_scale() -> f64 {
+    1.0
+}
+fn default_corner_radius() -> f64 {
+    9.0
+}
+fn default_row_density() -> String {
+    "comfortable".into()
+}
+fn default_panel_opacity() -> f64 {
+    1.0
+}
+fn default_max_visible_rows() -> u32 {
+    8
+}
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -86,6 +108,36 @@ pub struct Settings {
     pub pinned: Vec<PinnedItem>,
     /// Whether the favourites grid is collapsed (chevron toggle). Persists across restarts.
     pub pins_collapsed: bool,
+    /// Vertical screen fraction (0.0 top … 0.9) for the overlay's top edge. 0.24 = Spotlight.
+    #[serde(default = "default_overlay_position")]
+    pub overlay_position: f64,
+    /// Overlay font family; empty = the built-in Segoe stack.
+    #[serde(default)]
+    pub font_family: String,
+    /// Overlay text scale multiplier (clamped 0.85–1.3 at apply time).
+    #[serde(default = "default_font_scale")]
+    pub font_scale: f64,
+    /// Corner radius in px for the panel and rows.
+    #[serde(default = "default_corner_radius")]
+    pub corner_radius: f64,
+    /// Row density: `comfortable` (default) or `compact`.
+    #[serde(default = "default_row_density")]
+    pub row_density: String,
+    /// Panel tint opacity multiplier (clamped 0.5–1.0 at apply time). 1.0 = today's tint.
+    #[serde(default = "default_panel_opacity")]
+    pub panel_opacity: f64,
+    /// Rows visible in the results list before it scrolls.
+    #[serde(default = "default_max_visible_rows")]
+    pub max_visible_rows: u32,
+    /// Custom search-field placeholder; empty = the localized default.
+    #[serde(default)]
+    pub placeholder: String,
+    /// Hide the overlay when it loses focus (click-away). Off keeps it up until Esc.
+    #[serde(default = "default_true")]
+    pub hide_on_blur: bool,
+    /// Clear the typed query when the overlay hides. Off preserves it across summons.
+    #[serde(default = "default_true")]
+    pub clear_on_hide: bool,
 }
 
 /// A second hotkey that opens the overlay already scoped to one source.
@@ -185,6 +237,16 @@ impl Default for Settings {
             quicklinks: Vec::new(),
             pinned: Vec::new(),
             pins_collapsed: false,
+            overlay_position: 0.24,
+            font_family: String::new(),
+            font_scale: 1.0,
+            corner_radius: 9.0,
+            row_density: "comfortable".into(),
+            panel_opacity: 1.0,
+            max_visible_rows: 8,
+            placeholder: String::new(),
+            hide_on_blur: true,
+            clear_on_hide: true,
         }
     }
 }
@@ -407,5 +469,51 @@ mod tests {
         };
         assert!(!settings.provider_enabled("web"));
         assert!(settings.provider_enabled("apps"));
+    }
+}
+
+#[cfg(test)]
+mod customization_tests {
+    use super::Settings;
+
+    #[test]
+    fn old_settings_json_loads_new_fields_as_defaults() {
+        // A settings.json written before these fields existed.
+        let json = r##"{
+            "language": "auto", "hotkey": "Ctrl+Space", "scope_hotkeys": [],
+            "accent": "#d97757", "overlay_width": 680.0, "web_engine": "duckduckgo",
+            "disabled_providers": [], "index_roots": [], "index_hidden": false,
+            "autostart": false, "update_check": true, "vault_hello": false,
+            "vault_icons": true, "vault_idle_lock_minutes": 10, "vault_autotype_enter": true,
+            "vault_autotype_sequence": "", "vault_autotype_guard": true,
+            "vault_lock_on_screen_lock": true, "vault_capture_shield": true,
+            "vault_require_signed_cli": false, "vault_context_suggest": true,
+            "snippets": [], "quicklinks": [], "pinned": [], "pins_collapsed": false
+        }"##;
+        let s: Settings = serde_json::from_str(json).expect("old json must still parse");
+        assert_eq!(s.overlay_position, 0.24);
+        assert_eq!(s.font_family, "");
+        assert_eq!(s.font_scale, 1.0);
+        assert_eq!(s.corner_radius, 9.0);
+        assert_eq!(s.row_density, "comfortable");
+        assert_eq!(s.panel_opacity, 1.0);
+        assert_eq!(s.max_visible_rows, 8);
+        assert_eq!(s.placeholder, "");
+        assert!(s.hide_on_blur);
+        assert!(s.clear_on_hide);
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    fn new_fields_round_trip() {
+        let mut s = Settings::default();
+        s.overlay_position = 0.3;
+        s.font_scale = 1.15;
+        s.row_density = "compact".into();
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.overlay_position, 0.3);
+        assert_eq!(back.font_scale, 1.15);
+        assert_eq!(back.row_density, "compact");
     }
 }
